@@ -1,0 +1,90 @@
+name: Deploy demo to GitHub Pages
+
+# 纯静态演示站。
+#
+# 这个仓库里存的是权威数据（data/store/ 的 JSON）和站点源码（site/）。演示站需要的是
+# 一份不依赖服务端的离线副本，构建分三步：
+#
+#   1. bun src/sync.ts --reindex   把 data/store/ 重新索引成 SQLite（不联网）
+#   2. bun src/export.ts           把仓库数据压成 site/data/bundle.js，并生成 site/offline.html
+#   3. 组装 _site/                 把 offline.html 作为首页发布
+#
+# bundle.js 由 CI 现场生成，不进版本库（见 .gitignore）——它约 3 MB 且每次数据更新都会变，
+# 提交进去只会让 diff 充满噪音。所以本地不要手动提交它。
+#
+# 发布出来的是构建那一刻的快照，不会自己更新；要看最新数据就重跑本工作流。
+#
+# 首次启用：仓库 Settings → Pages → Source 选 "GitHub Actions"。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只允许一个 Pages 部署，新的推送取消排队中的旧构建。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # 从 data/store/ 的 JSON 重建 SQLite 索引。data/telemetry.sqlite 是派生文件，
+      # 不在版本库里，所以每次构建都要重建一次。
+      - name: Rebuild the SQLite index
+        run: bun src/sync.ts --reindex
+
+      - name: Export the offline copy
+        run: bun src/export.ts
+
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -R site/. _site/
+          # offline.html 等于 index.html 加一行 bundle 脚本；它才是能静态打开的那个。
+          mv _site/offline.html _site/index.html
+          # 防止 Jekyll 处理下划线开头的路径（当前没有，留着以防以后加）。
+          touch _site/.nojekyll
+
+      - name: Sanity check the build
+        run: |
+          set -euo pipefail
+          test -f _site/index.html
+          test -f _site/data/bundle.js
+          test -f _site/features.html
+          grep -q '__TELEMETRY_BUNDLE__' _site/data/bundle.js
+          echo "bundle: $(du -h _site/data/bundle.js | cut -f1)"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
