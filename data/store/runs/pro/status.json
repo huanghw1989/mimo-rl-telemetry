@@ -8,42 +8,33 @@
   },
   "cost": {
     "rate_per_s": 5.71,
-    "so_far": 2307618.0074808286
+    "so_far": 2449755.506087871
   },
   "clock": {
-    "now": 1789872475.5874994
+    "now": 1789897368.3193045
   },
-  "version": "3-5513.27.14.28",
+  "version": "3-5513.28.14.28",
   "step": {
-    "last": 27,
-    "last_wall": 1789855804.2271216,
-    "since": 8411.253499269485,
-    "expected": 15286.5,
-    "progress": 0.550240637115722,
+    "last": 28,
+    "last_wall": 1789881123.7658803,
+    "since": 16244.55342411995,
+    "expected": 15651.5,
+    "progress": 1,
     "phase": "training",
-    "gen_frac": 0.4679161351519315,
-    "restarted_at": 1789864064.334
+    "gen_frac": 0.49632156848319875,
+    "restarted_at": null
   },
   "totals": {
-    "tokens_step": 3151650000,
+    "tokens_step": 3024470000,
     "trained_step": 25088,
-    "sandboxes_step": 86352,
+    "sandboxes_step": 22352,
     "prompts_per_step": 1568,
-    "tokens_cum": 65127260000,
-    "trained_cum": 677376,
-    "sandboxes_cum": 3442464,
+    "tokens_cum": 68151730000,
+    "trained_cum": 702464,
+    "sandboxes_cum": 3464816,
     "restarts": 13
   },
   "events": [
-    {
-      "t": 1789554781.2837293,
-      "kind": "step",
-      "step": 7,
-      "value": 0.588339,
-      "delta": 0.0023579999999999712,
-      "tokens": 2246470000,
-      "redo": false
-    },
     {
       "t": 1789562521.9800744,
       "kind": "step",
@@ -259,12 +250,21 @@
     {
       "t": 1789864064.334,
       "kind": "restart"
+    },
+    {
+      "t": 1789881123.7658803,
+      "kind": "step",
+      "step": 28,
+      "value": 0.626591,
+      "delta": 0.023986000000000063,
+      "tokens": 3024470000,
+      "redo": false
     }
   ],
   "headline": {
     "tag": "dynsam/avg@n",
-    "last": 0.602605,
-    "prev": 0.62138,
+    "last": 0.626591,
+    "prev": 0.602605,
     "first": 0.564662,
     "first_step": 1
   }
