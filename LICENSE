@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-The upstream dashboard assets under `data/upstream/` and the unmodified files
-they were copied from in `site/` (index.html, style.css, js/app.js, js/charts.js,
-js/format.js, js/theme.js, fonts/) are the property of their original authors
-(Xiaomi MiMo) and are included here only as a reference copy for diffing against
-the live site. They are not covered by the MIT grant above.

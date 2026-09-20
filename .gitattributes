@@ -1,0 +1,33 @@
+# GitHub 语言统计与差异显示
+#
+# 为什么需要这个文件：不加它时，仓库语言条显示 **HTML 43.1%**。
+# 实测（git ls-files 统计，2026-09-20）原因很集中：
+#
+#   HTML 合计 932 KB，其中 872 KB（94%）是两个渲染出来的指南页
+#     analysis/zh-CN/guides/2026-09-19-MiMo-v2.6训练看板...html   765 KB
+#     analysis/zh-CN/guides/mimo-rl-guide.html                    107 KB
+#   而 TypeScript（真正的源码，31 个文件）只有 791 KB。
+#
+# 这两个 HTML 是 `codes/scripts/build_mimo_rl_html.py` 的生成物，不是手写源码，
+# 所以标记为 linguist-generated。标完之后语言条会以 TypeScript 为主，
+# 更接近仓库实际的代码构成。
+
+# ---------------------------------------------------------------- 生成物
+# 渲染出来的 HTML 指南（生成脚本在父项目的 codes/scripts/ 下）
+analysis/zh-CN/guides/*.html   linguist-generated
+
+# ---------------------------------------------------------------- 第三方原样资产
+# 从官方看板逐字节保留的文件，清单与理由见 NOTICE.md。
+# 注意：site/index.html **不在此列** —— 它已被本项目加过 telemetry 样式/脚本与
+# 分享卡片 meta 标签，不再是原样文件，见 NOTICE.md 的说明。
+data/upstream/**               linguist-vendored
+site/style.css                 linguist-vendored
+site/js/app.js                 linguist-vendored
+site/js/charts.js              linguist-vendored
+site/js/format.js              linguist-vendored
+site/js/theme.js               linguist-vendored
+site/fonts/**                  linguist-vendored
+
+# ---------------------------------------------------------------- 二进制
+site/og-card.png               binary
+analysis/**/*.docx             binary

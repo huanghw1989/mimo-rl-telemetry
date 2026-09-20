@@ -260,5 +260,10 @@
   "重跑": "Rerun",
   "这一步的时段内": "During this step's window",
   "相邻步（抬头指标 avg@n 与本步 token）": "Neighboring steps (headline avg@n and this step's tokens)",
-  "这些数怎么算的 / 别当成结论": "How these numbers are computed / do not treat them as conclusions"
+  "这些数怎么算的 / 别当成结论": "How these numbers are computed / do not treat them as conclusions",
+  "存档快照 · 数据采集自 {0}（北京时间 {1}）": "Archived snapshot · data collected {0} (Beijing {1})",
+  "快照里的累计成本（采集于 {0} / 北京时间 {1}）": "Total cost as recorded in the snapshot (collected {0} / Beijing {1})",
+  "回放切面 · 时钟停在 {0}（北京时间 {1}）": "Replay slice · clock frozen at {0} (Beijing {1})",
+  "这个切面的累计成本（{0} / 北京时间 {1}）": "Total cost at this slice ({0} / Beijing {1})",
+  " · 明细为同步粒度": " · sampler detail at sync granularity"
 }

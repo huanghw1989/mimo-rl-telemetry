@@ -54,15 +54,28 @@
   /* [telemetry] Telemetry 由 js/telemetry.js 在本文件之前定义，提供回放开关和一个刷新入口。
      没加载遥测层时它是空壳，行为与上游站点一致。 */
   const M = window.Telemetry || { replay: () => false, bind: () => {} };
+  /* [telemetry] 界面文案走语言层 js/i18n.js（中文源串 + 英文词典）。上游站点没装这一层，
+     这里的 T 退化成"原文返回"，行为与上游一致。 */
+  const T = window.T || ((s) => s);
   /* [telemetry] 回放模式下不能把 run 当成"已停止"：切片里的 run 依然是活的，
      只是被冻结在过去的某一刻，采样器面板和时间线都还得照常渲染。 */
   const isFinal = (run) => !!(st(run) && st(run).run.mode === "ended" && !M.replay());
+  /* [telemetry] 手上这份数据是不是冻结的存档快照。三种情况：离线副本、正在看的回放
+     切面、以及服务端明确说这份 status 是从仓库存档重建的（连不上上游时的兜底）。
+     快照里没有"现在"：成本、耗时、"2 小时前"这些跟着本机时钟走的读数都会停住 ——
+     数据不再更新、读数却还在变，一份静止的存档就会被读成"还在跑"。只有上游实时
+     （服务端转发到了真数据）才保留原来的逐秒推进。 */
+  const isSnapshot = () => {
+    if (M.frozen && M.frozen()) return true;
+    const list = (S.cfg && S.cfg.runs) || [];
+    return list.length > 0 && list.every((r) => { const s = S.status[r.key]; return !!(s && s.from_archive); });
+  };
   /* The run's "now": the server clock at the last status poll, advanced
-     locally since. */
+     locally since. A snapshot is frozen at the data's own clock instead. */
   function vnow(run) {
     const s = st(run);
     if (!s) return null;
-    if (M.replay()) return s.clock.now;   // [telemetry] 冻结在切面时刻，不随本地时钟前进
+    if (isSnapshot()) return s.clock.now;   // [telemetry] 冻结在数据时刻，不随本地时钟前进
     return s.clock.now + (performance.now() - S.statusAt[run]) / 1000;
   }
 
@@ -463,7 +476,7 @@
       return `<div class="tl-item restart">${when}<span class="tl-text">trainer restarted</span><span class="tl-meta"></span></div>`;
     }).join("") || `<div class="muted">no sampler reports yet</div>`;
     // [telemetry] 回放时采样器明细可能只有同步粒度（老仓库没留 30 秒级明细），标出来
-    const granNote = l && l.entries_approx ? " · 明细为同步粒度" : "";
+    const granNote = l && l.entries_approx ? T(" · 明细为同步粒度") : "";
     row.querySelector('[data-f="log-time"]').textContent = (l && l.log_time && now != null ? `log ${Fmt.ago(Math.max(0, now - l.log_time))}`.replace("just now", "up to date") : "") + granNote;
 
     const latest = l && l.latest;
@@ -712,6 +725,26 @@
   // ----------------------------------------------------------------- clocks
   const ZONES = [["Beijing", "Asia/Shanghai"], ["Los Angeles", "America/Los_Angeles"], ["New York", "America/New_York"], ["London", "Europe/London"]];
   const zoneFmt = ZONES.map(([, tz]) => new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+  /* [telemetry] 存档快照自己的时刻（epoch 秒）：离线副本、回放切面由遥测层给出；
+     服务端重建的存档用 status 自己的 clock（服务端已按数据时刻上报，不是本机时间）。
+     在线实时没有这个概念，返回 null —— 那种情况才该显示本机当前时间。 */
+  function dataAt() {
+    if (M.dataAt) { const t = M.dataAt(); if (t != null) return t; }
+    if (!isSnapshot()) return null;
+    let t = null;
+    for (const r of runs()) {
+      const s = st(r.key);
+      if (s && s.clock && s.clock.now != null) t = t == null ? s.clock.now : Math.max(t, s.clock.now);
+    }
+    return t;
+  }
+  /* 采集时间的两种写法：UTC 一份、北京一份（读者不用自己换算）。北京那边只有跨天时
+     才带上日期，否则一个时刻写两遍日期反而更长。 */
+  function stamps(at) {
+    const iso = (sec) => new Date(sec * 1000).toISOString().replace("T", " ").slice(0, 16);
+    const u = iso(at), b = iso(at + 8 * 3600);
+    return [`${u} UTC`, b.slice(0, 10) === u.slice(0, 10) ? b.slice(11) : b];
+  }
   function renderClocks(total) {
     const host = $("nav-status");
     if (!host.dataset.built) {
@@ -720,8 +753,21 @@
       host.dataset.built = "1";
     }
     host.querySelector('[data-f="cost"]').textContent = total == null ? "—" : `$${Math.floor(total).toLocaleString("en-US")}`;
-    const now = new Date();
+    const at = dataAt();
+    const now = at == null ? new Date() : new Date(at * 1000);
     host.querySelectorAll("[data-z]").forEach((e) => { e.textContent = zoneFmt[+e.dataset.z].format(now); });
+    /* [telemetry] 快照里的时钟与总成本都停在采集那一刻，鼠标移上去说明"数据是什么时候采的"。
+       实时模式下按原样显示本机时间，不挂提示。 */
+    const cells = Array.from(host.querySelectorAll(".nav-cell"));
+    if (at == null) { cells.forEach((c) => { c.classList.remove("is-static"); c.removeAttribute("title"); }); return; }
+    const [u, b] = stamps(at), isReplay = M.replay();
+    cells.forEach((c) => {
+      const cost = c.classList.contains("nav-cost");
+      c.classList.add("is-static");
+      c.title = cost
+        ? (isReplay ? T("这个切面的累计成本（{0} / 北京时间 {1}）", u, b) : T("快照里的累计成本（采集于 {0} / 北京时间 {1}）", u, b))
+        : (isReplay ? T("回放切面 · 时钟停在 {0}（北京时间 {1}）", u, b) : T("存档快照 · 数据采集自 {0}（北京时间 {1}）", u, b));
+    });
   }
 
   // ------------------------------------------------------------------- tick
@@ -750,7 +796,8 @@
       if (final) {
         phase.innerHTML = `<span class="phase-text">stopped ${new Date(s.run.end * 1000).toISOString().slice(0, 10)}</span>`;
       } else {
-        const since = p.since + (performance.now() - S.statusAt[r.key]) / 1000;
+        /* [telemetry] 快照（离线副本 / 回放切面）里这一步不会真的往前走，耗时也停在数据时刻 */
+        const since = p.since + (isSnapshot() ? 0 : (performance.now() - S.statusAt[r.key]) / 1000);
         const fill = phase.querySelector(".phase-fill"), div = phase.querySelector(".phase-divider"), text = phase.querySelector(".phase-text");
         const lv = liveLatest(r.key);
         if (fill && lv) {

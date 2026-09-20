@@ -1,19 +1,29 @@
 /**
  * 本地全栈服务：一台机器上同时提供遥测页面和接口。
  *
- *   bun src/server.ts [--port 8787] [--offline]
+ *   bun src/server.ts [--port 8787] [--live]
  *
  * 两类模式：
  *
- *   实时模式（默认，URL 不带 asof）
+ *   存档模式（默认，URL 不带 asof）
+ *     所有接口都从仓库里的 JSON / SQLite 重建，一行网络请求都不发。页面因此不会被
+ *     上游的墙钟拖着走：页头时钟和累计成本停在最后一次同步的时刻（服务端会带上
+ *     from_archive，前端据此把读数冻住并说明数据采集自什么时间）。要看更新的数据就
+ *     bun run sync；要"页面自己跟着上游动"就加 --live。
+ *
+ *   转发模式（--live）
  *     /api/runs /api/status /api/live /api/notices /api/benchmarks 这五个小接口
  *     直接转发原站 —— 一共约 25 KB，换来的是时钟、阶段、采样器日志和线上完全一致。
- *     /api/tags 和 /api/series 这两个大接口（约 500 KB）走本地仓库，不碰网络。
+ *     /api/tags 和 /api/series 这两个大接口（约 500 KB）始终走本地仓库，不碰网络。
  *     转发失败（断网、原站挂了）就退回用仓库里的数据重建，页面不会白屏。
  *
- *   回放模式（带 asof=<epoch 秒>）
+ *   回放模式（带 asof=<epoch 秒>，两种模式都一样）
  *     所有接口都从本地仓库重建，返回"那一刻之前完成的步"组成的切面。
  *     不联网，所以关掉网络也能翻历史。
+ *
+ * 默认不转发上游，是因为这个仓库的权威副本是 data/store/：图表（/api/series）本来就
+ * 只从仓库出，只让页头那几个数字跟着上游的墙钟跳，页面会自相矛盾 —— 图停在 11:51，
+ * 成本却按"费率 × 现在"一直涨。上游跑着的时候想镜像它，再加 --live。
  *
  * 为什么能按 asof 截断：序列里的数值只在对应训练步完成时才出现，且一旦出现就不再变
  * （docs/02 有 15 份快照的验证）。所以"某时刻的看板"= 把每个指标数组截到那个时刻为止。
@@ -40,7 +50,10 @@ import { readRegistry, readResolvedItems } from "./sources";
 
 const argv = process.argv.slice(2);
 const PORT = Number(argv.includes("--port") ? argv[argv.indexOf("--port") + 1] : 8787);
-const OFFLINE = argv.includes("--offline");
+/* 默认不转发上游（存档模式）；--live 才镜像上游那几个小接口。
+   --offline 是旧名字，等价于默认行为，仍然接受，免得老的启动脚本报错。 */
+const LIVE = argv.includes("--live");
+const OFFLINE = !LIVE;
 const UA = "mimo-rl-telemetry/1.0";
 
 /* A fresh clone ships data/store/ but not the derived SQLite index (it is
@@ -60,8 +73,9 @@ const db = openDb(true);
 
 /* ------------------------------------------------------------------ 转发 */
 
+/** 只有 --live 才真去问上游；默认（存档模式）一律返回 null，调用方随即从仓库重建。 */
 async function proxy(path: string, params: Record<string, string>): Promise<any | null> {
-  if (OFFLINE) return null;
+  if (!LIVE) return null;
   try {
     const u = new URL(API_BASE + path);
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
@@ -87,10 +101,17 @@ function deriveStatus(run: string, asof: number | null): any {
   const steps = getSteps(run, asof);
   const events = readEvents(run).filter((e) => asof == null || e.t <= asof);
   const stepEvents = events.filter((e) => e.kind === "step");
-  const now = asof ?? Date.now() / 1000;
 
   const tl = timelineAt(run, asof);
   const stored = readStatus(run);
+
+  /* 走到这里说明这份数字是从仓库重建的（没连上游，或转发失败）——它是一份存档，
+     "现在"不该是本机的 Date.now()，而是最后一次同步时上游报出的时刻（tl.now），
+     拿不到才退回同步时间。按 Date.now() 算等于假设它一直在跑：成本会按费率继续
+     往上跳（pro 的费率 5.71/s，每小时多算约 $2 万），耗时也继续走，页头那个
+     "实时"时钟同样是假的。 */
+  const archiveNow = tl?.now ?? tl?.captured ?? stored?.clock?.now ?? null;
+  const now = asof ?? archiveNow ?? Date.now() / 1000;
 
   const lastStep = steps.length ? steps[steps.length - 1] : null;
   const lastWall = lastStep ? (lastStep.wall ?? lastStep.t) : null;
@@ -108,16 +129,26 @@ function deriveStatus(run: string, asof: number | null): any {
   const totals = tl?.totals ? JSON.parse(tl.totals) : { ...(stored?.totals ?? {}) };
   totals.restarts = events.filter((e) => e.kind === "restart").length;
 
+  /* 成本要分"还在跑"和"已结束"两种算法，与离线包 bundleStatus 口径一致 ——
+     同一次同步的同一个切面，两条路径必须给出同一个数：
+       · 还在跑：费率 ×（now − start），这是站点自己的口径；
+       · 已结束：用留档时的累计值，并带上留档的结束时间。继续按费率乘下去等于
+         假设它一直在跑，成本会虚高，已经停了的 run 也不该显示 1970 年的停止时刻。 */
+  const ended = !!(tl && tl.mode === "ended");
+
   return {
     run: {
       key: run,
       label: cfg.label,
       start,
       // 回放切片里的 run 依然是活的，mode 保持原样；前端靠 Telemetry.replay() 冻结时钟
-      end: null,
+      end: ended ? (tl?.captured ?? null) : null,
       mode: tl?.mode ?? row?.mode ?? "live",
     },
-    cost: { rate_per_s: rate, so_far: costAt(rate, start, now) },
+    /* 这份 status 源自仓库存档（不是上游实时值）。前端据此把页头时钟和总成本停在
+       数据时刻，并说明数据采集自什么时间 —— 存档不该看着像还在跑。 */
+    from_archive: true,
+    cost: { rate_per_s: rate, so_far: ended && tl?.cost != null ? tl.cost : costAt(rate, start, now) },
     clock: { now },
     version: tl?.version ?? row?.version ?? null,
     step: {
@@ -568,5 +599,8 @@ const server = Bun.serve({
 
 console.log(`mimo RL local telemetry  →  http://127.0.0.1:${server.port}/`);
 console.log(`  page: ${SITE}`);
-console.log(`  data: ${DB_PATH}${OFFLINE ? " (--offline: no upstream proxying, everything from the local repo)" : ""}`);
+console.log(`  data: ${DB_PATH}`);
+console.log(LIVE
+  ? `  mode: live — /api/runs /status /live /notices /benchmarks are proxied from ${API_BASE}`
+  : `  mode: archive — everything is rebuilt from the local repo; the page clock and cost stay at the last sync (pass --live to mirror upstream instead)`);
 console.log(`  replay: the \"replay\" button at the top right of the page, or append ?asof=<epoch seconds>`);

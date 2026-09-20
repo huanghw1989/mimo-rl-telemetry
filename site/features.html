@@ -6,6 +6,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="What mimo-rl-telemetry adds over the official Xiaomi MiMo RL dashboard at mimo.xiaomi.com/rl: historical replay, 116 metric explainers, 34 insights, provenance, linked charts and offline export.">
 <meta name="color-scheme" content="light dark">
+<!-- [telemetry] 社交分享卡片（与 index.html 一致） -->
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="mimo-v2.6 RL telemetry">
+<meta property="og:title" content="What this adds over the official MiMo RL dashboard">
+<meta property="og:description" content="Historical replay, 116 metric explainers, 34 insights, provenance, linked charts and offline export — compared row by row with the official dashboard.">
+<meta property="og:url" content="https://huanghw1989.github.io/mimo-rl-telemetry/features.html">
+<meta property="og:image" content="https://huanghw1989.github.io/mimo-rl-telemetry/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="What this adds over the official MiMo RL dashboard">
+<meta name="twitter:description" content="Historical replay, 116 metric explainers, 34 insights, provenance, linked charts and offline export.">
+<meta name="twitter:image" content="https://huanghw1989.github.io/mimo-rl-telemetry/og-card.png">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <!--
   Self-contained feature-comparison page.
@@ -179,8 +192,8 @@
     <p class="kicker"><span data-lang="en">Feature comparison</span><span data-lang="zh-CN">功能对照</span></p>
     <h1><span class="mono">mimo-rl-telemetry</span></h1>
     <p class="lede">
-      <span data-lang="en">Enhanced telemetry for Xiaomi MiMo&rsquo;s <strong>$2M+</strong> live RL run: interactive metric explainers, cross-curve correlation analysis, and step-by-step historical replay. The upstream dashboard at <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> only ever shows &ldquo;now&rdquo;; this project archives it every 20&nbsp;minutes and adds the analysis layer around it.</span>
-      <span data-lang="zh-CN">为小米 MiMo 这场 <strong>200 万美元级</strong>的在线 RL 训练做的增强遥测层：可交互的指标解读、跨曲线相关性分析，以及逐步的历史回放。上游看板 <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> 只能看「现在」；本项目每 20 分钟归档一次，并在它外面加了一层分析能力。</span>
+      <span data-lang="en">Enhanced telemetry for Xiaomi MiMo&rsquo;s <strong>$3M+</strong> live RL run: interactive metric explainers, cross-curve correlation analysis, and step-by-step historical replay. The upstream dashboard at <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> exposes about 2,000 metric series and ships an official one-line description for 22 of them; this project explains the rest, and keeps every sync so those readings can be checked across the whole run.</span>
+      <span data-lang="zh-CN">为小米 MiMo 这场 <strong>300 万美元级</strong>的在线 RL 训练做的增强遥测层：可交互的指标解读、跨曲线相关性分析，以及逐步的历史回放。上游看板 <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> 暴露约 2000 条指标序列，其中只有 22 个带官方的一行说明；本项目把剩下的讲清楚，并把每次同步都留存下来，让这些解读能跨整轮训练核对。</span>
     </p>
     <div class="cta-row">
       <a class="btn primary" href="index.html"><span data-lang="en">Open the dashboard →</span><span data-lang="zh-CN">打开看板 →</span></a>
@@ -203,7 +216,7 @@
         <span class="src">content/insights.json</span>
       </div>
       <div class="stat">
-        <span class="v">27 / 30</span>
+        <span class="v">29 / 30</span>
         <span class="k"><span data-lang="en">steps in the shipped data snapshot (pro / flash)</span><span data-lang="zh-CN">随仓库发布的数据快照步数（pro / flash）</span></span>
         <span class="src">data/store/runs/*/axis.json</span>
       </div>
@@ -233,14 +246,14 @@
         <span class="src">content/sources.json</span>
       </div>
       <div class="stat">
-        <span class="v">2.22B / 2.59B</span>
+        <span class="v">2.47B / 2.71B</span>
         <span class="k"><span data-lang="en">mean training tokens per step (pro / flash)</span><span data-lang="zh-CN">每步训练 token 均值（pro / flash）</span></span>
-        <span class="src">content/insights.json · content/metrics.json</span>
+        <span class="src">data/store/runs/*/series.json</span>
       </div>
       <div class="stat">
-        <span class="v">$2.18M</span>
-        <span class="k"><span data-lang="en">spend so far (pro $1.484M + flash $693K)</span><span data-lang="zh-CN">累计花费（pro 148.4 万 + flash 69.3 万美元）</span></span>
-        <span class="src">content/insights.json</span>
+        <span class="v">$3.35M</span>
+        <span class="k"><span data-lang="en">spend so far (pro $2.494M + flash $854K)</span><span data-lang="zh-CN">累计花费（pro 249.4 万 + flash 85.4 万美元）</span></span>
+        <span class="src">data/store/runs/*/status.json</span>
       </div>
     </div>
   </section>
@@ -268,17 +281,6 @@
         </thead>
         <tbody>
 
-          <tr>
-            <th scope="row"><span data-lang="en">Historical view<span class="badge">new</span></span><span data-lang="zh-CN">历史视图<span class="badge">新增</span></span></th>
-            <td class="off">
-              <span data-lang="en">Only &ldquo;now&rdquo;. Every request returns the live state; there is no time control anywhere in the UI.</span>
-              <span data-lang="zh-CN">只有「现在」。每次请求返回的都是实时状态，界面上没有任何时间控件。</span>
-            </td>
-            <td class="ours">
-              <span data-lang="en">Replay any past snapshot with a sync-point time slider and auto-play, or share a <code>?asof=&lt;epoch&gt;</code> deep link. The online (SQLite) and offline (bundle) replay paths were compared field-for-field across 4 slices × 7 endpoints — 45 checks, all equal except the deliberate <code>offline</code> flag.</span>
-              <span data-lang="zh-CN">用同步点时间滑杆或自动播放回放任意历史切面，也可以直接分享 <code>?asof=&lt;epoch&gt;</code> 深链。在线（SQLite）与离线（bundle）两条回放路径逐字段比过 4 个切面 × 7 类接口共 45 项，除刻意区分的 <code>offline</code> 标记外全部一致。</span>
-            </td>
-          </tr>
 
           <tr>
             <th scope="row"><span data-lang="en">Metric documentation<span class="badge">new</span></span><span data-lang="zh-CN">指标说明<span class="badge">新增</span></span></th>
@@ -337,6 +339,18 @@
             <td class="ours">
               <span data-lang="en">&ldquo;Analyze this step&rdquo; ranks anomalies across all ~2,000 metric series by the smaller of the z-score and the median/MAD scale, folds metric families, and reports rank correlation (Spearman) plus first-difference (detrended) correlation against the anchor curve. The same panel lists restarts, metric-set version snapshots and notices published in that step&rsquo;s window.</span>
               <span data-lang="zh-CN">「分析这一步」对全部约 2,000 条指标序列做异动排名——异常度取 z 与中位数/MAD 两个尺度里较小的那个，并按指标族折叠；同时给出与锚点曲线的秩相关（Spearman）和一阶差分（去趋势）相关。同一面板还列出这一步时段内的重启、指标集版本快照和已发布公告。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Historical view<span class="badge">new</span></span><span data-lang="zh-CN">历史视图<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">Only &ldquo;now&rdquo;. Every request returns the live state; there is no time control anywhere in the UI.</span>
+              <span data-lang="zh-CN">只有「现在」。每次请求返回的都是实时状态，界面上没有任何时间控件。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">Replay any past snapshot with a sync-point time slider and auto-play, or share a <code>?asof=&lt;epoch&gt;</code> deep link. The online (SQLite) and offline (bundle) replay paths were compared field-for-field across 4 slices × 7 endpoints — 45 checks, all equal except the deliberate <code>offline</code> flag.</span>
+              <span data-lang="zh-CN">用同步点时间滑杆或自动播放回放任意历史切面，也可以直接分享 <code>?asof=&lt;epoch&gt;</code> 深链。在线（SQLite）与离线（bundle）两条回放路径逐字段比过 4 个切面 × 7 类接口共 45 项，除刻意区分的 <code>offline</code> 标记外全部一致。</span>
             </td>
           </tr>
 

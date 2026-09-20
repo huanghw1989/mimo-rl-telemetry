@@ -152,9 +152,20 @@
     var totals = (tl && tl.totals) ? JSON.parse(JSON.stringify(tl.totals)) : {};
     totals.restarts = events.filter(function (e) { return e.kind === "restart"; }).length;
     var first = se[0] || null, last = se[se.length - 1] || null, prev = se[se.length - 2] || null;
+
+    /* 成本要分"还在跑"和"已结束"两种算法，不能一律按 费率 × 时长：
+       - 还在跑：上游看板自己就是 rate × (now − start)，所以这里跟着算才能继续跳动；
+       - 已结束：必须用留档时的累计值。若也按 rate × 时长算，等于假设它一直在跑，
+         会严重虚高（flash 已结束，实测虚高 $322,161，约 9.8%）。
+       回放时 tl 取的是 asof 之前最后一条，mode 正确反映"那一刻它结束没有"。 */
+    var ended = !!(tl && tl.mode === "ended");
+    var costSoFar = ended
+      ? (tl.cost != null ? tl.cost : null)
+      : (rate != null && start != null ? rate * Math.max(0, now - start) : (tl ? tl.cost : null));
+
     return {
-      run: { key: run, label: cfg.label, start: start, end: null, mode: tl ? tl.mode : "live" },
-      cost: { rate_per_s: rate, so_far: rate != null && start != null ? rate * Math.max(0, now - start) : null },
+      run: { key: run, label: cfg.label, start: start, end: ended ? (tl.captured != null ? tl.captured : null) : null, mode: tl ? tl.mode : "live" },
+      cost: { rate_per_s: rate, so_far: costSoFar },
       clock: { now: now },
       version: tl ? tl.version : null,
       step: {
@@ -3144,6 +3155,21 @@
     /** app.js 用它判断当前是不是回放模式。 */
     replay: function () { return state.asof != null; },
     asOf: function () { return state.asof; },
+    /** app.js 用它判断"手上这份数据是不是冻结的存档快照"：离线副本，或某个回放切面。
+        快照里没有"现在"，凡是按"现在"算出来的读数（成本、耗时、"2 小时前"）都该停在
+        数据自己的时刻，否则一份静止的存档会被读成"还在跑"。 */
+    frozen: function () { return !!BUNDLE || state.asof != null; },
+    /** 存档数据自己的时刻（epoch 秒）。离线副本取最后一次同步的采集时间（拿不到就退回
+        导出时间），回放取切面时间。在线实时（有服务端、能连上上游）没有这个概念，返回 null。 */
+    dataAt: function () {
+      if (state.asof != null) return state.asof;
+      if (!BUNDLE) return null;
+      var syncs = BUNDLE.syncs || [];
+      for (var i = syncs.length - 1; i >= 0; i--) {
+        if (syncs[i] && syncs[i].captured != null) return syncs[i].captured;
+      }
+      return BUNDLE.generated_at != null ? BUNDLE.generated_at : null;
+    },
     /** app.js 启动时把刷新句柄交进来。 */
     bind: function (handle) { app = handle; },
     /** 遥测层自己用的取数入口（同样受 asof 影响）。 */

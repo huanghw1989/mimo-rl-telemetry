@@ -69,6 +69,10 @@
 .nav-lang button { font-size: 11.5px; line-height: 1; padding: 7px 9px; }
 @media (max-width: 560px) { .nav-lang button { padding: 7px 6px; } }
 
+/* 静态存档（离线副本 / 回放切面）里的城市时钟与总成本停在采集那一刻，
+   悬停能看到采集时间。help 光标是"这里可以悬停"的唯一提示。 */
+.nav-cell.is-static { cursor: help; }
+
 /* --------------------------------------------- overview 的 notices 面板 */
 /* 原站那份 #notices 照常渲染，只是藏起来，改用遥测层这块。 */
 #notices.mn-src-hidden { display: none; }

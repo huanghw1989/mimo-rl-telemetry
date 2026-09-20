@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`bun run server` serves the archive by default.** Every endpoint is rebuilt from
+  `data/store/`, so the header clock and the total cost stay at the last sync instead of
+  following the local clock, and hovering the clock says when the data was collected. The
+  previous behaviour — proxying `/api/runs`, `/status`, `/live`, `/notices` and
+  `/benchmarks` from upstream — is still available with `--live`; `--offline` is accepted as
+  an alias of the new default. Rationale: the charts already come from the warehouse, so
+  letting only the header follow upstream's wall clock made the page contradict itself (the
+  curves stopped at the last sync while the cost kept climbing at $5.71/s).
+
+### Fixed
+
+- **A static archive no longer reads as "still running".** Whenever the page shows archived
+  data — the offline copy, a replay slice, or a server rebuilt from the warehouse — the
+  clock, the elapsed time, the "2 h ago" markers and the cost freeze at the data's own time,
+  and hovering the clock reports the collection time (UTC and Beijing time).
+- **The status rebuilt from the warehouse used `Date.now()` as "now"**, so an ended or
+  stalled run kept accruing cost; it now uses the archived clock and is flagged
+  `from_archive` for the client.
+- **Ended runs served from the warehouse** now report the recorded cumulative cost and the
+  archived stop time, matching the offline bundle (previously the cost was recomputed from
+  the rate, and the card showed `00:00:00` / `stopped 1970-01-01`).
+
 ## [1.0.0] - 2026-09-20
 
 Initial public release: the telemetry tool and the analysis project, extracted from the

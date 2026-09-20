@@ -8,51 +8,33 @@
   },
   "cost": {
     "rate_per_s": 5.71,
-    "so_far": 2449755.506087871
+    "so_far": 2493749.2553764298
   },
   "clock": {
-    "now": 1789897368.3193045
+    "now": 1789905073.0039434
   },
-  "version": "3-5513.28.14.28",
+  "version": "3-5513.29.15.30",
   "step": {
-    "last": 28,
-    "last_wall": 1789881123.7658803,
-    "since": 16244.55342411995,
-    "expected": 15651.5,
-    "progress": 1,
-    "phase": "training",
-    "gen_frac": 0.49632156848319875,
-    "restarted_at": null
+    "last": 29,
+    "last_wall": 1789897840.0371299,
+    "since": 2607.669943332672,
+    "expected": 16311.3,
+    "progress": 0.15986892174950323,
+    "phase": "rollout",
+    "gen_frac": 0.44150080785111606,
+    "restarted_at": 1789902465.334
   },
   "totals": {
-    "tokens_step": 3024470000,
+    "tokens_step": 3421290000,
     "trained_step": 25088,
-    "sandboxes_step": 22352,
+    "sandboxes_step": 84848,
     "prompts_per_step": 1568,
-    "tokens_cum": 68151730000,
-    "trained_cum": 702464,
-    "sandboxes_cum": 3464816,
-    "restarts": 13
+    "tokens_cum": 71573020000,
+    "trained_cum": 727552,
+    "sandboxes_cum": 3549664,
+    "restarts": 14
   },
   "events": [
-    {
-      "t": 1789562521.9800744,
-      "kind": "step",
-      "step": 8,
-      "value": 0.60271,
-      "delta": 0.014371000000000023,
-      "tokens": 2266550000,
-      "redo": false
-    },
-    {
-      "t": 1789571198.3765173,
-      "kind": "step",
-      "step": 9,
-      "value": 0.603837,
-      "delta": 0.0011269999999999891,
-      "tokens": 2327390000,
-      "redo": false
-    },
     {
       "t": 1789578788.328568,
       "kind": "step",
@@ -259,12 +241,25 @@
       "delta": 0.023986000000000063,
       "tokens": 3024470000,
       "redo": false
+    },
+    {
+      "t": 1789897840.0371299,
+      "kind": "step",
+      "step": 29,
+      "value": 0.622112,
+      "delta": -0.004479000000000011,
+      "tokens": 3421290000,
+      "redo": false
+    },
+    {
+      "t": 1789902465.334,
+      "kind": "restart"
     }
   ],
   "headline": {
     "tag": "dynsam/avg@n",
-    "last": 0.626591,
-    "prev": 0.602605,
+    "last": 0.622112,
+    "prev": 0.626591,
     "first": 0.564662,
     "first_step": 1
   }

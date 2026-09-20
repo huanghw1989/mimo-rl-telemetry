@@ -6,46 +6,57 @@
 ![Bun >= 1.1](https://img.shields.io/badge/bun-%E2%89%A51.1-black.svg)
 ![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue.svg)
 
-Enhanced telemetry for Xiaomi MiMo's $2M+ live RL run: interactive metric explainers,
+**▶ [Open the live demo](https://huanghw1989.github.io/mimo-rl-telemetry/)** — replay any step,
+no install and no signup.
+
+[![mimo-v2.6 RL telemetry — 59 steps archived, 2,000+ metrics per step, 116 metric explainers](site/og-card.png)](https://huanghw1989.github.io/mimo-rl-telemetry/)
+
+Enhanced telemetry for Xiaomi MiMo's $3M+ live RL run: interactive metric explainers,
 cross-curve correlation analysis, and step-by-step historical replay.
 
 **What this is.** The MiMo team publishes a live dashboard for the reinforcement-learning
-training of `mimo-v2.6-pro` and `mimo-v2.6-flash` at <https://mimo.xiaomi.com/rl/>. This
-project archives that stream, replays it, and explains it. It syncs the public JSON API
-into a local warehouse, serves a dashboard that adds replay, metric explainers, data
-insights, provenance and cross-chart analysis on top of the original page, and ships a
-long-form analysis of the run in both English and Chinese.
+training of `mimo-v2.6-pro` and `mimo-v2.6-flash` at <https://mimo.xiaomi.com/rl/>. It exposes
+about 2,000 metric series and ships an official one-line description for **22** of them. This
+project explains the rest: metric explainers, data insights, provenance and cross-chart
+analysis on top of the original dashboard, plus a long-form analysis of the run in both
+English and Chinese. It syncs the public JSON API into a local warehouse so those readings can
+be checked across the whole run rather than at a single instant.
 
 > **Unofficial, community project.** This is not affiliated with, endorsed by, or
 > maintained by Xiaomi or the MiMo team. It reads only the public dashboard API. The
 > upstream dashboard and the unmodified assets copied under `site/` and `data/upstream/`
-> remain the property of Xiaomi MiMo; see [Credits](#credits).
+> remain the property of Xiaomi MiMo; see [Credits](#credits) and [NOTICE.md](NOTICE.md).
 
 ## Why it exists
 
-The upstream dashboard shows **"now"**. Three days into a training run you can no longer
-see:
+The upstream dashboard draws a lot and explains very little. Roughly 2,000 metric series are
+on the page; 22 tags carry an official one-line description, and the dashboard states no
+conclusions about any of them.
 
-- what the curves looked like earlier — only the latest step;
-- what a notice said at a given step, or when a given step finished;
-- what a metric actually means, beyond one English sentence — and only 22 tags have an
-  official description at all.
+- **What a metric actually means** — beyond the 22 official one-liners, the rest are a name
+  and a curve. Ours come with what it measures, how it is computed, why to watch it, and how
+  it is commonly misread.
+- **What the numbers add up to** — every finding here is written down with the numbers behind
+  it and a way to recompute it, instead of being left for the reader to eyeball.
+- **What it looked like earlier** — the page only ever shows the latest step, so three days in
+  the earlier curves, notices and step timings are gone.
 
-This project fixes that. It keeps an authoritative local warehouse of every value the site
-has ever published, adds a replay layer over the original page, and pairs every metric and
-every finding with a written explanation, a source, or a recomputation script.
+So this project pairs every metric and every finding with a written explanation, a source, or
+a recomputation script. Keeping an authoritative local warehouse of every value the site has
+ever published is what makes those explanations checkable **across the run** — the archive is
+the substrate, not the point.
 
 ## Highlights over the official dashboard
 
 | Capability | Official dashboard | This project |
 | --- | --- | --- |
-| History | current state only | replay any captured sync point; deep link with `?asof=<epoch>` |
 | Metric explainers | a one-line English description for 22 tags | **116 explainers** across 9 groups: what it measures, how it is computed, why to watch it, what this run showed, and how it is misread |
 | Data insights | none | **34 insights** mined from the data, each with numbers and a recomputation path |
 | Provenance | none | **149 citation entries** (109 deduplicated materials) with verbatim quotes, plus **32 explicit search gaps** where no public material supports the reading |
 | Reading one step across charts | each chart hovers independently | linked crosshair: click a step on any chart and every chart jumps to it |
 | "Why did this step jump?" | not available | **analyze this step**: per-step outliers, rank and detrended correlation against an anchor curve, and the events (restart, version change, notice) inside that step's window |
 | Notices | an ever-growing English-only list | Chinese translations, a `pro@s17` / `flash@s24` step badge on every notice, and jump-to-step |
+| History | current state only | replay any captured sync point; deep link with `?asof=<epoch>` |
 | Chart selection | fixed set of pinned charts | custom boards: save your own chart sets as tabs |
 | Offline use | requires the live site | `bun run export` writes a self-contained `site/offline.html` |
 | UI language | English | English default, one-click Chinese toggle |
@@ -65,7 +76,12 @@ bun install          # no runtime dependencies
 bun run server       # -> http://127.0.0.1:8787/  (builds the SQLite index on first run)
 ```
 
-The repository ships with a complete data snapshot in `data/store/` (pro through step 27,
+`bun run server` serves the warehouse, so the page is an archive: the header clock and the
+total cost read as of the last sync instead of following your own clock, and hovering the
+clock says when the data was collected. Run `bun run sync` to bring the snapshot forward, or
+`bun run server --live` to mirror the small live endpoints from upstream as well.
+
+The repository ships with a complete data snapshot in `data/store/` (pro through step 29,
 flash through step 30), so the dashboard renders immediately and the analysis scripts run
 without any upstream access. `data/telemetry.sqlite` is a derived index, so it is not
 committed: the server builds it from `data/store/` on first start, and `bun run reindex`
@@ -151,7 +167,10 @@ with the offline bundle (`site/js/correlate.js`), so online and offline numbers 
 ### Offline export
 `bun run export` writes `site/data/bundle.js` and a single-file `site/offline.html`. Open
 the file directly: replay, explainers, insights, boards, linkage, and correlation all work
-with no server and no network. The export is a snapshot of the moment it was produced.
+with no server and no network. The export is a snapshot of the moment it was produced, and
+the page says so instead of pretending to be live: the header clock and the total cost stay
+at the collection time rather than ticking with your own clock, and hovering the clock shows
+when the data was collected (UTC and Beijing time).
 
 ### Bilingual UI
 The site defaults to English and toggles to Chinese. The English rendering of the
@@ -171,10 +190,12 @@ upstream API  ──►  src/sync.ts  ──►  data/store/            (authori
 
 `src/sync.ts` is the only writer of `data/store/`. The JSON warehouse is the
 authoritative copy; `data/telemetry.sqlite` is a derived index that can be deleted and
-rebuilt at any time (`bun run reindex`). `src/server.ts` serves the dashboard and proxies
-the small live endpoints when online, while the large series endpoints come from the local
-warehouse; in replay mode everything is reconstructed from the store. `src/export.ts`
-reads the same store and emits the offline bundle.
+rebuilt at any time (`bun run reindex`). `src/server.ts` serves the dashboard from that
+warehouse: everything is reconstructed locally by default, so the page stays an archive
+(clock and cost at the last sync) until you sync again; `--live` additionally proxies the
+five small live endpoints from upstream, while the large series endpoints always come from
+the local warehouse. In replay mode everything is reconstructed from the store.
+`src/export.ts` reads the same store and emits the offline bundle.
 
 **Upstream assets are copied, not forked.** A pristine copy of the upstream static files
 is kept in `data/upstream/`, and the working copy is `site/`. The telemetry layer is
@@ -319,13 +340,14 @@ Changes are tracked in [CHANGELOG.md](CHANGELOG.md).
 ## License
 
 MIT — see [LICENSE](LICENSE). This covers this project's code and documentation.
+The third-party files that are **not** covered are listed in [NOTICE.md](NOTICE.md).
 
 ## Credits
 
 - The dashboard, the API, and the unmodified static assets under `site/` and
   `data/upstream/` belong to **Xiaomi MiMo** (<https://mimo.xiaomi.com/rl/>) and are
   included here only as a reference copy for local replay and diffing. They are not covered
-  by this project's MIT license.
+  by this project's MIT license. The exact file list is in [NOTICE.md](NOTICE.md).
 - All analytical content in this repository is derived from the publicly available
   dashboard data and public sources, which are cited verbatim in `content/sources.json`.
 - Built with [Bun](https://bun.sh). The local dashboard uses Bun's built-in SQLite driver
