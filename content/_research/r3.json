@@ -1,0 +1,430 @@
+{
+  "agent": "r3",
+  "topics": ["C 组｜采样、奖励与优势"],
+  "fetched": 20,
+  "items": [
+    {
+      "id": "humaneval-passk",
+      "kind": "paper",
+      "title": "Evaluating Large Language Models Trained on Code",
+      "authors": "Mark Chen et al.",
+      "venue": "arXiv:2107.03374",
+      "year": "2021",
+      "url": "https://arxiv.org/abs/2107.03374",
+      "quote": "Instead, to evaluate pass@k, we generate n >= k samples per task (in this paper, we use n = 200 and k <= 100), count the number of correct samples c <= n which pass unit tests, and calculate the unbiased estimator",
+      "topic": "无偏 pass@k 估计量与采样方差",
+      "attaches": [
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "support",
+          "note": "我们写 avg@n 是「每题采 n 次、数成功次数占 n 的比例，再对题平均」，这条无偏估计量的构造逻辑正是同一套：不能把 pass@1 的插件估计直接外推到 k，必须按「n 次里 c 次命中」计数。"
+        },
+        {
+          "metric": "dynsam/num_measurable",
+          "stance": "support",
+          "note": "论文原话指出直接算 pass@k 「can have high variance」，并因此要求每题采 n>=k 次；这支持我们把 num_measurable（每步 1636~4728 题）当作单步通过率噪声下限的来源。"
+        },
+        {
+          "metric": "dynsam/passrate/one",
+          "stance": "context",
+          "note": "HumanEval 只定义了 pass@k 的无偏估计量，没有定义我们这种「n 次全中占比」的口径；passrate/one 属于本遥测自有的固定 n=16 插件统计，不能反过来套用论文的估计量。"
+        }
+      ]
+    },
+    {
+      "id": "rlvr-passk-shrink",
+      "kind": "paper",
+      "title": "Does Reinforcement Learning Really Incentivize Reasoning Capacity in LLMs Beyond the Base Model?",
+      "authors": "Yang Yue et al.",
+      "venue": "arXiv:2504.13837",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2504.13837",
+      "quote": "While RLVR-trained models outperform their base models at small k (e.g., k = 1), the base models achieve a higher pass@k score when k is large.",
+      "topic": "RLVR 提升 pass@1 但收缩 pass@k 覆盖",
+      "attaches": [
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "support",
+          "note": "这条直接佐证我们的核心读法：avg@n 上行（pro +6.88pp / flash +12.71pp）只说明小 k 变好，不能推出可解范围扩大；单看 avg@n 会把「覆盖收缩」读成纯进步。"
+        },
+        {
+          "metric": "dynsam/passrate/zero",
+          "stance": "support",
+          "note": "论文说 k 大时基座反超 RLVR 模型，说明「16 次全做不对」的那部分外沿不会随训练消失，与我们实测 zero 只降 1.14pp / 1.30pp 的「能力墙」读法一致。"
+        }
+      ]
+    },
+    {
+      "id": "passk-inversion",
+      "kind": "paper",
+      "title": "When RLVR Shrinks the Reasoning Boundary: Diagnosing Pass@k Inversion",
+      "authors": "Todd Zhou",
+      "venue": "arXiv:2607.20543",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2607.20543",
+      "quote": "The failure concentrates on boundary prompts, where the base model contains rare correct trajectories that are recoverable by sampling but too sparse to reliably appear in finite RLVR rollout groups.",
+      "topic": "pass@k 反转的机制：boundary prompt 与有限 rollout 组",
+      "attaches": [
+        {
+          "metric": "dynsam/passrate/zero",
+          "stance": "challenge",
+          "note": "我们把 zero 读成「模型完全不会的题还有多少」，该文指出其中一类是 boundary prompt：基座含有稀有正确轨迹、只是太稀疏以致在有限 rollout 组里抽不到，所以 zero 里混着采样限制的成分，不能全部归因于能力。"
+        },
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "support",
+          "note": "摘要明确「after training, the policy may solve fewer distinct problems than its base model at large k」，为「avg@n 涨但覆盖可能变窄」提供第二篇独立文献支持。"
+        }
+      ]
+    },
+    {
+      "id": "rlvr-entropy-coverage",
+      "kind": "paper",
+      "title": "Boosting LLM Exploration via Weak-Model Guidance in RLVR",
+      "authors": "Xingyu Shen et al.",
+      "venue": "arXiv:2608.27420",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2608.27420",
+      "quote": "Reinforcement Learning with Verifiable Rewards (RLVR) significantly improves LLM reasoning but often causes a drop in policy entropy, leading to narrowed reasoning coverage and degraded pass@k for large k.",
+      "topic": "熵下降 → 覆盖收窄 → 大 k pass@k 退化",
+      "attaches": [
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "support",
+          "note": "把「avg@n 上行」与「覆盖收缩」直接挂钩：该文把 entropy drop 视为 RLVR 的常见后果，说明我们单看 avg@n 判断训练质量会漏掉覆盖维度。"
+        },
+        {
+          "metric": "dynsam/passrate/one",
+          "stance": "challenge",
+          "note": "我们写 passrate/one 上升代表「模型吃透的题变多」；该文提示同一过程（熵下降、覆盖收窄）也会抬高 one，所以 one 单向上行本身不足以证明能力扩张。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-dynsam",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "we propose to over-sample and filter out prompts with the accuracy equal to 1 and 0 as illustrated in Equation 11, leaving all prompts in the batch with effective gradients and keeping a consistent number of prompts.",
+      "topic": "动态采样：丢弃全对/全错（零优势）组",
+      "attaches": [
+        {
+          "metric": "dynsam/<cat>/dataset-<id>/num_accepted/step",
+          "stance": "support",
+          "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+        },
+        {
+          "metric": "dynsam/agentic/num_accepted/step",
+          "stance": "support",
+          "note": "我们把它读成「动态采样里被受理、真正进训练的那部分题」——DAPO 这套 over-sample + filter 的定义正是这个意思，并且要求 batch 内有效题数保持一致。"
+        },
+        {
+          "metric": "dynsam/num_target",
+          "stance": "support",
+          "note": "论文的约束「keeping a consistent number of prompts」解释了本 run num_target 恒为 1568（配置常量）而 num_measurable 在 1636~4728 浮动：前者是被填满的目标槽位，后者是过滤过程中实际处理的题量。"
+        },
+        {
+          "metric": "dynsam/infra_error/seq_rate",
+          "stance": "context",
+          "note": "动态采样必须「keep sampling until the batch is fully filled」，采样侧任何作废/失败都会落进这套计数；不过该文只说明采样成本是动态的，并未定义我们这种「被检出的 infra 失败序列占比」口径。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-zero-advantage",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "A zero advantage results in zero policy gradients, shrinking the magnitude and increasing the noise sensitivity of the batch gradient, thereby degrading sample efficiency.",
+      "topic": "为什么必须丢弃零优势组",
+      "attaches": [
+        {
+          "metric": "dynsam/<cat>/dataset-<id>/num_accepted/step",
+          "stance": "support",
+          "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+        },
+        {
+          "metric": "dynsam/passrate/zero",
+          "stance": "support",
+          "note": "该文把 accuracy=1 组的 advantage 归零当退化来源；同理全错组组内奖励相同、advantage 也为 0，所以 zero 高的步同时是「有效梯度被摊薄」的步，支持我们不把 zero 只当难度刻度的读法。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-accuracy1-rising",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "Empirically, the number of samples with accuracy equal to 1 continues to increase, as shown in Figure 3(b).",
+      "topic": "全对题占比随训练单向上行",
+      "attaches": [
+        {
+          "metric": "dynsam/passrate/one",
+          "stance": "support",
+          "note": "直接对应我们观测到的 one 单向抬升（pro 17.79%→26.20%、flash 12.08%→31.23%）：公开工作也把「accuracy=1 的样本持续变多」当作训练常态，并用它论证动态采样的必要性。"
+        },
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "support",
+          "note": "该文把全对组增多视为「有效 prompt 数持续减少、批梯度方差变大」的来源，支持我们用 passrate/one 而不是 avg@n 去判断「吃透了多少题」。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-upper-clip",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "We identify that the upper clip can restrict the exploration of the policy, where making an ‘exploitation’ token more probable is much easier yet the probability of an unlikely ‘exploration’ token is too tightly bounded to be uplifted.",
+      "topic": "非对称裁剪（Clip-Higher）在公开方法里的形态",
+      "attaches": [
+        {
+          "metric": "penalty/signed/pos_scale",
+          "stance": "context",
+          "note": "公开的非对称处理长这样：把上下裁剪界拆成 εlow/εhigh，只放宽上界以提升熵——动的是重要性采样比的界，而不是 advantage 的质量分配，与本站 pos_scale 那种「抽走正优势质量再缩放回去」不是同一机制。"
+        },
+        {
+          "metric": "penalty/signed/neg_scale",
+          "stance": "context",
+          "note": "该文明确保持 εlow 不动（加大会把 token 概率压向 0、导致采样空间坍塌），说明公开方法的非对称调整集中在比的上界一侧；我们 neg_scale 那种「给负优势补质量、再按符号归一化回原总量」在公开材料里找不到对应物。"
+        },
+        {
+          "metric": "penalty/signed/pos_mass_removed",
+          "stance": "context",
+          "note": "Clip-Higher 放宽的是「低概率探索 token 的概率上界」，对应的不是「从正优势里抽走一部分质量」；公开材料里没有把正优势质量搬走再缩放回去的操作，所以 pos_mass_removed 只能当本实现的私有后处理读。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-rule-reward",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "Instead, we directly use the final accuracy of a verifiable task as the outcome reward, computed using the following rule:",
+      "topic": "可验证奖励（rule-based verifiable reward）",
+      "attaches": [
+        {
+          "metric": "critic/score/mean",
+          "stance": "support",
+          "note": "支持我们把 critic/score/mean 与 critic/rewards/mean 当同一个「判分器给的原始分」读：公开 RLVR 流水线里 outcome reward 就是 verifier 的判定结果，中间不做二次归一化。"
+        },
+        {
+          "metric": "critic/rewards/max",
+          "stance": "support",
+          "note": "该文紧跟的规则是 is_equivalent 时给 1、否则 −1，奖励上界本身就是 1，这正是我们观测到 rewards/max 在 44 个步值上恒为 1 的公开依据。"
+        },
+        {
+          "metric": "critic/rewards/min",
+          "stance": "challenge",
+          "note": "公开的规则奖励是二值 {1, −1}，而本 run 的 rewards/min 长期贴 −0.8，说明我们的判分不是纯二值 verifier 而是带部分分/整形过的分数，不能照搬「奖励只有过/不过」的读法。"
+        }
+      ]
+    },
+    {
+      "id": "grpo-deepseekmath",
+      "kind": "paper",
+      "title": "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models",
+      "authors": "Zhihong Shao et al.",
+      "venue": "arXiv:2402.03300",
+      "year": "2024",
+      "url": "https://arxiv.org/abs/2402.03300",
+      "quote": "GRPO foregoes the critic model, instead estimating the baseline from group scores, significantly reducing training resources compared to Proximal Policy Optimization (PPO).",
+      "topic": "GRPO 去掉 critic：组内分数当 baseline",
+      "attaches": [
+        {
+          "metric": "critic/advantages/mean",
+          "stance": "support",
+          "note": "这是「critic/ 命名下装的其实是奖励/优势计算、没有独立价值网络」的直接依据：GRPO 用组内分数当 baseline，没有与策略同规模的 value model，所以 advantages 与 returns 逐点相等并不自相矛盾。"
+        },
+        {
+          "metric": "critic/rewards/mean",
+          "stance": "support",
+          "note": "组内相对优势的上游是组内奖励分布，支持我们把 critic/rewards/* 与 critic/score/* 读成「同一条奖励链上的两个聚合」，而不是两个独立子系统。"
+        }
+      ]
+    },
+    {
+      "id": "drgrpo",
+      "kind": "paper",
+      "title": "Understanding R1-Zero-Like Training: A Critical Perspective (Dr. GRPO)",
+      "authors": "Zichen Liu et al.",
+      "venue": "arXiv:2503.20783",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.20783",
+      "quote": "Dr. GRPO introduces simple yet significant modifications to address the biases in GRPO (Shao et al., 2024), by removing the length and std normalization terms.",
+      "topic": "组内标准差归一化是偏置项",
+      "attaches": [
+        {
+          "metric": "critic/advantages/mean",
+          "stance": "support",
+          "note": "支持「组内标准差归一化会引入系统性偏置」这条读法：论文把 std 归一化与长度归一化并列为 GRPO 的 bias 项并直接移除，并称修掉后得到 unbiased optimization。"
+        },
+        {
+          "metric": "dynsam/<cat>/dataset-<id>/num_accepted/step",
+          "stance": "context",
+          "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+        }
+      ]
+    },
+    {
+      "id": "grpo-normalization-curvature",
+      "kind": "paper",
+      "title": "Why GRPO Needs Normalization: A Local-Curvature Perspective on Adaptive Gradients",
+      "authors": "Cheng Ge et al.",
+      "venue": "arXiv:2601.23135",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2601.23135",
+      "quote": "In this work, we provide an explanation through the lens of local curvature of the sequence-level policy gradient: standard deviation normalization implements an adaptive gradient.",
+      "topic": "std 归一化的两面性（自适应梯度 vs 偏置）",
+      "attaches": [
+        {
+          "metric": "critic/advantages/mean",
+          "stance": "challenge",
+          "note": "我们把 std 归一化当「对低方差 prompt 的系统性偏置」，该文则证明它等价于自适应梯度、在温和条件下严格改善收敛率，且效果分三个阶段（后期正交性丧失时增益消失）——所以「偏置」只在特定阶段/条件下成立，不能一概而论。"
+        }
+      ]
+    },
+    {
+      "id": "gae",
+      "kind": "paper",
+      "title": "High-Dimensional Continuous Control Using Generalized Advantage Estimation",
+      "authors": "John Schulman et al.",
+      "venue": "arXiv:1506.02438",
+      "year": "2015",
+      "url": "https://arxiv.org/abs/1506.02438",
+      "quote": "which is simply the empirical returns minus the value function baseline",
+      "topic": "GAE 的极限形式与 advantage 的定义",
+      "attaches": [
+        {
+          "metric": "critic/advantages/mean",
+          "stance": "support",
+          "note": "支撑「advantage = 回报 − baseline」这个常规定义：论文给出的 A^(k) 在 k→∞ 时退化为经验回报减 baseline，这也是我们把 advantages 与 returns 相等解释为 baseline 恒为 0 的依据。"
+        },
+        {
+          "metric": "critic/returns/mean",
+          "stance": "challenge",
+          "note": "GAE 的 k→∞（λ→1）形式同样只是「经验回报减 baseline」，推不出 γ=1 与 λ=1 同时成立；三个聚合逐点相等更可能来自 baseline≡0 或两条 tag 读同一张量，我们原句「意味着 GAE 的 λ=1、γ=1」过强。"
+        }
+      ]
+    },
+    {
+      "id": "dual-clip-ppo",
+      "kind": "paper",
+      "title": "Mastering Complex Control in MOBA Games with Deep Reinforcement Learning (dual-clip PPO)",
+      "authors": "Deheng Ye et al.",
+      "venue": "arXiv:1912.09729",
+      "year": "2019",
+      "url": "https://arxiv.org/abs/1912.09729",
+      "quote": "When A_t<0, such a large ratio r_t(theta) will introduce a big and unbounded variance since r_t(theta)A_t << 0.",
+      "topic": "「只有一侧动下界」的公开对应物",
+      "attaches": [
+        {
+          "metric": "penalty/signed/neg_scale",
+          "stance": "context",
+          "note": "公开方法里最接近「只动一侧」的是 dual-clip PPO：仅当 Â_t<0 时给目标加一个下界 c·Â_t，约束的是负优势侧的极端更新幅度，而不是往负优势里补质量。"
+        },
+        {
+          "metric": "penalty/signed/neg_mass_added",
+          "stance": "context",
+          "note": "该下界作用在 surrogate 目标上（等价于截断过大的负向更新），既没改变 advantage 的分布，也没有「加质量后再按符号归一化回原总量」这一步，因此不构成本站 neg_mass_added + neg_scale 的对应物。"
+        },
+        {
+          "metric": "train/adv_neg_sum_post_penalty",
+          "stance": "context",
+          "note": "dual-clip 只截断更新幅度、不做符号内总量守恒，所以「pre 与 post 逐点完全相等」这件事在公开材料里同样找不到对应实现。"
+        },
+        {
+          "metric": "train/adv_pos_sum_pre_penalty",
+          "stance": "context",
+          "note": "公开方法改动的是目标函数/比值而非 advantage 总账，因此不存在与本站「正优势总量在惩罚前后保持一致」对应的机制，这条 pre 值只能当本实现的内部记账读。"
+        },
+        {
+          "metric": "penalty/signed/neg_hit_tokens",
+          "stance": "context",
+          "note": "公开的 dual-clip 只有一个常数下界 c，没有「命中 token 数」这类覆盖面统计；本站在负优势侧观察到的高命中面（flash 最高 7,837,940）找不到可对照的公开口径。"
+        },
+        {
+          "metric": "penalty/signed/pos_hit_tokens",
+          "stance": "context",
+          "note": "同理，公开方法不统计「正优势被改动覆盖了多少 token」，所以 pos_hit_tokens 与 pos_mass_removed 组出的「单 token 平均改动量 0.1~0.2」只能当私有实现读数，不能用公开裁剪机制解释。"
+        },
+        {
+          "metric": "penalty/action/adv_mul_tokens",
+          "stance": "context",
+          "note": "dual-clip 与 DAPO 的调整都在 surrogate/比值层面，公开材料里没有「按 token 对 advantage 做乘性缩放」的动作型分支，所以本站这条恒 0 的 tag 无法用公开方法解释其应然行为。"
+        },
+        {
+          "metric": "penalty/action/adv_mul_min",
+          "stance": "context",
+          "note": "同上：公开的裁剪类改动不会产生「单 token 优势乘子」这种量，adv_mul_min 恒 1 只说明该私有分支未触发，不能拿 dual-clip 的 c 或 DAPO 的 ε 来对照解释。"
+        }
+      ]
+    },
+    {
+      "id": "spurious-rewards",
+      "kind": "paper",
+      "title": "Spurious Rewards: Rethinking Training Signals in RLVR",
+      "authors": "Rulin Shao et al.",
+      "venue": "arXiv:2506.10947",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2506.10947",
+      "quote": "we show that GRPO exhibits a clipping bias from the clip term, which can amplify high-prior behaviors learned during pretraining even without informative rewards.",
+      "topic": "avg@n 上行 ≠ 能力提升（裁剪偏置）",
+      "attaches": [
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "challenge",
+          "note": "我们把 avg@n 上行当「模型真的变强」的证据，该文显示 GRPO 用随机奖励也能把 MATH-500 抬高 21.4 个百分点（接近真实奖励的 29.1 点），说明这类上行可能只是裁剪偏置放大了预训练先验行为。"
+        }
+      ]
+    },
+    {
+      "id": "passk-training",
+      "kind": "paper",
+      "title": "Pass@k Training for Adaptively Balancing Exploration and Exploitation of Large Reasoning Models",
+      "authors": "Zhipeng Chen et al.",
+      "venue": "arXiv:2508.10751",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2508.10751",
+      "quote": "Reinforcement learning with verifiable rewards (RLVR), which typically adopts Pass@1 as the reward, has faced the issues in balancing exploration and exploitation, causing policies to prefer conservative actions, converging to a local optimum.",
+      "topic": "以 Pass@1 为奖励导致覆盖收窄",
+      "attaches": [
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "challenge",
+          "note": "我们默认「提升 avg@n」是唯一目标，该文指出以 Pass@1 类指标为奖励会让策略偏好保守动作、收敛到局部最优，所以 avg@n 的斜率不能单独当训练质量结论。"
+        },
+        {
+          "metric": "dynsam/passrate/zero",
+          "stance": "context",
+          "note": "该文用 Pass@k 当奖励来改善探索能力，可作为「全错底盘不动其实是探索不足」这一假设的公开解法参考，但它并未直接验证我们这个 run 的 zero 曲线。"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    "没有找到任何公开方法做「按 advantage 符号拆分 → 抽走一部分正优势质量 → 给负优势补质量 → 再把每个符号的总量缩放回原值」这套处理。arXiv 检索里 \"advantage clipping\" 与 \"positive and negative advantages\" scaling 都是 0 命中；\"asymmetric clipping\" 命中的 4 篇（如 VEPO、Entropy-Preserving RL）是熵/约束方向的工作，与本站 penalty/signed/* 的机制无关。",
+    "没有找到公开材料讨论或实现「符号内总量守恒」：train/adv_pos_sum_post_penalty 与 pre 逐点完全相等这种形态在公开方法里没有对应物（GRPO 的组内除 std 归一化反而会改变总量）。",
+    "没有找到把 avg@n（每题 n 次成功比例的题平均，n=16）作为独立指标命名的公开文献。HumanEval 只给了 pass@k 的无偏估计量定义，passrate/one、passrate/zero 以及 avg@n = one + 中间桶占比 × 中间桶质量 这套三分解是本遥测自己的口径。",
+    "拿不到 Dr. GRPO 正文 Section 3.1 关于 std 归一化偏置「方向」的逐字原文：arXiv HTML 两次抓取都在进入该节前被截断，ar5iv 无此篇；只摘到论文图 1 标题与摘要层面的表述（「removing the length and std normalization terms」）。",
+    "没有找到定义 dynsam/infra_error/seq_rate 这类「被检出的 infra 失败序列占比」的公开材料：公开工作讨论 rollout 失败与重采样，但没有这个具体比率的定义或口径。",
+    "没有找到解释 critic/rewards/min 长期贴 −0.8 的公开来源；公开 RLVR（DAPO 等）用的是二值 {1, −1} 规则奖励，−0.8 这种地板分属于本站私有判分口径。",
+    "没有找到对「组内标准差归一化对低方差 prompt 的系统性偏置」这一具体方向的定量公开论述（只有 Dr. GRPO 的定性主张与 2601.23135 的反向论证）。"
+  ],
+  "notes": "【重点结论：penalty/signed/* 有没有公开对应物】没有。公开方法里对正/负优势的「非对称」处理全部作用在重要性采样比或 surrogate 目标上，而不是 advantage 的质量分配：DAPO 的 Clip-Higher 只是把上下裁剪界拆开并放宽上界（明确保持 εlow 不动，理由是加大会把 token 概率压向 0）；dual-clip PPO 只在 Â_t<0 时给目标加一个下界 c·Â_t，截断的是过大的负向更新。两者都不改变 advantage 的分布，也都没有「补质量之后再按符号归一化回原总量」这一步。检索「advantage clipping」「positive and negative advantages」scaling 均 0 命中，可以支撑「本站 signed 分支这套符号内质量搬运 + 重归一化在公开文献里找不到对应物」这个结论。【id 核验的坑】(1) 简报里的 `2506.10947 Pass@k Training` 是错的：该 id 实际是 \"Spurious Rewards: Rethinking Training Signals in RLVR\"（已按实际标题收录）；真正的 Pass@k Training 是 2508.10751 \"Pass@k Training for Adaptively Balancing Exploration and Exploitation of Large Reasoning Models\"（已收录）。(2) 其余参考 id 标题均与预期一致：1707.06347 PPO、1506.02438 GAE、2402.03300 DeepSeekMath/GRPO、2503.14476 DAPO、2503.20783 Dr. GRPO、2504.13837、2107.03374、1912.09729。(3) 本会话 export.arxiv.org 的 search_query 端点一律报 unsupported content type，检索改用 https://arxiv.org/search/ 页面完成；id_list 端点正常。(4) ar5iv 的 MathML 转文本会把符号重复输出（如 pass@kk、n≥kn\\geq k），我按论文原文转写为纯文本符号，其余字句逐字未改。"
+}

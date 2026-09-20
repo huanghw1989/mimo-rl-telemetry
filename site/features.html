@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mimo-rl-telemetry · Features vs. the official dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="What mimo-rl-telemetry adds over the official Xiaomi MiMo RL dashboard at mimo.xiaomi.com/rl: historical replay, 116 metric explainers, 34 insights, provenance, linked charts and offline export.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<!--
+  Self-contained feature-comparison page.
+  - No external requests: no CDN fonts, no scripts, no analytics. Opens from file://.
+  - English by default; EN | 中文 toggle in the top-right.
+  - The shared runtime (site/js/i18n.js, written by another workstream) is loaded
+    parser-blocking so window.T / window.I18N exist before the inline script runs.
+    If that file is absent the page falls back to its own inline dictionary and
+    still works — the only cost is one console line.
+  - Static copy lives in paired <span data-lang="en"> / <span data-lang="zh-CN">
+    nodes and is shown/hidden by a body class, so no JS is needed to render text.
+-->
+<script src="js/i18n.js"></script>
+<style>
+  :root{
+    --bg:#ffffff; --surface:#ffffff; --surface-2:#f5f5f4; --surface-3:#e9e9e7;
+    --border:#e4e4e1; --ink:#111111; --ink-2:#5c5c59; --ink-3:#8c8c88;
+    --grid:#ececea; --accent:#2a78d6; --accent-soft:rgba(42,120,214,.06);
+    --live:#d9463f; --ok:#1f8a4c;
+    --radius:6px;
+    --font:"Inter",-apple-system,"Segoe UI",system-ui,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono","DejaVu Sans Mono",monospace;
+    --nav-h:48px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#111111; --surface:#161616; --surface-2:#1e1e1e; --surface-3:#2a2a2a;
+      --border:#2a2a29; --ink:#ececea; --ink-2:#a3a3a0; --ink-3:#6f6f6c;
+      --grid:#242423; --accent:#3987e5; --accent-soft:rgba(57,135,229,.10);
+      --live:#e05a53; --ok:#4fae74;
+    }
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 var(--font); }
+  a{ color:var(--accent); text-decoration:none; }
+  a:hover{ text-decoration:underline; }
+  code{ font-family:var(--mono); font-size:.9em; background:var(--surface-2);
+        border:1px solid var(--border); border-radius:4px; padding:0 4px; }
+  td code, th code, .flow code{ white-space:normal; overflow-wrap:break-word; }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+  .skip{ position:absolute; left:-9999px; }
+  .skip:focus{ left:12px; top:8px; z-index:60; background:var(--surface); color:var(--ink);
+               padding:8px 12px; border:1px solid var(--border); border-radius:6px; }
+  .wrap{ max-width:1080px; margin:0 auto; padding:0 20px; }
+
+  /* ------------------------------------------------------------- language */
+  body.lang-en [data-lang="zh-CN"]{ display:none !important; }
+  body.lang-zh [data-lang="en"]{ display:none !important; }
+  body.lang-zh .mono-num{ /* keep numeric chips upright next to Chinese */ }
+
+  /* ------------------------------------------------------------------ nav */
+  .nav{ position:sticky; top:0; z-index:20; height:var(--nav-h);
+        background:var(--bg); border-bottom:1px solid var(--border); }
+  .nav-inner{ display:flex; align-items:center; gap:14px; height:var(--nav-h); }
+  .brand{ display:flex; align-items:baseline; gap:8px; color:var(--ink); font-weight:600;
+          letter-spacing:-.01em; white-space:nowrap; }
+  .brand:hover{ text-decoration:none; }
+  .brand .brand-tag{ font-family:var(--mono); font-size:11px; font-weight:500;
+                     color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em; }
+  .nav-spacer{ flex:1 1 auto; }
+  .nav-back{ font-size:12.5px; color:var(--ink-2); white-space:nowrap; }
+  .lang-toggle{ display:flex; align-items:center; gap:1px; padding:2px;
+                background:var(--surface-2); border:1px solid var(--border); border-radius:6px; }
+  .lang-toggle button{ border:0; background:transparent; color:var(--ink-2); cursor:pointer;
+                       font:inherit; font-size:12.5px; line-height:1; padding:6px 10px; border-radius:4px; }
+  .lang-toggle button:hover{ color:var(--ink); }
+  .lang-toggle button[aria-pressed="true"]{ background:var(--surface); color:var(--ink);
+                                            box-shadow:0 1px 2px rgba(0,0,0,.08); }
+  .lang-toggle .sep{ color:var(--ink-3); font-size:10px; user-select:none; }
+
+  /* ----------------------------------------------------------------- hero */
+  .hero{ padding:38px 0 4px; }
+  .kicker{ margin:0 0 8px; font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); }
+  .hero h1{ margin:0 0 10px; font-size:clamp(24px,4vw,34px); letter-spacing:-.02em; }
+  .hero h1 .mono{ font-family:var(--mono); font-weight:500; }
+  .lede{ margin:0 0 18px; max-width:840px; font-size:15.5px; color:var(--ink-2); line-height:1.6; }
+  .lede strong{ color:var(--ink); font-weight:600; }
+  .cta-row{ display:flex; flex-wrap:wrap; gap:10px; }
+  .btn{ display:inline-flex; align-items:center; gap:6px; padding:8px 14px; font-size:13.5px;
+        background:var(--surface); color:var(--ink); border:1px solid var(--border); border-radius:6px; }
+  .btn:hover{ background:var(--surface-2); text-decoration:none; }
+  .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.primary:hover{ filter:brightness(1.07); }
+
+  /* ---------------------------------------------------------------- stats */
+  .strip{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:24px 0 4px; }
+  .stat{ padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); }
+  .stat .v{ display:block; font-family:var(--mono); font-size:21px; letter-spacing:-.02em;
+            font-variant-numeric:tabular-nums; }
+  .stat .k{ display:block; margin-top:3px; font-size:12.5px; color:var(--ink-2); }
+  .stat .src{ display:block; margin-top:6px; font-family:var(--mono); font-size:10.5px; color:var(--ink-3); }
+
+  /* ------------------------------------------------------------- sections */
+  section{ padding:26px 0 4px; scroll-margin-top:calc(var(--nav-h) + 10px); }
+  h2{ margin:0 0 6px; font-size:19px; letter-spacing:-.01em; }
+  .section-note{ margin:0 0 16px; max-width:840px; color:var(--ink-2); }
+
+  /* ---------------------------------------------------------------- table */
+  .table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; background:var(--surface);
+               border:1px solid var(--border); border-radius:var(--radius); }
+  table.cmp{ width:100%; min-width:800px; border-collapse:collapse; font-size:13.5px; }
+  table.cmp caption{ caption-side:top; padding:12px 14px; text-align:left; color:var(--ink-2);
+                     font-size:12.5px; border-bottom:1px solid var(--border); }
+  table.cmp th, table.cmp td{ padding:11px 14px; text-align:left; vertical-align:top; border-top:1px solid var(--grid); }
+  table.cmp thead th{ border-top:0; background:var(--surface-2); font-size:11.5px; font-weight:600;
+                      letter-spacing:.06em; text-transform:uppercase; color:var(--ink-2); white-space:nowrap; }
+  table.cmp thead th.ours{ color:var(--accent); }
+  table.cmp tbody th{ width:17%; font-weight:600; }
+  table.cmp td.off{ width:29%; color:var(--ink-2); }
+  table.cmp td.ours{ width:54%; background:var(--accent-soft); }
+  table.cmp tbody th .cap-note{ display:block; margin-top:2px; font-weight:400; font-size:11.5px; color:var(--ink-3); }
+  .badge{ display:inline-block; margin-left:6px; padding:0 5px; font-family:var(--mono); font-size:10px;
+          line-height:15px; color:var(--accent); border:1px solid var(--accent); border-radius:3px;
+          vertical-align:1px; text-transform:none; letter-spacing:0; }
+  .none{ color:var(--ink-3); }
+
+  /* ---------------------------------------------------------------- cards */
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
+  .card{ padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); }
+  .card h3{ margin:0 0 6px; font-size:14.5px; }
+  .card p{ margin:0; color:var(--ink-2); font-size:13.5px; }
+  .card p + p{ margin-top:8px; }
+  .card .num{ display:block; margin-bottom:4px; font-family:var(--mono); font-size:11px; color:var(--accent); }
+
+  /* ----------------------------------------------------------------- flow */
+  .flow{ margin-top:14px; background:var(--surface-2); border:1px solid var(--border);
+         border-radius:var(--radius); overflow-x:auto; }
+  .flow pre{ margin:0; padding:16px 16px 10px; font-family:var(--mono); font-size:12px;
+             line-height:1.65; color:var(--ink-2); }
+  .flow .cap{ padding:0 16px 14px; font-size:12px; color:var(--ink-3); }
+
+  /* --------------------------------------------------------------- footer */
+  .foot{ margin-top:34px; border-top:1px solid var(--border); padding:20px 0 28px;
+         color:var(--ink-3); font-size:12.5px; }
+  .foot .wrap{ display:flex; flex-direction:column; gap:10px; }
+  .foot-links{ display:flex; flex-wrap:wrap; gap:4px 16px; }
+  .foot a{ color:var(--ink-2); }
+  .foot p{ margin:0; max-width:900px; line-height:1.6; }
+
+  @media (max-width:640px){
+    .hero{ padding-top:24px; }
+    section{ padding-top:20px; }
+    .stat .v{ font-size:19px; }
+    .nav-back{ display:none; }
+  }
+</style>
+</head>
+<body class="lang-en">
+
+<a class="skip" href="#comparison"><span data-lang="en">Skip to the comparison table</span><span data-lang="zh-CN">跳到对照表</span></a>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><span class="mono">mimo-rl-telemetry</span><span class="brand-tag">features</span></a>
+    <span class="nav-spacer"></span>
+    <a class="nav-back" href="index.html"><span data-lang="en">← Dashboard</span><span data-lang="zh-CN">← 返回看板</span></a>
+    <div class="lang-toggle" id="lang-toggle" role="group" aria-label="Language / 语言">
+      <button type="button" data-setlang="en" aria-pressed="true" aria-label="English">EN</button>
+      <span class="sep" aria-hidden="true">|</span>
+      <button type="button" data-setlang="zh-CN" aria-pressed="false" aria-label="中文" lang="zh-CN">中文</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ============================================================= hero -->
+  <div class="hero">
+    <p class="kicker"><span data-lang="en">Feature comparison</span><span data-lang="zh-CN">功能对照</span></p>
+    <h1><span class="mono">mimo-rl-telemetry</span></h1>
+    <p class="lede">
+      <span data-lang="en">Enhanced telemetry for Xiaomi MiMo&rsquo;s <strong>$2M+</strong> live RL run: interactive metric explainers, cross-curve correlation analysis, and step-by-step historical replay. The upstream dashboard at <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> only ever shows &ldquo;now&rdquo;; this project archives it every 20&nbsp;minutes and adds the analysis layer around it.</span>
+      <span data-lang="zh-CN">为小米 MiMo 这场 <strong>200 万美元级</strong>的在线 RL 训练做的增强遥测层：可交互的指标解读、跨曲线相关性分析，以及逐步的历史回放。上游看板 <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> 只能看「现在」；本项目每 20 分钟归档一次，并在它外面加了一层分析能力。</span>
+    </p>
+    <div class="cta-row">
+      <a class="btn primary" href="index.html"><span data-lang="en">Open the dashboard →</span><span data-lang="zh-CN">打开看板 →</span></a>
+      <a class="btn" href="#comparison"><span data-lang="en">Compare features</span><span data-lang="zh-CN">看功能对照</span></a>
+      <a class="btn" href="offline.html"><span data-lang="en">Offline copy</span><span data-lang="zh-CN">离线副本</span></a>
+    </div>
+  </div>
+
+  <!-- ============================================================ numbers -->
+  <section id="numbers" aria-labelledby="numbers-h">
+    <h2 id="numbers-h"><span data-lang="en">By the numbers</span><span data-lang="zh-CN">关键数字</span></h2>
+    <p class="section-note">
+      <span data-lang="en">Every figure below is read from a file in this repository — the source is printed on each card.</span>
+      <span data-lang="zh-CN">下面每个数字都来自本仓库的文件，出处印在每张卡片上。</span>
+    </p>
+    <div class="strip">
+      <div class="stat">
+        <span class="v">24 / 30</span>
+        <span class="k"><span data-lang="en">steps covered by the insights (pro / flash)</span><span data-lang="zh-CN">洞察覆盖的步数（pro / flash）</span></span>
+        <span class="src">content/insights.json</span>
+      </div>
+      <div class="stat">
+        <span class="v">27 / 30</span>
+        <span class="k"><span data-lang="en">steps in the shipped data snapshot (pro / flash)</span><span data-lang="zh-CN">随仓库发布的数据快照步数（pro / flash）</span></span>
+        <span class="src">data/store/runs/*/axis.json</span>
+      </div>
+      <div class="stat">
+        <span class="v">2,000+</span>
+        <span class="k"><span data-lang="en">metric series exposed per run</span><span data-lang="zh-CN">每个 run 暴露的指标序列</span></span>
+        <span class="src">docs/zh-CN/01-网站数据文档.md</span>
+      </div>
+      <div class="stat">
+        <span class="v">116</span>
+        <span class="k"><span data-lang="en">metric explainers</span><span data-lang="zh-CN">指标解读条目</span></span>
+        <span class="src">content/metrics.json</span>
+      </div>
+      <div class="stat">
+        <span class="v">34</span>
+        <span class="k"><span data-lang="en">verified data insights</span><span data-lang="zh-CN">已核验的数据洞察</span></span>
+        <span class="src">content/insights.json</span>
+      </div>
+      <div class="stat">
+        <span class="v">149</span>
+        <span class="k"><span data-lang="en">citation entries (109 materials after dedup)</span><span data-lang="zh-CN">引文条目（去重后 109 份材料）</span></span>
+        <span class="src">content/sources.json</span>
+      </div>
+      <div class="stat">
+        <span class="v">32</span>
+        <span class="k"><span data-lang="en">explicit search gaps</span><span data-lang="zh-CN">明确写出的检索空白</span></span>
+        <span class="src">content/sources.json</span>
+      </div>
+      <div class="stat">
+        <span class="v">2.22B / 2.59B</span>
+        <span class="k"><span data-lang="en">mean training tokens per step (pro / flash)</span><span data-lang="zh-CN">每步训练 token 均值（pro / flash）</span></span>
+        <span class="src">content/insights.json · content/metrics.json</span>
+      </div>
+      <div class="stat">
+        <span class="v">$2.18M</span>
+        <span class="k"><span data-lang="en">spend so far (pro $1.484M + flash $693K)</span><span data-lang="zh-CN">累计花费（pro 148.4 万 + flash 69.3 万美元）</span></span>
+        <span class="src">content/insights.json</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= comparison -->
+  <section id="comparison" aria-labelledby="comparison-h">
+    <h2 id="comparison-h"><span data-lang="en">What this project adds</span><span data-lang="zh-CN">本项目多出来的东西</span></h2>
+    <p class="section-note">
+      <span data-lang="en">Rows are capabilities, columns are the official dashboard versus this project. Anything marked <span class="badge">new</span> does not exist upstream at all.</span>
+      <span data-lang="zh-CN">每一行是一项能力，两列分别是官方看板和本项目。标 <span class="badge">新增</span> 的在上游完全不存在。</span>
+    </p>
+
+    <div class="table-wrap">
+      <table class="cmp">
+        <caption>
+          <span data-lang="en">Official dashboard (<a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a>) vs. <strong>mimo-rl-telemetry</strong></span>
+          <span data-lang="zh-CN">官方看板（<a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a>）对照 <strong>mimo-rl-telemetry</strong></span>
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col"><span data-lang="en">Capability</span><span data-lang="zh-CN">能力</span></th>
+            <th scope="col"><span data-lang="en">Official dashboard</span><span data-lang="zh-CN">官方看板</span></th>
+            <th scope="col" class="ours"><span data-lang="en">mimo-rl-telemetry</span><span data-lang="zh-CN">mimo-rl-telemetry</span></th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Historical view<span class="badge">new</span></span><span data-lang="zh-CN">历史视图<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">Only &ldquo;now&rdquo;. Every request returns the live state; there is no time control anywhere in the UI.</span>
+              <span data-lang="zh-CN">只有「现在」。每次请求返回的都是实时状态，界面上没有任何时间控件。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">Replay any past snapshot with a sync-point time slider and auto-play, or share a <code>?asof=&lt;epoch&gt;</code> deep link. The online (SQLite) and offline (bundle) replay paths were compared field-for-field across 4 slices × 7 endpoints — 45 checks, all equal except the deliberate <code>offline</code> flag.</span>
+              <span data-lang="zh-CN">用同步点时间滑杆或自动播放回放任意历史切面，也可以直接分享 <code>?asof=&lt;epoch&gt;</code> 深链。在线（SQLite）与离线（bundle）两条回放路径逐字段比过 4 个切面 × 7 类接口共 45 项，除刻意区分的 <code>offline</code> 标记外全部一致。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Metric documentation<span class="badge">new</span></span><span data-lang="zh-CN">指标说明<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">A one-line English note for 22 of the 2,000+ metric names (the <code>descriptions</code> map in <code>/runs</code>); the other 99% are names only.</span>
+              <span data-lang="zh-CN">2,000 多个指标名里只有 22 个配了一行英文说明（<code>/runs</code> 里的 <code>descriptions</code>），剩下的 99% 只有名字。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">116 explainers in 9 groups: what it measures, how it is computed, why to watch it, observed values, 3–5 reading notes and up to 4 common misreadings. 7 of them document the dynamic-sampler table columns. Open any explainer from a chart title or a table header.</span>
+              <span data-lang="zh-CN">9 个分组、116 条解读：量什么、怎么算、为什么盯它、本轮实测值、3~5 条读法、最多 4 条常见误读。其中 7 条讲的是动态采样器表格的列口径。从图表标题或表头都能点开对应的解读。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Data insights<span class="badge">new</span></span><span data-lang="zh-CN">数据洞察<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en" class="none">None — the dashboard draws curves, it does not state conclusions.</span>
+              <span data-lang="zh-CN" class="none">没有。看板只画曲线，不给结论。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">34 insights (14 structural, 7 counterintuitive, 5 numeric, 4 method, 3 watch, 1 note) over the window 2026-09-16 00:02Z → 2026-09-19 08:58Z (pro 24 steps, flash 30). Each carries key numbers and cited sources; 10 include an explicit recompute recipe.</span>
+              <span data-lang="zh-CN">34 条洞察（结构 14、反直觉 7、数值 5、方法 4、观察 3、备注 1），窗口为 2026-09-16 00:02Z → 2026-09-19 08:58Z（pro 24 步、flash 30 步）。每条都带关键数字和引用来源，其中 10 条给了明确的复算口径。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Provenance<span class="badge">new</span></span><span data-lang="zh-CN">溯源<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en" class="none">None.</span>
+              <span data-lang="zh-CN" class="none">没有。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">149 citation entries with verbatim quotes; the registry note counts 109 distinct materials after dedup. Every linked source carries a stance — support / challenge / context (127 / 52 / 118 attachments across the 116 explainers). 32 explicit search gaps record where no public material was found. All 70 arXiv entries were title-checked against the arXiv API.</span>
+              <span data-lang="zh-CN">149 条引文条目，附逐字原文；登记表自注去重后为 109 份材料。每条被引材料都标了与我方读法的关系——支持 / 冲突 / 背景（116 条解读上共 127 / 52 / 118 处）。32 条「检索空白」明确写出哪里没找到公开材料。70 条 arXiv 条目都按 id 向官方 API 核对过真实标题。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Chart interaction<span class="badge">new</span></span><span data-lang="zh-CN">图表交互<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">Per-chart hover only: each canvas draws its own guideline and readout, and the charts do not know about each other.</span>
+              <span data-lang="zh-CN">只有单图悬浮：每张 canvas 各画各的竖线和读数框，图与图之间互不知道。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">Optional linked crosshair: click any chart and every chart jumps to the same step — guideline, value dots, readout and the card value column all follow. <code>charts.js</code> is untouched; the telemetry wraps the chart constructors from the outside.</span>
+              <span data-lang="zh-CN">可选的联动十字线：点任意一张图的某一步，所有图一起跳到同一步——竖线、取值点、读数框和卡片数值列一起跟着走。<code>charts.js</code> 一行没动，遥测层从外面包了一层构造函数。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Root-cause analysis<span class="badge">new</span></span><span data-lang="zh-CN">根因分析<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en" class="none">None — you are left to eyeball the curves.</span>
+              <span data-lang="zh-CN" class="none">没有——只能靠自己盯着曲线看。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">&ldquo;Analyze this step&rdquo; ranks anomalies across all ~2,000 metric series by the smaller of the z-score and the median/MAD scale, folds metric families, and reports rank correlation (Spearman) plus first-difference (detrended) correlation against the anchor curve. The same panel lists restarts, metric-set version snapshots and notices published in that step&rsquo;s window.</span>
+              <span data-lang="zh-CN">「分析这一步」对全部约 2,000 条指标序列做异动排名——异常度取 z 与中位数/MAD 两个尺度里较小的那个，并按指标族折叠；同时给出与锚点曲线的秩相关（Spearman）和一阶差分（去趋势）相关。同一面板还列出这一步时段内的重启、指标集版本快照和已发布公告。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Notices<span class="badge">new</span></span><span data-lang="zh-CN">公告<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">An append-only English list.</span>
+              <span data-lang="zh-CN">一份只增不减的英文清单。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">Chinese translations with an English fallback, an &ldquo;original updated&rdquo; flag when the English text changed, a training-step badge on each notice (<code>pro@s17</code>), per-run jump-to-step sliders, and a default collapsed view showing the latest 3.</span>
+              <span data-lang="zh-CN">中文译文加未翻译回落英文，原文被改写时标「原文已更新」；每条公告带发布时的训练步号（<code>pro@s17</code>），每个 run 一根定位滑杆，默认收起、只显示最近 3 条。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Custom boards<span class="badge">new</span></span><span data-lang="zh-CN">自定义看板<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">A fixed set of 18 pinned charts; changing them means changing the site.</span>
+              <span data-lang="zh-CN">固定 18 张常驻图表；想换一组只能改站点。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">User-built tabs: pick metrics with batch checkboxes, search / only-selected / clear all in the editor, and switch tabs without losing your scroll position. Boards live in the browser (<code>localStorage['telemetry.boards']</code>), and the site&rsquo;s own pin list is kept so &ldquo;default&rdquo; always works.</span>
+              <span data-lang="zh-CN">自己建 Tab：用勾选框批量选指标，编辑弹窗支持搜索 / 只看已选 / 清空，切 Tab 不跳滚动位置。看板存在浏览器里（<code>localStorage['telemetry.boards']</code>），并单独留了一份站点原始 pins，「默认」Tab 永远可用。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Sampler feed replay<span class="badge">new</span></span><span data-lang="zh-CN">采样器明细回放<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">Only the latest <code>/live</code> payload is served; the ~30-second rolling feed from earlier is gone.</span>
+              <span data-lang="zh-CN">只返回最新的 <code>/live</code>；之前约 30 秒一条的滚动明细不留。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">The rolling entries are archived with each sync, so a replay slice shows the sampler feed as it was. Old archives without entries fall back to sync-granularity and say so on the panel, instead of passing 20-minute data off as 30-second data.</span>
+              <span data-lang="zh-CN">每次同步把滚动明细一并留档，回放切面能看到当时的采样器 feed。老仓库没有这份明细，就退回同步粒度并在面板上标出来，不拿 20 分钟一条冒充 30 秒一条。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Offline copy<span class="badge">new</span></span><span data-lang="zh-CN">离线副本<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en" class="none">None — the dashboard needs the live site.</span>
+              <span data-lang="zh-CN" class="none">没有——看板必须连站点。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">A single-file offline copy: <code>offline.html</code> plus the one bundle it loads (<code>site/data/bundle.js</code>, ~2 MB, of which ~0.3 MB is the sampler feed). Replay and every explainer work with no network — open it straight from <code>file://</code>. It is a snapshot of export time, so it does not self-update.</span>
+              <span data-lang="zh-CN">单文件离线副本：<code>offline.html</code> 加它加载的那一份离线包（<code>site/data/bundle.js</code>，约 2 MB，其中约 0.3 MB 是采样器明细）。不用联网、不用起服务，双击就能打开，回放和解读照常可用。代价是它停在导出那一刻，不会自己更新。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Bilingual UI<span class="badge">new</span></span><span data-lang="zh-CN">双语界面<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">English only.</span>
+              <span data-lang="zh-CN">只有英文。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">English + Chinese for the dashboard UI, metric explainers, insights, notices and docs; the language choice persists under <code>localStorage['telemetry.lang']</code> so it carries across pages. An untranslated notice degrades to English rather than disappearing.</span>
+              <span data-lang="zh-CN">看板界面、指标解读、数据洞察、公告和文档都有中英两版；语言选择存在 <code>localStorage['telemetry.lang']</code>，跟着页面走。公告没有译文时回落英文，不会整条消失。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Data archive<span class="badge">new</span></span><span data-lang="zh-CN">数据归档<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en">Ephemeral — the API only ever serves the current state, and past values are gone.</span>
+              <span data-lang="zh-CN">临时的——接口只提供当前状态，过去的值拿不回来。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en">A deduplicated JSON warehouse in git (<code>data/store</code>, ~1.3 MB — down from 14,489 KB of raw snapshots, about 11×) plus a derived SQLite index (~1.8 MB) rebuilt from it for <code>asof</code> queries. Delete the index and <code>--reindex</code> regenerates it.</span>
+              <span data-lang="zh-CN">去重后的 JSON 仓库进 git（<code>data/store</code>，约 1.3 MB，原始快照 14,489 KB，压缩约 11 倍），再由它派生一个 SQLite 索引（约 1.8 MB）供 <code>asof</code> 查询。索引删了跑一次 <code>--reindex</code> 就能重建。</span>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><span data-lang="en">Self-checks<span class="badge">new</span></span><span data-lang="zh-CN">数值自查<span class="badge">新增</span></span></th>
+            <td class="off">
+              <span data-lang="en" class="none">None.</span>
+              <span data-lang="zh-CN" class="none">没有。</span>
+            </td>
+            <td class="ours">
+              <span data-lang="en"><code>bun src/check.ts</code> re-derives 22 identities (cost = rate × elapsed; global KL as the bucket-weighted sum; staleness as Σ&nbsp;i·frac<sub>i</sub>; tokens = 1568 × 16 × mean context length) and is meant to run as a sentinel. <code>verify_sources.ts</code> re-checks every citation against its source.</span>
+              <span data-lang="zh-CN"><code>bun src/check.ts</code> 逐条复算 22 个关系式（成本 = 费率 × 经过时间、全局 KL = 各桶加权和、staleness = Σ&nbsp;i·frac<sub>i</sub>、token 数 = 1568 × 16 × 平均上下文长度），可以挂成哨兵定时跑；<code>verify_sources.ts</code> 逐条回源核对引文。</span>
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ========================================================= how it works -->
+  <section id="how" aria-labelledby="how-h">
+    <h2 id="how-h"><span data-lang="en">How it works</span><span data-lang="zh-CN">它是怎么工作的</span></h2>
+    <p class="section-note">
+      <span data-lang="en">The telemetry does not re-host the dashboard. It keeps every upstream asset as-is and patches a telemetry layer around it.</span>
+      <span data-lang="zh-CN">遥测层不是把看板重做一遍：它把原站资源原样保留，只在外面补一层遥测。</span>
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <span class="num">01</span>
+        <h3><span data-lang="en">Two cadences: ~30 s samples, 20 min syncs</span><span data-lang="zh-CN">两种节奏：约 30 秒采样，20 分钟同步</span></h3>
+        <p><span data-lang="en">The trainer writes a dynamic-sampler report about every 30 seconds and finishes a step in roughly 3 hours. This layer syncs every 20 minutes: going denser would not add information, only log lines. A 12-skip ceiling forces a full refresh, bounding anything missed to about 4 hours.</span><span data-lang="zh-CN">训练器大约每 30 秒写一条动态采样器报告，约 3 小时走完一步。这一层每 20 分钟同步一次——再密也不会多出信息，只会让日志变长。连续跳过 12 次就强制全量，任何漏抓最多兜到约 4 小时。</span></p>
+      </div>
+
+      <div class="card">
+        <span class="num">02</span>
+        <h3><span data-lang="en">The diff: decide whether to ask</span><span data-lang="zh-CN">差量：先决定要不要发这个请求</span></h3>
+        <p><span data-lang="en"><code>/series</code> returns everything and ignores range parameters, so the saving is not in the query but in skipping it. After <code>/status</code>, if the local max step equals <code>status.step.last</code>, no unseen rerun exists and fewer than 12 syncs were skipped, the ~500 KB fetch is skipped — traffic falls from about 1 MB to about 40 KB.</span><span data-lang="zh-CN"><code>/series</code> 不认任何区间参数、每次都全量，所以省下来的不是查询而是「要不要发」。抓完 <code>/status</code> 后，如果仓库最高步号等于 <code>status.step.last</code>、没有没见过的新重跑、且连续跳过不到 12 次，就跳过那约 500 KB 的抓取——实测流量从约 1 MB 降到约 40 KB。</span></p>
+        <p><span data-lang="en">Merging is per cell: fill nulls, ignore equal values, overwrite only when that step was rerun, otherwise keep the local value and warn. That warning has never fired.</span><span data-lang="zh-CN">合并是按格子判断的：本地空就填、相同就不动、那一步重跑过才覆盖，否则保留本地值并打警告。这条警告至今没触发过。</span></p>
+      </div>
+
+      <div class="card">
+        <span class="num">03</span>
+        <h3><span data-lang="en">Warehouse vs. index</span><span data-lang="zh-CN">仓库与索引分开</span></h3>
+        <p><span data-lang="en"><code>data/store</code> (JSON, one row per metric) is the authority: human-readable, greppable, diffable. <code>data/telemetry.sqlite</code> is derived and queryable (<code>WHERE step &lt;= ?</code>), so replay is a range scan rather than parsing the whole file.</span><span data-lang="zh-CN"><code>data/store</code>（JSON，一个指标一行）是权威副本：人可读、能 grep、能 diff。<code>data/telemetry.sqlite</code> 是派生的查询接口（<code>WHERE step &lt;= ?</code>），回放因此是一次范围扫描，而不是把整个文件解析一遍。</span></p>
+        <p><span data-lang="en">Values are Float64 blobs keyed by <code>(run, tag)</code>: the naive three-column long table measured 10.6 MB against 1.7 MB for the whole blob layout, because one 45-byte metric name repeated over 75k rows costs ~3.4 MB of pure duplication.</span><span data-lang="zh-CN">数值按 <code>(run, tag)</code> 存成 Float64 blob：最自然的三列长表实测 10.6 MB，而 blob 布局整库只有 1.7 MB——指标名平均 45 字节，7.5 万行就是约 3.4 MB 的纯重复。</span></p>
+      </div>
+
+      <div class="card">
+        <span class="num">04</span>
+        <h3><span data-lang="en">A layer around upstream, not a fork</span><span data-lang="zh-CN">叠在原站上，而不是分叉</span></h3>
+        <p><span data-lang="en">Upstream assets stay byte-identical (<code>style.css</code>, <code>theme.js</code>, <code>format.js</code>, <code>charts.js</code>), and a copy lives in <code>data/upstream</code> so sync can flag a redesign by hash. <code>app.js</code> carries 6 patches (9 <code>[telemetry]</code> markers, +56/−3 lines) and <code>index.html</code> 6 added lines; everything else is <code>telemetry.css</code>, <code>telemetry.js</code> and <code>correlate.js</code>.</span><span data-lang="zh-CN">原站资源逐字节保持原样（<code>style.css</code>、<code>theme.js</code>、<code>format.js</code>、<code>charts.js</code>），并在 <code>data/upstream</code> 留一份原始副本，同步时比对哈希、改版会报出来。<code>app.js</code> 有 6 处补丁（9 个 <code>[telemetry]</code> 标记，+56/−3 行），<code>index.html</code> 多 6 行；其余全部落在 <code>telemetry.css</code>、<code>telemetry.js</code> 和 <code>correlate.js</code>。</span></p>
+        <p><span data-lang="en">The telemetry replaces <code>fetch</code> to append <code>asof</code>, and the whole interface back to the original code is two functions: <code>Telemetry.replay()</code> and <code>Telemetry.bind()</code>.</span><span data-lang="zh-CN">遥测层换掉 <code>fetch</code> 补上 <code>asof</code>，对原站代码暴露的接口只有两个：<code>Telemetry.replay()</code> 和 <code>Telemetry.bind()</code>。</span></p>
+      </div>
+
+      <div class="card">
+        <span class="num">05</span>
+        <h3><span data-lang="en">One algorithm, two paths</span><span data-lang="zh-CN">一套算法，两条路径</span></h3>
+        <p><span data-lang="en">The correlation kernel is a single UMD file (<code>site/js/correlate.js</code>) loaded by both the browser and the server, so the online and offline numbers cannot drift apart. The offline bundle carries the full series, which is what lets <code>offline.html</code> recompute the same analysis with no network.</span><span data-lang="zh-CN">相关性内核只有一份 UMD 实现（<code>site/js/correlate.js</code>），浏览器和服务端加载同一个文件，在线和离线算出的数字不会各算各的。离线包里本来就有全量序列，所以 <code>offline.html</code> 能就地复算同一套分析。</span></p>
+      </div>
+    </div>
+
+    <div class="flow">
+<pre aria-hidden="true">mimo.xiaomi.com/rl/api            data/store/*.json             data/telemetry.sqlite
+  7 public GET endpoints  --20 min-->  JSON warehouse  --derive-->  asof index
+  ~30 s sampler reports                (authority, in git)          (rebuildable)
+                                             |
+                                             v
+                          site/  index.html + telemetry.css / telemetry.js  &lt;-- /api/*?asof=
+                                 offline.html + data/bundle.js       (no network)</pre>
+      <p class="cap">
+        <span data-lang="en">The seven public endpoints are fetched every 20 minutes; syncs are appended to <code>syncs.jsonl</code>, which is the timeline the replay slider walks.</span>
+        <span data-lang="zh-CN">7 个公开接口每 20 分钟抓一轮；每次同步追加进 <code>syncs.jsonl</code>，回放滑杆走的就是这条时间轴。</span>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>
+      <span data-lang="en"><strong>Sources.</strong> Every figure on this page is quoted from this repository: <a href="../content/metrics.json">content/metrics.json</a>, <a href="../content/insights.json">content/insights.json</a>, <a href="../content/sources.json">content/sources.json</a>, <a href="../docs/en/01-dashboard-data.md">docs/en/01-dashboard-data.md</a> and <a href="../docs/en/02-architecture-and-sync.md">docs/en/02-architecture-and-sync.md</a>.</span>
+      <span data-lang="zh-CN"><strong>出处。</strong>本页所有数字都引自本仓库文件：<a href="../content/metrics.json">content/metrics.json</a>、<a href="../content/insights.json">content/insights.json</a>、<a href="../content/sources.json">content/sources.json</a>、<a href="../docs/zh-CN/01-网站数据文档.md">docs/zh-CN/01-网站数据文档.md</a> 和 <a href="../docs/zh-CN/02-本地遥测与同步机制.md">docs/zh-CN/02-本地遥测与同步机制.md</a>。</span>
+    </p>
+    <nav class="foot-links" aria-label="Repository links">
+      <a href="index.html"><span data-lang="en">Dashboard</span><span data-lang="zh-CN">看板</span></a>
+      <a href="offline.html"><span data-lang="en">Offline copy</span><span data-lang="zh-CN">离线副本</span></a>
+      <a href="../docs/en/01-dashboard-data.md"><span data-lang="en">01 · Data reference</span><span data-lang="zh-CN">01 · 网站数据文档</span></a>
+      <a href="../docs/en/02-architecture-and-sync.md"><span data-lang="en">02 · Telemetry &amp; sync</span><span data-lang="zh-CN">02 · 本地遥测与同步机制</span></a>
+      <a href="../docs/en/03-sampler-table-caliber.md"><span data-lang="en">03 · Sampler table columns</span><span data-lang="zh-CN">03 · 采样器表格字段口径考证</span></a>
+      <a href="../analysis/en/reports/A1-dashboard-walkthrough.md"><span data-lang="en">A1 · Dashboard walkthrough</span><span data-lang="zh-CN">A1 · 看板数据解读</span></a>
+      <a href="../analysis/en/reports/A2-training-insights-1.md"><span data-lang="en">A2 · Training insights</span><span data-lang="zh-CN">A2 · 训练洞察</span></a>
+      <a href="../content/metrics.json"><span data-lang="en">metrics.json</span><span data-lang="zh-CN">metrics.json</span></a>
+      <a href="../content/insights.json"><span data-lang="en">insights.json</span><span data-lang="zh-CN">insights.json</span></a>
+      <a href="../content/sources.json"><span data-lang="en">sources.json</span><span data-lang="zh-CN">sources.json</span></a>
+    </nav>
+    <p>
+      <span data-lang="en">This is an unofficial, community project — not affiliated with, endorsed by, or maintained by Xiaomi or the MiMo team. The upstream dashboard at <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> and its assets belong to Xiaomi MiMo; this project adds a telemetry layer around them and does not modify or redistribute them. Code is MIT-licensed; this page is self-contained and makes no network requests.</span>
+      <span data-lang="zh-CN">本项目是非官方社区项目，与小米及 MiMo 团队无隶属、认可或维护关系。上游看板 <a href="https://mimo.xiaomi.com/rl/" target="_blank" rel="noopener">mimo.xiaomi.com/rl</a> 及其资源归小米 MiMo 所有；本项目只是在它外面加了一层遥测，不修改、也不再分发这些资源。代码为 MIT 许可；本页面自包含，不发任何网络请求。</span>
+    </p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE_KEY = "telemetry.lang";
+  var SUPPORTED = ["en", "zh-CN"];
+  var DEFAULT = "en";
+
+  /* Inline zh -> en dictionary: the fallback used when the shared runtime
+     (site/js/i18n.js) is not present. Only strings that JS sets at runtime
+     need to be here; all static copy lives in paired data-lang nodes. */
+  var dict = {
+    "mimo-rl-telemetry · 与官方看板的功能对照": "mimo-rl-telemetry · Features vs. the official dashboard",
+    "切换语言 / 语言": "Switch language / Language"
+  };
+
+  var I18N = (typeof window !== "undefined" && window.I18N) ? window.I18N : null;
+
+  /* Required shape: prefer the shared runtime, fall back to the inline dict. */
+  var T = (typeof window !== "undefined" && typeof window.T === "function")
+    ? function (zh) { return window.T(zh); }
+    : (I18N && typeof I18N.t === "function")
+      ? function (zh) { return I18N.t(zh); }
+      : function (zh) {
+          return Object.prototype.hasOwnProperty.call(dict, zh) ? dict[zh] : zh;
+        };
+
+  function normalize(v) {
+    if (v == null) return null;
+    var s = String(v).toLowerCase();
+    if (s === "en" || s.indexOf("en-") === 0) return "en";
+    if (s === "cn" || s === "zh" || s.indexOf("zh") === 0 || s.indexOf("chinese") === 0) return "zh-CN";
+    return null;
+  }
+
+  function stored() {
+    try { return normalize(localStorage.getItem(STORE_KEY)); } catch (e) { return null; }
+  }
+
+  var lang = stored()
+    || (I18N ? normalize(I18N.lang) : null)
+    || DEFAULT;
+  if (SUPPORTED.indexOf(lang) < 0) lang = DEFAULT;
+
+  /* Direction helper: the page is authored bilingually, so in Chinese mode the
+     Chinese source is already correct; in English mode use T with the inline
+     dictionary taking priority so the title can never fall back to Chinese. */
+  function tr(zh) {
+    if (lang !== "en") return zh;
+    if (Object.prototype.hasOwnProperty.call(dict, zh)) return dict[zh];
+    return T(zh);
+  }
+
+  var buttons = [];
+
+  function apply() {
+    var isEn = lang === "en";
+    document.documentElement.lang = isEn ? "en" : "zh-CN";
+    if (document.body) {
+      document.body.classList.toggle("lang-en", isEn);
+      document.body.classList.toggle("lang-zh", !isEn);
+    }
+    document.title = tr("mimo-rl-telemetry · 与官方看板的功能对照");
+    var group = document.getElementById("lang-toggle");
+    if (group) group.setAttribute("aria-label", tr("切换语言 / 语言"));
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute("aria-pressed", buttons[i].getAttribute("data-setlang") === lang ? "true" : "false");
+    }
+  }
+
+  function setLang(next, persist) {
+    var n = normalize(next) || DEFAULT;
+    if (SUPPORTED.indexOf(n) < 0) n = DEFAULT;
+    lang = n;
+    if (persist !== false) {
+      try { localStorage.setItem(STORE_KEY, lang); } catch (e) { /* storage disabled */ }
+    }
+    if (I18N && typeof I18N.setLang === "function") {
+      try { I18N.setLang(lang); } catch (e) { /* shared runtime disagreed; ours wins */ }
+    }
+    apply();
+  }
+
+  buttons = Array.prototype.slice.call(document.querySelectorAll("#lang-toggle [data-setlang]"));
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener("click", function (ev) {
+      setLang(ev.currentTarget.getAttribute("data-setlang"), true);
+    });
+  }
+
+  if (I18N && typeof I18N.onChange === "function") {
+    try {
+      I18N.onChange(function (next) {
+        var n = normalize(next);
+        if (n && n !== lang) { lang = n; apply(); }
+      });
+    } catch (e) { /* older runtime without listener support */ }
+  }
+
+  /* Keep two open tabs in step (the dashboard writes the same key). */
+  window.addEventListener("storage", function (ev) {
+    if (ev.key !== STORE_KEY) return;
+    var n = normalize(ev.newValue);
+    if (n && n !== lang) { lang = n; apply(); }
+  });
+
+  apply();
+  setLang(lang, true);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,586 @@
+# Overseas frontline explainers: MiMo-V2.6 RL public dashboard (collected from the English-language community)
+
+> Material identity: research/collection notes. What is written is **what others say**, not our own analysis conclusions about the dashboard;
+> Any part marked "our own measurement" in this text is the dashboard's raw API that I happened to check in order to verify others' claims; the conventions are written clearly in the corresponding places.
+> Collection date: 2026-09-19 (Beijing time 09:10–09:25, corresponding UTC time; all "collection time" below refers to this window).
+> Observation target: https://mimo.xiaomi.com/rl/ and the English-language community's discussion of it.
+
+---
+
+## I. Collection background (first clarify the method and limitations)
+
+**Scope**: English-language community explainers of Xiaomi MiMo-V2.6's two public RL training runs—X (Twitter) original posts, Hacker News discussion threads, Reddit (r/LocalLLaMA, r/reinforcementlearning, r/singularity, r/MachineLearning), English media reports, and technical aggregation sites.
+
+**Method**:
+- Use proxy Playwright to open `x.com` for X. **Key finding: X's individual post pages can be read without logging in** (the body text can be obtained both in the page `<title>` and in the body), but **the reply list does not render in most posts**. Therefore, for most tweets I obtained the original sentences and precise timestamps, and for a few I obtained the top replies.
+- Use the Algolia API (`hn.algolia.com/api/v1/search?tags=comment,story_<id>`) to pull all 155 comments for HN; it is more complete than the webpage DOM.
+- For Reddit, use the `.json` endpoint to pull the post body and the entire comment tree; usable without logging in.
+- For the dashboard itself, use a proxy browser to hit the `/rl/api/*` endpoint directly to verify the numbers.
+- Screenshots are placed in the repository root directory `.playwright-mcp/`, with prefix `mimo-en-`. **This time 4 are evidence screenshots deliberately kept** (see the list at the end): tweets get deleted, and screenshots of original sentences are more durable than links. The remaining process snapshots (page accessibility tree, console logs) have been cleaned up.
+
+**Environmental limitations (affecting reproducibility, must be stated first)**:
+1. **X's reply threads cannot be captured.** Sasha Rush's 80k→120k tweet shows 13 replies, but the reply content does not render; all three telemetry stations are blocked: `xcancel.com` returns 451 "service is suspended", `lightbrd.com` returns 403, `nitter.perennialte.ch` returns 403. Twitter's official embed endpoint (`platform.twitter.com/embed/Tweet.html`) can render the post but **does not include replies**. Therefore, whether anyone replied to explain this issue I cannot rule out; I can only say that **I did not find it in accessible public pages**.
+2. **Yahoo repost page 403** (the MiMo report at `tech.yahoo.com`); I could only read the same article from the original Forkast site.
+3. **`ai.jp.net` is blocked by Cloudflare** (returns "Just a moment...").
+4. **`pandaily.com` returns only the title**; the body is JS-rendered and was not retrieved.
+5. Two English pieces were marked "AI-written/AI-compiled": the Forkast piece was labeled "Forkast mind" and "This post was drafted with AI assistance", and the RITS (NYU Shanghai Library) piece was labeled "This post was drafted with AI assistance and reviewed by RITS staff". I used both, but in **Section 10** I downgraded them to secondhand compilations and separately pointed out one naming error in them (the two X citations in ai-primer were also checked and found wrong).
+6. The 36kr English version piece is **an English translation of a Chinese article (Tencent Tech)**; the X posts quoted in it are paraphrases, and I went back to X one by one to check the originals; the differences are written in Section 3.1.
+
+---
+
+## II. Conclusions first (6 items)
+
+1. **Sasha Rush's original statements were found; there are three tweets in total, all on 2026-09-17.** The triggering one is: "I'm on my phone monitoring the MiMo v2.6 response length on coding-obg8 like a degenerate gambler." (I'm watching the response length of MiMo v2.6 on coding-obg8 on my phone like a degenerate gambler.) Immediately after, he replied to himself: "just feels like 80k->120k is too big a jump." (It just feels like 80k jumping to 120k is too big.) **At this point he was only expressing unease and did not give a mechanism explanation, and no one in the community gave one either.** (Evidence strength: official first-hand = Rush's own X original post)
+
+2. **I then checked the dashboard's raw data; 80k→120k is real, and now it is long past 120k.** `ctx_total_length/code/dataset-obg8/mean` (the average total context length for this dataset) on pro: step 1 79,852 → step 14 118,125 → step 15 125,183 → **step 24 165,762**. The prompt length for the same dataset barely moves (2,500–3,200), so what increased is indeed entirely the part generated by the model itself. (Evidence strength: our own measurement, 2026-09-19 09:20 UTC, directly hitting `/rl/api/series`)
+
+3. **"About $30,000 per hour" checks out, but this is the combined rate of the two training runs, not a single one.** The real-time rates I read: pro $5.71/second, flash $2.855/second, totaling $8.565/second = **$30,834/hour**, exactly matching the 30,834 written in the 36kr English version. Converted, pro is about $493,000/day and flash about $247,000/day—matching the 493k/247k per day given in elie (@eliebakouch)'s widely cited tweet. (Evidence strength: our own measurement + frontline experience)
+
+4. **The English-speaking community's estimate of the GPU count is only one, and it is a rough assumption: about 4,000 GPUs to train pro.** r/LocalLLaMA user power97992 wrote: "if $5/gpu/hr, it's around 4000 gpus for 2.6 pro" — back-calculated from $5/GPU/hour. Recalculated with the rate I measured: pro $20,556/hour ÷ 5 = **about 4,111 GPUs**, consistent with him. But the denominator of this assumption ($5/GPU/hour) has not been confirmed by anyone; someone on HN said this is on the order of "3,000 B300 nodes on Modal" (about 3,000 B300 nodes). **No one has directly calculated the GPU count or sandbox concurrency from the dashboard data; they all back-calculate from the bill.** (Evidence strength: frontline experience, no official confirmation seen)
+
+5. **Doubts about benchmark overfitting are highly concentrated, and they appear on three different sites.** On HN, liuliu asked directly, "isn't running the benchmark while training the definition of contamination?"; on r/singularity, Ill_Distribution8517 said, "The benchmark is quite literally used while they are training, this is the worst way you can compare the model"; in the same thread, Odd_Buddy_3615 gave the most concrete mechanism: using evaluation results to find loopholes, fabricate data, and do it again, repeating 100 times, "For some labs this is a closed automated loop". **The rebutting side (HN's sspiff, brookst, lucrbvi) holds that offline evaluation that is not fed back into training does not count as contamination; it only counts as the validation set being used to make stopping decisions, resulting in slight benchmaxxing.** (Evidence strength: frontline experience)
+
+6. **Distrust of the dashboard data itself mainly comes from one HN user, and was rebutted by others.** `hsbalanxvxjsmab` claimed that "refresh the page the progress goes back in time constantly" and "0 data correlates the log messages", i.e. the data is replay or made up by an LLM; but `Bolwin` rebutted with an analogy to a progress bar ("The intermediate tickers are fake but real data comes in and resets it"), and `Retro_Dev` pointed out that a restart does not equal rolling back the model state. In addition, someone posted a line `"Claude Distill Requests":'hidden'` on the dashboard, plus multiple follow-up questions asking "why not publish MFU". **The Forkast piece wrote "the numbers jump back on refresh" as a common view on HN; in fact it is one person's claim plus two rebuttals, and I downgraded it according to the original post.** (Evidence strength: frontline experience; among this, "data fabrication" is an unconfirmed claim)
+
+---
+
+## 3. Sasha Rush's 80k→120k post: original text, hard evidence, mechanism
+
+This section is the highest-priority target of this collection, and is expanded separately.
+
+### 3.1 Original statements (three consecutive tweets, all from Rush's own X account)
+
+Speaker: Sasha Rush, X account @srush_nlp (bio "Researcher, Programmer", homepage rush-nlp.com).
+Collection time: 2026-09-19 09:13–09:20 UTC. Collection method: opened the x.com post page directly with a proxy browser.
+
+**First one (triggering post)**, 2026-09-17 11:30 (time displayed on the post page), 27k views, 15 replies / 6 reposts / 320 likes / 38 bookmarks.
+Link: https://x.com/srush_nlp/status/2100427133440950536
+
+> "I'm on my phone monitoring the MiMo v2.6 response length on coding-obg8 like a degenerate gambler."
+
+Chinese: I'm on my phone staring at the response length of MiMo v2.6 on coding-obg8 like a degenerate gambler.
+
+**Second one (self-reply)**, same day, 2 replies / 15 reposts / 3,384 likes.
+Link: https://x.com/srush_nlp/status/2100427931705098465
+
+> "Just insane you can watch this -> mimo.xiaomi.com/rl/"
+
+Chinese: Being able to directly watch it like this is just insane -> mimo.xiaomi.com/rl/
+
+**Third one (self-reply, and the line singled out in the task)**, 2026-09-17 11:34 (the exact time given by Twitter's official embed endpoint, "11:34 AM · Sep 17, 2026"), 2,335 views, 13 replies / 1 repost.
+Link: https://x.com/srush_nlp/status/2100428266792272023
+Screenshot: `.playwright-mcp/mimo-en-srush-80k-120k.png`
+
+> "just feels like 80k->120k is too big a jump."
+
+Chinese: I just think the jump from 80k to 120k is too big.
+
+**Nature of what was collected**: These three are the **original source**, not secondhand paraphrase. I did not collect any earlier or more complete Rush statement (his blog srush.github.io, what he promoted in the 9-16 tweet was "Lean Verified Transformers", unrelated to this question; in the recent posts on his homepage, apart from the above three, there is no other MiMo content).
+
+**One notable discrepancy**: This has often been summarized as Rush "expressing curiosity" (the task brief also writes it that way), but the original tone is not curiosity, it is **skepticism** — "just feels like ... is too big a jump" is saying this jump's magnitude feels unnatural. When paraphrasing, do not write it as "he is very curious why it rose".
+
+Also to be noted: **none of the English-language reports I found mention Rush's post or the 80k→120k matter.** The English version of 36kr only quoted Han Xiao, elie, and a netizen named Zain; Forkast, RITS, TechNode, and ai-primer all did not mention it. So at the English media level, this observation is **not picked up by anyone**, and has only appeared on X.
+
+**The 13 replies cannot be captured** (for the reason, see section 1, item 1). Therefore, I cannot disprove whether anyone explained it in the replies, and can only report "not obtained".
+
+### 3.2 I traced it through the dashboard: where the 80k→120k came from
+
+There is no field called "response length" on the dashboard. What corresponds to "response length" is a set of `ctx_*_length` metrics, split by data group (code / general / cyber / visual / chat) and specific dataset. The `coding-obg8` named by Rush does indeed exist on the dashboard; its full name is `code/dataset-obg8`.
+
+(Evidence strength: our own measurement. Time 2026-09-19 09:20 UTC; interface `/rl/api/tags?run=pro` has 2,029 metric names in total, `/rl/api/series?run=pro&v=3-5513.24.12.23&tags=...`; the definition is the mean over all rollouts for that dataset.)
+
+**pro's `ctx_total_length/code/dataset-obg8/mean`, by step:**
+
+| Step | 1 | 4 | 8 | 10 | 12 | 14 | 15 | 18 | 20 | 22 | 24 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Average total context length | 79,853 | 94,895 | 97,894 | 108,316 | 112,495 | **118,125** | **125,183** | 137,171 | 137,428 | 136,104 | **165,762** |
+
+On the same dataset `ctx_prompt_length/.../mean` (the prompt length fed in) stays between 2,509–3,221 throughout, almost flat.
+So **answer portion ≈ total length − prompt**: step 1 about 77,051 → step 14 about 115,332 → step 24 about 162,741.
+
+**flash same dataset**: step 1 81,102 → step 14 120,623 → step 30 163,101, same trend.
+
+**Three supplementary observations** (these three are my recalculations/inferences, marked clearly):
+
+- This `ctx_total_length`'s **maximum equals 1,048,570 at both step 20 and step 21**, while 2^20 = 1,048,576. Meanwhile `clip_ratio` (the truncated proportion) is nonzero only at step 20 (0.000406) and step 21 (0.000810), and is all 0 otherwise. **Inference: the context has a hard cap of 1 million tokens, and a small number of samples have already hit it.**
+- `dynsam/agg_turn/mean` (average number of turns per trajectory) oscillates around 42.4–64.8 between steps 1–24, **with no upward trend** (step 1 47.5, step 24 52.2). Dividing total length by number of turns gives "new tokens per turn": step 1 about 1,682 → step 24 about 3,178, **nearly doubled**. So length inflation is mainly not "more turns", but "spitting out more per turn".
+- Over the same period, `dynsam/avg@n` (training-side average pass rate) is 0.5647 at step 1, peaks at 0.6431 at step 20, then **falls for 4 consecutive steps to 0.5964 at step 24**, while length is still rising. **This is a pattern of "length rising while pass rate instead falls", consistent with the appearance of length gaming, but it could also just be that the problems sampled in these steps were harder—the dashboard does not expose information that can distinguish the two, and I do not draw a conclusion.**
+
+### 3.3 Has anyone given a mechanistic explanation? — not found
+
+Checked item by item as the task requires; the results are as follows:
+
+| Possible explanation paths | Whether anyone in the English-speaking community mentioned it | Note |
+|---|---|---|
+| Correlation between length and accuracy | Not found | Only Rush's original unease, no correlation analysis |
+| RL's length bias / GRPO-DAPO-type algorithms favoring long answers | Not found | No one in the r/LocalLLaMA discussion group mentioned it |
+| thinking token inflation | Not found | No one on X connected this with the dashboard data |
+| Missing length penalty / truncation cap | Not found | No one mentioned the 1M truncation I calculated above |
+| reward hacking / length gaming | Yes, but not specifically about 80k→120k | See section 7; it discusses benchmark and judge, not length |
+
+**Conclusion: the "mechanistic explanation" assumed by the task does not exist within the English-accessible scope.** The only person who singled out length to talk about was Rush, and he himself did not give an explanation. At no point should I write "no one explained it" as "everyone thinks there's no problem"—the real situation is that **this phenomenon has hardly been discussed**.
+
+---
+
+## 4. Hacker News: 549 points, 155 comments
+
+Post: **"Xiaomi Mimo 2.6 live post-training dashboard"**, submitted by `krackers`, 2026-09-16 20:09 UTC, **549 points, 155 comments**, link points to https://mimo.xiaomi.com/rl/.
+Post page: https://news.ycombinator.com/item?id=49732270
+Collection method: Algolia API pulled all 155, time 2026-09-19 09:12–09:18 UTC.
+
+**The actual content composition of this post (my judgment after reading it item by item)**: about 70% is everyday chatter along the lines of "how is MiMo 2.5 to use / is it cheaper than DeepSeek / which plan should I use", unrelated to the dashboard itself. The genuinely dashboard-targeted technical opinions are concentrated in those I list below, and there is also an obvious benchmark contamination side thread.
+
+**Cost and compute**
+- `ttul`：
+  > "$5 per second if my eyes don't fool me. That's ~$432K per day. Enough to rent 3,000 B300 nodes on Modal."
+  > Chinese: If I'm not misreading, it's $5 per second. That's about $432,000 per day. Enough to rent 3,000 B300 nodes on Modal.
+- `ssn2000`：
+  > "Total run cost is $1.2M until now, what resources are they using to train their model? Wish they shared more details on that and what the MFU metrics are."
+  > Chinese: Total cost is now $1.2 million; what resources are they actually training with? I hope they disclose a bit more, and also the MFU metric.
+- `Cookingboy` (clearly a joke):
+  > "That "training cost" is just live revenue count for Anthropic/OpenAI API calls! /s"
+  > Chinese: That "training cost" is actually just a real-time revenue counter for Anthropic/OpenAI API calls! /s
+
+**benchmark and contamination**
+- `liuliu`：
+  > "When you run benchmarks while training, isn't that the definition of contamination? Asking because I am not sure if this is normal in big labs now."
+  > Chinese: Running benchmarks while training—isn't that the definition of contamination? I ask because I'm not sure whether all the big labs do this now.
+- `jampekka`'s reply (the most-quoted one in this thread):
+  > "Kinda yes. The benchmarks become part of the validation set, which means the models get slightly overfit to them if they are used as criteria for stopping the training. But a lot less compared to using them in the training data. I'd guess everybody uses at least some benchmarks as stopping criteria, which is kinda sensible, but it also does induce some benchmaxxing, and explains partly why the newest models always tend to eke out in benchmarks."
+  > Chinese: In a sense, yes. The benchmark becomes part of the validation set; if it is used as a criterion for stopping training, the model will slightly overfit to it, but much less so than if it were put into the training data. I guess everyone uses at least some benchmarks as stopping conditions, which is actually quite reasonable, but it does bring a certain degree of "leaderboard gaming", and also partly explains why the latest models can always squeeze up a little on benchmarks.
+- `sspiff` (technical rebuttal, clarifying the process):
+  > "They run one step/iteration on an additional chunk of training data, then use the snapshot of the weights after that iteration in a separate validation benchmark while continuing to train on another chunk of data for the next iteration. They result of the benchmark does not feed back into the training, it simply serves to provide a measurement of progression over time."
+  > Chinese: They run one step/one round on a new data chunk, then take the weight snapshot after that step to evaluate on an independent validation benchmark, while continuing to train on the next data chunk. The evaluation results are not fed back into training; they are only used to measure progress over time.
+- `brookst` and `kingstnap`'s court analogy (kingstnap's addition is more informative than the original post):
+  > `brookst`: "It's the difference between "study law until you can pass any random bar exam" and "here are 200 legal questions and we'll drill them, with me correcting and explaining when you get one wrong, until you can pass exactly these 200". Your right that tuning can aim for a benchmark, but it does not leak any information about the answers."
+  > Chinese: The difference is between "studying law until you can pass any random bar exam" and "here are 200 questions; we practice them repeatedly, and when you get one wrong I explain it, until you can just barely pass these 200".
+  > `kingstnap`: "It's actually close to the second. "Here are 200 software questions, will drill you on *other stuff* until you can pass exactly these 200. If the other stuff isn't improving your scores we will change ratios of it till it does." The reason it benchmaxes is that *other stuff* ends up looking more and more like SWE Bench without you realizing it."
+  > Chinese: It's actually closer to the second one, except what's being practiced is "something else": you're given 200 software questions, and you're trained on other content until you can pass these 200; if that "other content" doesn't improve the score, its data mix is adjusted until it does. The reason it leads to leaderboard gaming is that, without you realizing it, that "other content" becomes more and more like SWE Bench.
+
+**Dashboard credibility**
+- `singularity2001` (the entire comment is just this one line):
+  > ""Claude Distill Requests":'hidden'"
+  > Chinese: There is a line on the dashboard that says "Claude Distill Requests" (Claude distillation requests): hidden (hidden).
+- `hsbalanxvxjsmab` (same person, multiple comments):
+  > "It said restarted step 15 5 mins ago and the progress showed they were working on step 16 for a day"
+  > Chinese: It says it restarted from step 15 5 minutes ago, but the progress shows step 16 has already been running for a day.
+  > "Haha yeah pretty wild how easily you can see the data is fake by the repeating numbers (refresh the page the progress goes back in time constantly) + watch for restarts. They say they happen but 0 data correlates the log messages. Just a replay of old data or being fed by an llm so they convince people they are open"
+  > Chinese: Ha, it's too obvious, the data is fake—the numbers keep repeating, refreshing the page makes progress go backwards, and look at those restarts: they say they restarted, but none of the data matches those logs. Either it's replaying old data, or it's LLM-fed, to make people believe they're very open.
+- `Bolwin` (rebuttal):
+  > "The intermediate tickers are fake but real data comes in and resets it. Its like a progress bar essentially. We don't call progress and bars fake"
+  > Chinese: Those bouncing numbers in between are fake, but when real data comes in it resets them. It's essentially a progress bar. We wouldn't say a progress bar is fake.
+- `Retro_Dev` (rebuttal):
+  > "A restart of the process does not necessarily mean reverting the model state. I don't know why you would even do that, because you'd lose all the progress you made."
+  > Chinese: A process restart does not necessarily mean the model state rolls back. I don't understand why they would do that; it would throw away all progress.
+- `rozab` and `dude250711` (speculation about "why suddenly make it public"):
+  > `rozab`: "Why are they doing this? To try head off accusations about distillation?"
+  > Chinese: Why did they do this? To preempt accusations about distillation?
+  > `dude250711`: "Distillation in real-time? Very interesting!"
+  > Chinese: Real-time distillation? Very interesting!
+- `brookst` (on whether public disclosure can prove innocence):
+  > "I don't see how it would head off such accusations. This is post-training, and even it's data could be pulled from other models or run against other models in realtime. Not saying that's the case, just that the dashboard does not disprove."
+  > Chinese: I don't see how this blocks such accusations. This is post-training; its data itself may also come from other models, or be generated by running other models in real time. I'm not saying it definitely is, only that the dashboard cannot disprove it.
+
+**DeepSWE scores and interference**
+- `ricardobeat`：
+  > "For reference, Mimo-v2.5-Pro scored 19% on DeepSWE 1.1. This is looking great. Fable scores 70%, Kimi K3 69%, Astra 74% (all on max effort)."
+  > Chinese: For reference, MiMo-v2.5-Pro is at 19% on DeepSWE 1.1. This time it looks very good. Fable 70%, Kimi K3 69%, Astra 74% (all at the highest compute tier).
+- `arcanemachiner`：
+  > "DeepSWE is saturated now IMO, and is basically worthless. Lots of new models get around 74%."
+  > Chinese: I think DeepSWE is already saturated, basically worthless; a bunch of new models are all around 74%.
+- `esafak`：
+  > "That's the kind of transparency we need! That DeepSWE benchmark puts it in frontier territory"
+  > Chinese: This is the transparency we need! That DeepSWE score puts it in the frontier tier.
+- `Cookingboy`：
+  > "2.6-pro just reached 63.7% by step 10, it's on step 11 right now. Even flash reached 60.7% by step 12... This is so exciting lmao."
+  > Chinese: 2.6-pro reached 63.7% by step 10, and is now at step 11. Even flash is at 60.7% by step 12... so exciting.
+- `buffalobuffalo` (the only one that mentions harness):
+  > "Also worth taking a look at is the mimo harness. It's a fork of opencode with some new modes added for long horizon tasks. One of the better open harnesses out there at the moment."
+
+**Note**: In the full HN text of 155 comments, **not a single one discusses generation length, length inflation, or thinking token**, and no one recalculates the GPU count. This is a "negative result" of this collection and worth recording.
+
+---
+
+## 5. Reddit: three posts, four attitudes
+
+### 5.1 r/LocalLLaMA — main battlefield
+
+Post: **"Xiaomi MiMo 2.6 Live Training Dashboard"**, 2026-09-16, **446 points / 75 comments**, link points to the dashboard.
+https://reddit.com/r/LocalLLaMA/comments/1wi9ebm/xiaomi_mimo_26_live_training_dashboard/
+Collection method: `.json` API pulled the entire comment tree, time 2026-09-19 09:15 UTC.
+
+**GPU count (the most important item in this section)**
+- `power97992`：
+  > "if  $5/gpu/hr, it's around 4000 gpus for 2.6 pro. That is a lot less than astra…"
+  > Chinese: If calculated at $5/GPU/hour, 2.6 pro is about 4,000 GPUs. Much less than Astra...
+- `power97992` / `zball_` on GPU type:
+  > `power97992`: "It could be more if they are using ascends. 5/hr is for a b300"
+  > `zball_`: "They aren't. Most likely a lot of Hoppers."
+  > Chinese: If using Ascend there would be more, $5/hour is the price for B300 / not Ascend, most likely a large number of Hopper.
+- `NandaVegg` quoted a rumor (**note this is a rumor, not a paper**):
+  > "There was a casual SNS report from DeepMind researcher that (for a single training run) GPU does not really scale above 4k cluster (it even slowed down above 8k presumably because bottlenecks) and mocking Meta and Tesla for acquiring too many GPUs just for training at the time. This is probably just one intermediate run for Xiaomi's model."
+  > Chinese: Previously a DeepMind researcher casually said on social media that clusters with more than 4,000 GPUs in a single training run don't really scale (beyond 8,000 GPUs they even get slower, presumably due to bottlenecks), and at the time also mocked Meta and Tesla for hoarding so many GPUs for training. Xiaomi's is probably just one of the intermediate runs.
+
+**Whether the cost is real**
+- `ALIEN_POOP_DICK`：
+  > "I wonder if the $ cost is "typical GPU-compute/s" or their raw electricity cost"
+  > Chinese: I'm curious whether that dollar figure is "typical GPU compute cost" or their electricity bill.
+- `fugogugo` (first posted 378k, then posted again 5 hours later):
+  > "428k 5 hours later they burn 10k per hour? damn"
+  > Chinese: 5 hours later 428k, they burn 10k an hour? Damn.
+- `roofedora`：
+  > "Why is it so expensive? Don't they have the infra to support the trainings for cheap?"
+- `ComposerGen`：`"$1,520,218 now"`
+- `shy_monkee` (rebuttal to "this looks very unseemly"):
+  > "1M is like nothing for training a 1T parameters model, bro."
+  > Chinese: Training a 1T-parameter model, 1 million is nothing, man.
+
+**"This isn't healthy, right"**
+- `indicava`：
+  > "Is it just me or do those loss functions not look healthy?"
+  > Chinese: Is it just me, or do those loss curves look unhealthy?
+- `viag`, when rebutting the cost doubts, explained why long-horizon RL is expensive:
+  > "And the price does not surprise me given the scale, doing RL on a 8B model on a single environment can quickly cost thousands / tens of thousands (especially for long-horizon tasks, with LLM-judges, web search etc.)"
+  > Chinese: This price is not surprising at this scale. An 8B model doing RL on a single environment can quickly burn thousands to tens of thousands of dollars (especially for long-horizon tasks, with LLM grading, web search, and such).
+- `Cool-Chemical-5629` (**points out that offline evaluation lags behind**, see section 8):
+  > "Last time the Pro was tested against DeepSWE was at Step 8 of training. Currently it sits at Step 10 and the training is still on-going. It's not the final benchmark, just intermediate review of the current state which is imho a neat thing..."
+  > Chinese: The last time Pro was tested on DeepSWE was still step 8. Now it has reached step 10, and training is still ongoing. That is not a final score, just an intermediate check of the current state; personally I think this is a good thing.
+
+**Other things worth noting**
+- `crusaderky` (surprise about flash and pro being trained in parallel):
+  > "I was not expecting Flash and Pro to be trained in parallel. I always assumed that Flash models were always distilled from the Pro model."
+  > Chinese: I didn't expect Flash and Pro to be trained in parallel. I always thought Flash was distilled from Pro.
+- `Kahvana` (data mix):
+  > "It's really heavily trained on code. I wish it would've been trained a bit more on general / chat data."
+  > Chinese: It's very code-heavy. I hope they train a bit more on general/conversational data.
+- `Randomdotmath`：
+  > "worth noting: they added visual to 2.6 pro training. does that mean it now has vision unlike 2.5 pro? (only 2.5 flash had it before)"
+- `SlanderMans`：`"This is why sandboxing providers are so important right now"`
+- `Terminator857` posted a Gemini-generated estimate of "how long this run will take", in which the stopping condition is written as (this is Gemini's wording, not the dashboard's framing):
+  > "In post-training RL, runs do not go on indefinitely because models experience diminishing returns, reward hacking, or entropy collapse."
+  > Chinese: Post-training RL won't run forever, because the model will encounter diminishing returns, reward hacking (exploiting loopholes in the reward), or entropy collapse.
+
+### 5.2 r/reinforcementlearning — highest post quality, very few comments
+
+Post: **"Xiaomi is literally live-streaming a $1M+ agentic RL run for MiMo-V2.6"**, 2026-09-17, **114 points / 11 comments**.
+https://reddit.com/r/reinforcementlearning/comments/1wifr2m/
+Collection time: 2026-09-19 09:15 UTC.
+
+In the OP's main text there is one sentence that is new information (**note it is a "netizen compilation", not official framing**):
+
+> "The dashboard shows live metrics: rewards, entropy, KL, context length (~90–100k mean!), grad norms, step timings."
+> Chinese: The dashboard displays real-time metrics: reward, entropy, KL, context length (mean around 90–100k!), gradient norm, time per step.
+
+The same post also gave a table listing metrics beyond `dynsam/avg@n` (Pro step 10, DeepSWE 62.24, cost $741k; Flash step 16, 60.77, $322k), and wrote "Total cost on the board: ~$1.06M — and still climbing".
+
+Two comments are informative:
+- `Prince_Corn`：
+  > "This is amazing transparency work if all the frontier Labs livestreamed their training runs we could all know what's coming"
+  > Chinese: If all frontier labs live-streamed their training process, this transparency would be amazing; we could all know what's coming next.
+- `gigio123456789` (**another mention of benchmark contamination**):
+  > "Super cool. So the prompts they're currently training on are the ones from that benchmark?"
+  > Chinese: Very cool. So the prompts they're training on now are exactly the questions from that benchmark?
+- `petitponeyrose` (historical precedent):
+  > "THat's good, but Bloom from Bigscience were doing it in 2019 already ;)"
+
+### 5.3 r/singularity — most intense benchmark skepticism
+
+Post: **"Xiaomi Mimo 2.6 Live Training Dashboard"**, 2026-09-16, **126 points / 16 comments**.
+https://reddit.com/r/singularity/comments/1wi9e3i/
+Collection time: 2026-09-19 09:15 UTC.
+
+- `cookingboy` first gave a comparison ("v2.5-pro only scored 19%, and Kimi K3 is at 69% vs. Fable at 70%... There is a decent chance 2.6-Pro will be a Fable class model"), then `Ill_Distribution8517` directly rebutted:
+  > "Absolutely not IMO. The benchmark is quite literally used while they are training, this is the worst way you can compare the model. Remember gemini 3.8 flash has a higher score than fable 5. No one in their right mind thinks fable 5 and 3.8 flash are equivalent."
+  > Chinese: I completely disagree. That benchmark is exactly what they were using during training; this is the most meaningless way to compare. Think about it: Gemini 3.8 Flash's score is even higher than Fable 5's, and no sane person would think Fable 5 and 3.8 Flash are at the same level.
+- `Odd_Buddy_3615` gave the **most specific description of the overfitting mechanism** (the best one collected this time):
+  > "I agree. When you do synthetic data generation and have large resources to spend on human labelling you can totally overfit to benchmarks without cheating on the holdout. E.g. you run eval, analyse your responses, find the holes and generate new data to plug them, repeat 100X. For some labs this is a closed automated loop."
+  > Chinese: Agreed. When you're doing synthetic data and also have a lot of manpower for annotation, you can absolutely overfit the benchmark without touching the holdout. For example: run evals, analyze your own answers, find gaps, generate new data to fill them, repeat 100 times. For some labs this is a closed-loop automated process.
+- Clash between `0_op` / `Ill_Distribution8517` (neither side gave ground):
+  > `0_op`: "Do you understand the difference between training and validation?"
+  > `Ill_Distribution8517`: "Are you that naive? Did they pinky promise that the benchmark they are using for the 10th in the last 24 hours is not in the RL curriculum? They have every incentive to train it on the bench."
+  > Chinese: Can you tell the difference between training and validation? / Are you that naive? Did they pinky-promise that the benchmark used for the 10th time in the past 24 hours isn't in the RL curriculum? They have every incentive to train it in.
+- `playpoxpax` gave a dashboard primer, and the part about dataset runs is a **recomputable definition** (but it's a netizen's interpretation, not official):
+  > "Total tokens is their entire post-training dataset. Current tokens is how much they take from the total on each step. Since they have 22B, and take 2.2B on each step, it means they need 10 steps to go over the entire dataset. They're currently on Step 11, so they're going the second round."
+  > Chinese: Total tokens is the total volume of their post-training dataset, current tokens is how many are taken per step. Since the total is 22B and each step takes 2.2B, one full pass takes 10 steps. They're now at step 11, i.e. on the second pass.
+
+### 5.4 r/MachineLearning — no relevant posts
+
+Searching with `r/MachineLearning/search.json?q=mimo+OR+xiaomi&t=month` returns empty. **Conclusion: r/MachineLearning has no discussion posts about the MiMo RL dashboard.** (collection time 2026-09-19 09:15 UTC)
+
+---
+
+## VI. Cost / GPU count / sandbox concurrency: what the English-speaking community calculated and what it didn't
+
+### 6.1 Numbers given by the community (firsthand experience)
+
+| Who | What was said | Source |
+|---|---|---|
+| elie @eliebakouch | Pro (1.02T total / 42B active) $493k/day, $70k/step, $2.78/sample trajectory, $33.91/million tokens; Flash (309B total / 15B active) $247k/day, $21k/step, $0.86/trajectory, $9.25/million tokens | https://x.com/eliebakouch/status/2100324137642131516 |
+| `ttul`（HN） | $5 per second → about $432k/day; enough to rent 3,000 B300 nodes on Modal | HN 49732270 |
+| `power97992`（Reddit） | At $5/GPU/hour, 2.6 pro is about 4,000 GPUs | r/LocalLLaMA 1wi9ebm |
+| `ssn2000`（HN） | Total cost $1.2M; pressed for MFU but no number given | HN 49732270 |
+| 36kr English edition | The rate set on the official page is **$30,834/hour**, about $1.15M combined for the two runs | https://eu.36kr.com/en/p/3987697090722564 |
+| Forkast | Pro about $432,000/day, $5/second | https://forkast.news/xiaomi-mimo-v2-6-breaks-cover-a-1t-class-chinese-lab-trains-in-public/ |
+
+The replies under elie's tweet are also worth mentioning: `griff` (@dankschmoney) said "$70k/step is so crazy when you parse it out like that", `Mahesh KMB` (@reachmaheshkmb) asked "how many steps does a full run take at that rate? curious whether the RL phase ends up a small or major share of total training cost", `Emanuel Teklu` asked "Whos funding this?". **No one directly answered these questions.**
+
+### 6.2 My recalculation using the dashboard API (our own measurement)
+
+Collection time 2026-09-19 09:20 UTC, APIs `/rl/api/status?run=pro` and `?run=flash`:
+
+| | pro | flash | Total |
+|---|---|---|---|
+| Current step | 24 | 30 | — |
+| Real-time rate | $5.71/second | $2.855/second | $8.565/second |
+| Equivalent per hour | 20,556 | 10,278 | **30,834** |
+| Equivalent per day | 493,344 | 246,672 | 740,016 |
+| Cumulative spend | $1,948,319 | $854,045 | **$2,802,364** |
+| Cumulative token | 55,961,620,000 | 81,397,700,000 | — |
+| Tokens per step | 2,969,060,000 | 3,695,980,000 | — |
+| Accepted trajectories per step | 25,088 | 25,088 | — |
+| Sandboxes launched per step | 102,864 | 170,368 | — |
+| Cumulative restart count | 11 | 5 | — |
+
+Converting pro's run_start timestamp gives **2026-09-15 10:32 UTC**—so "the September 17 launch" refers to the time Luo Fuli tweeted; training itself started on September 15. What Forkast and RITS wrote, "started on September 15", is correct.
+
+**Three derived conclusions that can be cited directly**:
+
+1. **"About $30k per hour" is fully self-consistent**, but it is the combined rate for pro + flash (8.565 × 3600 = 30,834). Looking only at pro, it is $20,556/hour. When citing, be clear which one it is.
+2. **GPU count can only be inferred; there is no direct data.** Under the community's assumed $5/GPU/hour: pro about 4,111 GPUs, flash about 2,056 GPUs, about 6,167 combined. If the denominator is changed to $3, it is just over 10,000 GPUs; at $1.5, it is 20,000 GPUs. **The $5 denominator itself has no source**, so this conclusion has an extremely large error range and is only suitable as an order of magnitude.
+3. **No one has calculated sandbox concurrency, but the data exists.** `env/active` (the number of environments running simultaneously) in the RITS September 17 record is about 23,700 for pro and about 37,800 for flash; the `sandboxes_step` I read (total sandboxes launched per step) is 102,864 for pro and 170,368 for flash. Dividing by the 25,088 trajectories accepted per step: **pro launches about 4.1 sandboxes per accepted trajectory, flash about 6.8**. This ratio explains why the bill is so high—a large amount of compute is spent on rollouts that are not adopted. **Note that this is my own division; the dashboard does not explain the exact definition of `sandboxes_step`, it may include retries, and citations should carry this caveat.**
+
+---
+
+## VII. benchmark overfitting / reward hacking / length gaming
+
+Following the task requirements, I'll discuss the three things separately, because the English-speaking community's level of attention to these three things varies greatly.
+
+### 7.1 benchmark overfitting: most discussed, with both for and against sides present (firsthand experience)
+
+The side that agrees "there is a problem":
+- HN `liuliu` ("isn't evaluating while training just contamination?"), HN `kingstnap` (the data mix will be unconsciously pushed toward the benchmark), r/singularity `Ill_Distribution8517` ("this is the most meaningless way to compare"), r/singularity `Odd_Buddy_3615` (eval → find gaps → generate data → repeat 100 times, a closed loop), r/reinforcementlearning `gigio123456789` ("are the prompts used for training just the benchmark questions?")
+
+The side that opposes "there is a problem":
+- HN `sspiff` (evals are not fed back in, they just measure progress), HN `lucrbvi` ("It's a common practice for big reinforcement learning runs", a normal practice for large RL runs), HN `brookst` (being able to target the benchmark does not mean leaking the questions), r/LocalLLaMA `Cool-Chemical-5629` (intermediate checks are not final results, and that's a good thing).
+
+**A detail that keeps being brought up but no one has verified**: DeepSWE's evaluation methodology. The RITS piece states it clearly (**official secondary source, relatively high credibility**):
+> "The DeepSWE figures are intermediate checkpoints run by Xiaomi's own evaluation setup. They are not independent leaderboard entries. Scores from different harnesses or attempt counts are not directly comparable."
+> Chinese: The DeepSWE numbers are intermediate checkpoints run by Xiaomi using its own evaluation environment, not independent leaderboard results. Scores from different harnesses or different numbers of attempts cannot be compared directly.
+
+### 7.2 reward hacking: someone brought it up, but it lands on the judge, not on length
+
+**The most valuable one is Andrew Carr (@andrew_n_carr)**, 2026-09-17 12:04, link https://x.com/andrew_n_carr/status/2100435578030579982：
+
+> "the weird part of this MiMo graph is that the judge and probe disagree 60% of the time. and for pro, disagreement goes up during training. would love to know how much of that is harder-to-judge behavior vs the model getting better at fooling the judge."
+
+Chinese: The strangest thing about this MiMo chart is that the judge (grader) and probe (probe) are inconsistent 60% of the time. Moreover, pro's inconsistency rate rises during training. I'd really like to know how much of this is "behavior becoming harder to judge" and how much is "the model getting better at fooling the grader".
+
+The corresponding dashboard field is `penalty/stage_credit_group/select_v4/select_probe_disagree_rate` (the inconsistency rate between grader and probe choices), and the reading recorded by ai-primer is Pro 0.603, Flash 0.579. **Carr himself clearly said the public chart can only prove that the inconsistency rate is rising, not which mechanism it is.**
+
+`transdev12` on HN also mentioned it briefly (but more generally):
+> "they've essentially exhausted pre training scaling and are looking to post training to expand capabilities, which is really just optimization via reinforcement learning against specific tasks aka bench maxing."
+> Chinese: They have basically exhausted pretraining scaling and turned to post-training to expand capabilities, and post-training is essentially task-specific reinforcement learning optimization, i.e., leaderboard gaming.
+
+### 7.3 length gaming / length hacking: basically no one discussed it
+
+- **In the English-speaking community (155 HN comments + three Reddit threads), the only one who treated "length" as a problem was Sasha Rush in those three tweets.**
+- No one compared the rise in length against the trend of `dynsam/avg@n`, nor did anyone mention possible mechanisms such as "missing length penalty" or "GRPO/DAPO's preference for long responses".
+- In the r/LocalLLaMA thread, only the OP mentioned it vaguely with "context length (~90–100k mean!)", and no one followed up.
+- One discussable point I found from my own recalculation (**speculation, not a community view**): pro's `dynsam/avg@n` peaked at 0.6431 at step 20 and then fell for 4 consecutive steps to 0.5964, while over the same period obg8's average context length was still rising from 137k to 166k. 「Length rising, pass rate falling」 fits the appearance of length gaming, but it could also just be that the problems in these steps are harder; the dashboard does not have information that can distinguish the two. **This should be marked as our own inference and must not be written as community consensus.**
+
+---
+
+## 8. Pitfalls in dashboard data: what the English-speaking community pointed out
+
+Check the two types of pitfalls named by the task one by one:
+
+### 8.1 Numbers jump back / may be replay — someone mentioned it, but only one person, and there was rebuttal
+
+**This is the most seriously misreported item.** The Forkast piece (AI-written) wrote 「Community members on Hacker News have noted that the dashboard numbers may reset or replay upon page refresh」, using the plural "community members". Going back to the original post, in fact only `hsbalanxvxjsmab` was repeatedly talking about this, and two people rebutted it (`Bolwin`'s progress bar analogy, `Retro_Dev`'s "restart ≠ rollback"). See section 4 for the original sentence.
+**Credibility: do not accept the conclusion that "the data is replay/fabricated"; do accept the phenomenon itself that "numbers may jump back after page refresh", because both sides implicitly accepted that the intermediate numbers were fluctuating.**
+The other point from `hsbalanxvxjsmab`, "the restart log and the curves do not match" ("the message stating the flash 2.6 flash run was restarted and 0 graphs correlate that restart"), I could not independently verify—whether restart records and curves on the dashboard should correspond, the dashboard does not specify.
+
+### 8.2 Offline evaluation lags behind training progress — someone mentioned it, and it holds up
+
+- r/LocalLLaMA `Cool-Chemical-5629`: Pro's DeepSWE score is still stuck at step 8, while training has already reached step 10.
+- ai-primer (secondhand summary) relays the dashboard's methodology:
+  > "The DeepSWE chart is not presented as a fully live evaluator. The dashboard says it updates offline results for specific steps"
+  > Chinese: The DeepSWE chart is not a fully real-time evaluator. The dashboard explains that it only updates offline results for specific steps.
+- RITS also wrote the same thing ("Mid-training evaluation... The latest plotted results were 63.72 for pro at step 10", while training had already reached step 13 at the time).
+
+**So the point that "offline evaluation lags behind training progress" is explicitly stated in the English-speaking community and can be accepted.**
+
+### 8.3 Whether `timing_s/step` includes restart wait — no one mentioned it
+
+This pitfall named by the task, **no one in the English-speaking community discussed it**. I also did not independently verify it (the dashboard does not provide field definitions). The dashboard does expose the three fields `timing_s/step`, `timing_s/outer_gen`, `timing_s/trainer_ops`, and pro's `step.restarted_at` field is null while the cumulative restart count is 11, indicating that restart information is elsewhere—but **whether restart wait can be seen from `timing_s/step`, I am not drawing a conclusion; I leave that to our dashboard analysis side**.
+
+### 8.4 Other methodology issues that were pointed out
+
+- **MFU missing**: `ssn2000` (HN) wanted MFU, `@auto_grad_` directly replied "mfu" under the wh (@nrehiew_) post "Any ideas?", and MiMo team's Lei Li (@_TobiasLee) replied "yeah let us know if you want to see more metrics :)". So on the matter of "what metrics should be provided", the community and the official side have already interacted in public conversation.
+- **Cost methodology unclear**: r/LocalLLaMA's `ALIEN_POOP_DICK` asked whether that dollar figure is "typical GPU compute cost" or "electricity cost"; the 36kr English edition also wrote 「the page does not fully explain hardware depreciation, energy consumption, labor, and other costs... it cannot represent complete R&D spending」 (paraphrase; the original is a Chinese article).
+- **Grader inconsistency rate**: see 7.2; `andrew_n_carr` pointed out that this metric rose but cannot be attributed.
+- **`Claude Distill Requests: hidden`**: This line posted by `singularity2001` on HN, if it does exist on the dashboard, belongs to the category of fields that "the official side exposed but did not explain". **I was unable to independently verify whether this line is actually on the dashboard** (at the time I did not go through the full set of field names; among 2,029 metric names I only filtered for those related to length/gen/obg8). Mark as uncertain.
+
+---
+
+## 9. People named by the task: who said what, who did not
+
+| Person | Spoke? | Content | Evidence strength |
+|---|---|---|---|
+| **Sasha Rush**（@srush_nlp） | Yes, 3 tweets | See section 3; the only person who talked about generation length | Official firsthand (their own X) |
+| **Nathan Lambert**（@natolambert / Interconnects） | Yes, 1 quote tweet | 2026-09-17: `"One of the coolest at-scale RL resources made public yet! You love to see it."` (This is one of the most valuable public large-scale RL resources to date! I'm glad to see it.) Link https://x.com/natolambert/status/2100324332916335033, 71k views | Official firsthand (their own X) |
+| Nathan Lambert's blog | **No** | I went through both Interconnects's archive page and its site search `search=mimo`, and the most recent related piece is "Latest open artifacts (#21)" from 2026-05-16 (mentions MiMo 2.5); **there is no article about this dashboard** | Our own test (pagination results) |
+| **Yu-Xiang Wang**（@yuxiangw_cs） | Yes, 1 quote tweet | 2026-09-17: `"Great effort in keeping science in the open! Can't take my eyes off the run. Please try documenting any hiccups that may come up."` (Doing science in the open is remarkable! I can't look away. Please try to record every failure you encounter as much as possible.) Link https://x.com/yuxiangw_cs/status/2100318938878152936. Also note: on 9-11 he tweeted that he has taken leave from UCSD to join NeoCognition as ML Director (this already conflicts with the current-position description of "UCSD Associate Professor") | Official firsthand (their own X) |
+| **Han Xiao**（@hxiao） | Yes, 1 reply | Under Luo Fuli's announcement post: `"very nice and open! 🫡 just dont let cfo see this"` (Very good, very open! 🫡 Just don't let the CFO see this.) It was paired with a GIF. **Note: the English version of 36kr renders this sentence as "We should send this animated graph to the CFO.", which makes the tone and meaning both different—the original is "don't let the CFO see this"**. His profile bio is "VP, AI @Elastic prev: founder & ceo @JinaAI_", so "Jina AI founder" is a former role | Official first-hand (his own X reply) |
+| **Lucas Beyer**（@giffmana） | **No** | I went through his profile page and scrolled to load, and the number of posts containing the keywords MiMo/Xiaomi is 0 | Our own test |
+| **Sebastian Raschka**（@rasbt） | **No** | Same as above, 0 posts | Our own test |
+| **Tim Dettmers**（@Tim_Dettmers） | **No** | Same as above, 0 posts | Our own test |
+
+### Other accounts cited in the English-speaking sphere (all under Luo Fuli's announcement post)
+
+- **elie (@eliebakouch)**—the source of this cost discussion. First post (2026-09-17 04:10): `"wow insane, they are literally livestreaming the RL training run of Mimo V2.6 Pro (1T, 42B active) and Flash (309B, 15B active) with per batch data/harness composition and a ton of internal training metrics"` (188k views). Second post (4:41) gives the cost table from section six above.
+- **`Atishay Jain` (@atishay404)**—asked a very good technical question:
+  > "per batch data/harness composition seems like a recipe for unstable training. do they control for distribution shift between batches?"
+  > Chinese: Expose the data/harness mix for every batch; it looks exactly like a recipe for unstable training. Did they control distribution drift between batches?
+- **`SSH`（@SSHCodes）**：`"a. this is super cool b. the cost is going up a few dollars EVERY SECOND 😭"`
+- **elvis（@omarsar0）**：`"This should be the standard for building open-source AI. $1M+ so far."`
+- **wh (@nrehiew_)**: only posted "Any ideas?", Lei Li from the official side replied "yeah let us know if you want to see more metrics :)", @auto_grad_ replied "mfu".
+- **`Dmitry Legchikov` (@DLegchikov)** under the Rush post: `"Twitch for training LLM models? We deserve it!"`
+
+### Official side (first-hand)
+
+Luo Fuli (@_LuoFuli)'s announcement post at 2026-09-17 02:52, 2.991 million views, is the starting point of all discussion in the English-speaking sphere. Full text:
+
+> "Nearly half a year of silence. We spent it studying one problem: how far RL can scale. MiMo-V2.6 is in the middle of its RL run right now. Three things we scaled: compute (~2B tokens per step, 1568 prompts × 16 rollouts, fully async), environments and harnesses (multi-task agentic RL, mixed across multiple harnesses in one run), and grader compute (agentic in-group credit assignment, with test-case and rubric-based rewards). We'll open-source the details piece by piece over the coming weeks. Streaming the run: mimo.xiaomi.com/rl/"
+
+Chinese: We were silent for nearly half a year. We have been studying one question: how far can RL actually scale. MiMo-V2.6 is currently in RL training. We scaled three things: compute (about 2 billion tokens per step, 1568 prompts × 16 rollouts, fully asynchronous), environments and harnesses (multitask agentic RL, mixing multiple harnesses in one training run), and grading compute (agentic in-group credit assignment, using test cases and rubrics to give rewards). We will open-source the details gradually over the next few weeks. Training livestream: mimo.xiaomi.com/rl/
+
+In the same post, she herself added two more:
+> "We believe RL is one of the most scalable and efficient paths toward self-improvement."
+> Chinese: We believe RL is one of the most scalable and most efficient paths to self-improvement.
+> "We hope this livestream sparks the research community's interest in the core challenges of scaling RL and encourages researchers to help us refine our training recipe. We've been delighted to see so much insightful analysis based on the detailed training metrics."
+> Chinese: We hope this livestream can spark the research community's interest in the core challenges of RL scaling, and also encourage researchers to help us improve the training recipe. We are delighted to see a large amount of insightful analysis based on these detailed training metrics.
+
+**Technical points in the official line (for cross-reference)**: about 2 billion tokens per step; 1,568 prompt × 16 rollout; fully asynchronous; multi-harness mixed training; `grader compute` and "agentic in-group credit assignment" (in-group credit assignment, using test cases and rubrics to give rewards). **Note that "in-group credit assignment" is the same idea as group-relative algorithms such as GRPO, but the official side did not name any algorithm.**
+
+---
+
+## 10. Not found, doubtful, not accepted
+
+### 10.1 Clearly not found
+
+1. **Mechanistic explanation for 80k→120k**—none. Section one already explained that X replies cannot be captured; the 155 HN comments and three Reddit posts did not discuss length either. This is the clearest negative result of this collection.
+2. **Discussion posts on r/MachineLearning**—none.
+3. **Articles by Nathan Lambert / Interconnects**—none, only one X quote tweet.
+4. **Any relevant statements by Lucas Beyer, Sebastian Raschka, or Tim Dettmers**—none at all (I went through each of their profile pages).
+5. **Whether `timing_s/step` includes restart waiting**—zero discussion in the English-speaking community.
+6. **Any discussion that directly infers GPU count or sandbox concurrency from the dashboard data**—none. The only 4,000 GPUs figure was back-calculated by dividing the bill by an assumed unit price.
+7. **Has anyone calculated what share grader compute accounts for**—no. The official side lists `grader compute` as one of the three major scaling directions, but no one gives its share or unit price.
+8. **Body text of that Pandaily article**—only the title was obtained; the JS-rendered content was not retrieved.
+
+### 10.2 Doubtful (included but uncertain; cite with the premise)
+
+1. **Whether this `"Claude Distill Requests":'hidden'` row is really on the dashboard**. The source is a one-line comment from HN user `singularity2001`; I have not independently verified it. Forkast inferred from this that "the model may still rely on distillation from external proprietary models"; **that step is its inference, not a fact**.
+2. **The mechanism behind "numbers jump back on refresh"**. The phenomenon is tacitly accepted by two parties, but "it is replay/fake data" is claimed by only one person and was rebutted.
+3. **The meaning of `sandboxes_step ÷ 每步轨迹数`**. I calculated pro 4.1 and flash 6.8, but the dashboard does not give a definition for `sandboxes_step`; it may include retries or warmup (the dashboard logs contain the word "prewarm").
+4. **The $5/GPU/hour unit price**. There is no source for it; it is a community convention assumption. All conclusions of "about 4,000 GPUs" are built on it.
+5. **The scope of the cost figures**. Luo Fuli/the dashboard did not specify what this dollar amount includes. Multiple netizens (HN `ssn2000`, Reddit `ALIEN_POOP_DICK`, 36kr paraphrase) all asked, but no one received an answer.
+6. **Yu-Xiang Wang's current position**. The task description says "UCSD Associate Professor"; his own 9-11 tweet says he has taken leave from UCSD to join NeoCognition as ML Director.
+
+### 10.3 Not accepted
+
+1. **Forkast's "Community members on Hacker News have noted..."** — writes one person's claim as community consensus, and that claim has two clear rebuttals. I go by the original post and do not cite this Forkast generalization.
+2. **The two pieces of X evidence ai-primer claims**. It says Cristóbal Valenzuela's tweet "makes the commitment sound broader", but I opened `c_valenzuelab/status/2099898533331558800` and found that tweet **did not mention MiMo at all**; it was about a behind-the-scenes share from Runway; the `EMostaque/status/2099626935009657052` it cites is also **a reply to someone else, unrelated to MiMo**. The rest of ai-primer (cost table, grader inconsistency rate) matches elie's and Andrew Carr's original posts, but those two links are wrong. **When using ai-primer, only use the figures it relays that can be verified against the original posts.**
+3. **36kr English edition's rendering of Han Xiao's line** ("We should send this animated graph to the CFO") — differs in meaning from the original "just dont let cfo see this"; the original is authoritative.
+4. **The characterization of Rush's line as "expressing curiosity"** — the original is skepticism ("too big a jump"), and none of the English-language media mentioned this line at all. The original X post is authoritative.
+5. **The entire claim by HN user `hsbalanxvxjsmab` that "the data is fake"** — single source, hostile tone, rebutted by two people, and contradicts the API data I was able to measure directly (continuous, dimensionally self-consistent, rates match independent sources). **Do not accept its conclusion; only record its description of the phenomenon.**
+6. **Forkast's "47-point benchmark jump"** — it subtracts MiMo-V2.5's 19% from 65.97% to get 47 points, but these two numbers come from different evaluation time points, and RITS has already stated that DeepSWE 1.1's methodology is not directly comparable. This difference is not credited.
+
+### 10.4 A methodological reminder
+
+The part of this collection most easily misused by downstream users is: **the statement "the English-speaking community is actively discussing X" does not hold for any of these three things: length, GPU count, `timing_s/step`.** The buzz in English-speaking circles is concentrated in three places—cost accounting, whether the benchmark is contaminated, and whether the dashboard is trustworthy. Only one person mentioned the length issue in one sentence; GPU count and sandbox concurrency were only back-inferred by one person; `timing_s/step`'s methodology had zero discussion. **The easiest mistake to make is to write "no one discussed it" as "everyone approves".**
+
+---
+
+## 11. Source list
+
+### First-hand X posts (all from their own accounts, collection time 2026-09-19 09:13–09:20 UTC)
+
+1. Sasha Rush — "I'm on my phone monitoring the MiMo v2.6 response length on coding-obg8 like a degenerate gambler." https://x.com/srush_nlp/status/2100427133440950536
+2. Sasha Rush — "Just insane you can watch this -> mimo.xiaomi.com/rl/" https://x.com/srush_nlp/status/2100427931705098465
+3. Sasha Rush — "just feels like 80k->120k is too big a jump." https://x.com/srush_nlp/status/2100428266792272023
+4. Fuli Luo — announcement post https://x.com/_LuoFuli/status/2100296686719610932
+5. elie — "wow insane, they are literally livestreaming the RL training run..." https://x.com/eliebakouch/status/2100316319459500128
+6. elie — cost breakdown https://x.com/eliebakouch/status/2100324137642131516
+7. elie — comparison on OpenAI transparency https://x.com/eliebakouch/status/2100362752845922405
+8. Andrew Carr — judge/probe inconsistency 60% https://x.com/andrew_n_carr/status/2100435578030579982
+9. Nathan Lambert — "One of the coolest at-scale RL resources made public yet!" https://x.com/natolambert/status/2100324332916335033
+10. Yu-Xiang Wang — "Great effort in keeping science in the open!" https://x.com/yuxiangw_cs/status/2100318938878152936
+11. Han Xiao — "very nice and open! 🫡 just dont let cfo see this" (in the reply section of 4)
+12. elvis（omarsar0）— "This should be the standard for building open-source AI. $1M+ so far." https://x.com/omarsar0/status/2100337683277173009
+13. wh (nrehiew_) — "Any ideas?" (official Lei Li reply) https://x.com/nrehiew_/status/2100394840123212261
+14. Teortaxes — "huh. At least two labs are making a move now." https://x.com/teortaxesTex/status/2100314154892509644
+15. Cristóbal Valenzuela — https://x.com/c_valenzuelab/status/2099898533331558800 (**verified to be unrelated to MiMo**)
+16. Emad Mostaque — https://x.com/EMostaque/status/2099626935009657052 (**verified to be unrelated to MiMo**)
+
+### Hacker News
+
+17. "Xiaomi Mimo 2.6 live post-training dashboard" (549 points / 155 comments, 2026-09-16) https://news.ycombinator.com/item?id=49732270
+18. Algolia comments API (our data retrieval entry point) https://hn.algolia.com/api/v1/search?tags=comment,story_49732270&hitsPerPage=200
+
+### Reddit
+
+19. r/LocalLLaMA "Xiaomi MiMo 2.6 Live Training Dashboard" (446 points / 75 comments) https://reddit.com/r/LocalLLaMA/comments/1wi9ebm/xiaomi_mimo_26_live_training_dashboard/
+20. r/reinforcementlearning "Xiaomi is literally live-streaming a $1M+ agentic RL run for MiMo-V2.6" (114 points / 11 comments) https://reddit.com/r/reinforcementlearning/comments/1wifr2m/xiaomi_is_literally_livestreaming_a_1m_agentic_rl/
+21. r/singularity "Xiaomi Mimo 2.6 Live Training Dashboard" (126 points / 16 comments) https://reddit.com/r/singularity/comments/1wi9e3i/xiaomi_mimo_26_live_training_dashboard/
+22. r/MachineLearning search (empty results) https://www.reddit.com/r/MachineLearning/search.json?q=mimo+OR+xiaomi&restrict_sr=1&t=month
+
+### English-language media and aggregator sites
+
+23. RITS / NYU Shanghai Library — "Xiaomi Streams MiMo-V2.6 Reinforcement Learning Runs Live" (AI-assisted writing, RITS reviewed) http://rits.shanghai.nyu.edu/ai/xiaomi-mimo-v2-6-live-rl-dashboard/
+24. Forkast — "Xiaomi MiMo-V2.6 Breaks Cover: A 1T-Class Chinese Lab Trains in Public" (byline "Forkast mind", AI-written) https://forkast.news/xiaomi-mimo-v2-6-breaks-cover-a-1t-class-chinese-lab-trains-in-public/
+25. 36kr English edition — "$30,000 per hour, Luo Fuli's live stream is 'burning money'" (English translation of Tencent Technology's Chinese article) https://eu.36kr.com/en/p/3987697090722564
+26. 36kr English edition — "Luo Fuli Follows Lei Jun to Launch Live Streaming..." https://eu.36kr.com/en/p/3986962267765767
+27. TechNode — "Xiaomi livestreams MiMo-V2.6 reinforcement-learning runs" https://technode.com/2026/09/18/xiaomi-livestreams-mimo-v2-6-reinforcement-learning-runs/
+28. AI Primer — "MiMo reportedly streams V2.6 Pro and Flash RL training metrics" (AI aggregation, two X links are incorrect) https://www.ai-primer.com/engineer/stories/mimo-v26-live-rl-training
+29. AI Weekly — "Xiaomi Publishes Live Post-Training Dashboard for Mimo 2.6 RL Run..." https://aiweekly.co/alerts/xiaomi-publishes-live-post-training-dashboard-for-mimo-26-rl-run-streams-real
+30. Interconnects archive page and site search (used to confirm there is **no** related article) https://www.interconnects.ai/archive?sort=search&search=mimo
+
+### The dashboard itself (our own measured data)
+
+31. Dashboard home page https://mimo.xiaomi.com/rl/
+32. `/rl/api/runs`、`/rl/api/status?run=pro|flash`、`/rl/api/tags?run=pro`、`/rl/api/series?run=pro&v=3-5513.24.12.23&tags=...`
+    Specific metric names used: `ctx_total_length/code/dataset-obg8/mean`, `ctx_prompt_length/code/dataset-obg8/mean`, `ctx_total_length/code/dataset-obg8/max`, `ctx_total_length/code/dataset-obg8/clip_ratio`, `ctx_total_length/mean`, `dynsam/agg_turn/mean`, `dynsam/avg@n`, `timing_s/step`, `env/active`, `partial/avg_staleness`.
+
+### Blocked / Unreachable
+
+33. xcancel.com —— 451 "XCancel service is suspended"
+34. lightbrd.com —— 403
+35. nitter.perennialte.ch —— 403
+36. tech.yahoo.com repost page — 403
+37. pandaily.com — only the title was returned; the body, which is JS-rendered, was not retrieved
+38. ai.jp.net — Cloudflare blocked ("Just a moment...")
+
+### Screenshots (process artifacts, not deliverables)
+
+- `.playwright-mcp/mimo-en-srush-80k-120k.png` — Rush's 80k→120k post and its context
+- `.playwright-mcp/mimo-en-srush-profile.png` — Rush's home page (including the "monitoring ... coding-obg8" one)
+- `.playwright-mcp/mimo-en-x-eliebakouch-cost.png` —— elie's cost breakdown post (original source of the cost table)
+- `.playwright-mcp/mimo-en-dashboard.png` —— dashboard home page
+
+---
+
+## Appendix: glossary quick reference
+
+- **`dynsam/avg@n`** — the main metric on the dashboard home page. Sample the same problem n times, compute whether each attempt succeeded, then average over all problems. It can be roughly understood as the "average pass rate during training"; it is not the same thing as an offline benchmark like DeepSWE.
+- **`ctx_total_length` / `ctx_prompt_length`** — the former is "total context length entering the model" (including the problem statement fed in and all content generated by the model itself); the latter counts only the part fed in. The difference between the two is how much the model generated. The "response length" Rush mentioned has no separate field on the dashboard; the closest is `ctx_total_length`.
+- **`clip_ratio`** — the proportion of samples truncated by the length cap. Non-zero means some samples hit the context limit.
+- **`dynsam/agg_turn/mean`** — the average number of turns per trajectory; in agentic tasks, it is how many rounds the model and environment interact back and forth.
+- **`partial/avg_staleness`** — in asynchronous training, how many versions the data participating in training lags behind the current model on average. The larger the value, the more "stale" the samples.
+- **`train_infer_diff/*/kl`** — the difference in policy distribution between the trainer and the inference engine; if it rises, the two sides have diverged.
+- **`passrate/zero` / `passrate/one`** — the proportion of a problem's 16 attempts that all failed / all succeeded. All-failed or all-succeeded gives no within-group relative gradient, so such problems are useless for training.
+- **grader compute (grading compute)** — one of the three scaling directions officially listed: the compute consumed by running test cases, running grading rubrics, and grading is a separate account from the compute for "training parameter updates".
+- **in-group credit assignment (within-group credit assignment)** — the official wording. Comparing a group of attempts for the same problem against each other to decide which one should be reinforced; GRPO-type algorithms follow this idea, but the official source did not name the algorithm.
+- **MFU** — Model FLOPs Utilization, the model's actual compute utilization. The standard metric for measuring whether the GPUs are fully utilized; the community asked multiple times, but the dashboard does not provide it.
+- **benchmaxxing / leaderboard gaming** — pushing benchmark scores up through data mix or post-processing is not necessarily equivalent to leaking the test set.
+- **Grader-probe disagreement rate** — dashboard field `penalty/stage_credit_group/select_v4/select_probe_disagree_rate`. For the same batch of behaviors, the proportion of cases where the grader (judge) and probe give different judgments.

@@ -1,0 +1,569 @@
+[
+  {
+    "id": "penalty/stage_credit_group/groups_total",
+    "name": "候选组总数 groups_total（判分漏斗的入口）",
+    "group": "判分组统计",
+    "unit": "组数",
+    "what": "这一步采样出来的、进入判分流程的候选组（group）总数。一个组通常是一道题的一批并行尝试，判分之后同组的奖励差异才构成优势信号。它衡量的是判分流水线的入口规模，不是训练数据量。",
+    "how": "看板未给官方说明。数据里能验证的分解是：groups_total = routed/off + routed/select_v4 + routed/select_v4_nogold，19 步 / 25 步逐点验算误差为 0。也就是候选组先被路由到三条路：不判分（off）、走 select_v4 判分、走 select_v4_nogold 判分。",
+    "why": "它是判分流水线的入口计数。入口掉了，后面的判完数、优势信号量都会跟着掉；入口涨了但判完数没涨，说明卡在判分环节。看这一步的总量还能判断采样器这一轮铺了多宽。",
+    "read": [
+      "先看路由分解：约一半的组根本不进判分（routed/off），所以 groups_total 大不代表判分量大。",
+      "groups_total 和 groups_attempted 差得很远（pro 平均 1820 对 834），别把两者当同一个量。",
+      "它随步波动很大（pro 996~2753），这是采样批次的结构差异，不是异常。",
+      "要判断判分产能，配合 judge_pending 和 judge_pool_in_flight 一起看。"
+    ],
+    "observed": "pro 19 步平均每步 1820 组，区间 996~2753，第 1 步 2736、第 19 步 1254；flash 25 步平均 1734 组，区间 1282~2683，第 1 步 2625、第 25 步 2315。路由占比两边几乎一样：pro 有 48.9% 走 routed/off、25.3% 走 select_v4、25.8% 走 select_v4_nogold；flash 是 48.3% / 26.1% / 25.6%。也就是说接近一半的候选组在这套流程里是不判分的。",
+    "traps": [
+      "看板对这个 tag 没有官方说明，本条的读法来自数据里验证出来的恒等关系（路由三项相加精确等于总数），不是官方口径。",
+      "groups_total 不是训练 batch 的大小。训练 batch 的规模看 perf/total_num_tokens 和 prompts_per_step。",
+      "select_v4/groups_total 和 select_v4_nogold/groups_total 这两个同名子字段全程都是 0，别拿它们当总数用——有数的是 groups_attempted 和 groups_judged。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/groups_attempted",
+      "penalty/stage_credit_group/routed/off",
+      "penalty/stage_credit_group/select_v4/groups_attempted"
+    ],
+    "sources": [
+      {
+        "ref": "self-judge-identity",
+        "stance": "support",
+        "note": "既然 groups_total 严格等于三条路由之和，它就不是「模型产出的全部候选组」，而是已经过一次路由筛选之后的量。拿它当分母算判分覆盖率会高估。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/routed/off",
+    "name": "未判分组数 routed/off",
+    "group": "判分组统计",
+    "unit": "组数",
+    "what": "候选组里被路由到「不判分」这条路的数量。它是 groups_total 三个去向中最大的一个。",
+    "how": "看板未给官方说明。从数据看它和另外两个路由项相加精确等于 groups_total，所以它就是总数里被判分流程排除掉的那部分。",
+    "why": "判分（跑测试、跑评测器）比采样贵得多，把一半的组直接排除掉是常见的省算力做法。看这个数是为了知道判分覆盖了多少采样面；它涨了，说明这一步用于学习的组更少。",
+    "read": [
+      "和 groups_total 一起算占比。pro 和 flash 都稳定在 48% 上下，波动不大。",
+      "它不判分不等于这些组白采样了——看板没有说明这批组的去向，不要下结论。",
+      "占比突然变化比绝对值变化更值得注意。"
+    ],
+    "observed": "pro 平均每步 890 组（区间 560~1333），占 groups_total 的 48.9%；flash 平均 837 组（区间 620~1219），占 48.3%。两个 run 的占比几乎相同，说明这是流程设定而不是负载波动。",
+    "traps": [
+      "看板没有解释这批组为什么被排除（是难度、是重复、还是纯粹省算力），这里只能报告数量。",
+      "不要把它理解成「丢弃的数据」，它可能只是不进判分而不是不进训练。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/groups_total",
+      "penalty/stage_credit_group/routed/select_v4",
+      "penalty/stage_credit_group/routed/select_v4_nogold"
+    ],
+    "sources": [
+      {
+        "ref": "self-judge-identity",
+        "stance": "support",
+        "note": "前一条恒等式说明「判了多少组」只由三条路由之和构成，没有第四去处。这也意味着 routed/off 不是可有可无的统计噪声，它占了全部候选组的近一半。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/groups_attempted",
+    "name": "实际受理判分的组数 groups_attempted",
+    "group": "判分组统计",
+    "unit": "组数",
+    "what": "真正被送去判分的组数。它是 groups_total 去掉 routed/off 之后，再按判分器拆分的结果。",
+    "how": "看板未给官方说明。数据里验证出的分解是 groups_attempted = select_v4/groups_attempted + select_v4_nogold/groups_attempted，逐点误差为 0。",
+    "why": "它才是判分流水线的真实工作量。拿它和 groups_total 比，能看出判分覆盖比例；拿它和 groups_judged 比，能看出判分失败了多少。",
+    "read": [
+      "它只有 groups_total 的 46% 左右（pro 平均 834、flash 平均 804），这是判分覆盖率的量级。",
+      "和 groups_judged 的差就是判分失败的组数，去看 select_groups_failed 和 groups_failed_pod。",
+      "它的波动跟着 groups_total 走，判断趋势时最好用比值而不是绝对值。"
+    ],
+    "observed": "pro 19 步平均每步 834 组（区间 358~1393），第 1 步 1223、第 19 步 571。flash 前 19 步平均 804 组，第 1 步 1172；注意 flash 的这个 tag 从第 20 步起不再上报（第 20~25 步为 null），那几步要看 select_v4 和 select_v4_nogold 两个子项。",
+    "traps": [
+      "flash 第 20 步之后这个 tag 就没有数据了。不要把它当成 0，也不要用它算 flash 全程均值——那是 19 步的均值不是 25 步的。",
+      "它和 perf/total_num_tokens 反映的是两个不同阶段的量（判分组数 vs 训练 token 数），不要互相换算。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/groups_judged",
+      "penalty/stage_credit_group/groups_total",
+      "penalty/stage_credit_group/select_groups_failed"
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/groups_judged",
+    "name": "判分完成的组数 groups_judged",
+    "group": "判分组统计",
+    "unit": "组数",
+    "what": "走完判分、拿到结果的组数。它是受理数减去失败数之后剩下的部分。",
+    "how": "看板未给官方说明。数据里 groups_attempted − groups_judged 与 select_groups_failed 逐点吻合（误差不超过 4，来自取整），所以可以认为判完数 = 受理数 − 失败数。",
+    "why": "判完的组才有奖励差异可用，也只有这些组能进优势估计。判完数掉下去，这一步可用于学习的组就少，梯度信号会变稀。",
+    "read": [
+      "判完率（groups_judged / groups_attempted）一直很高：pro 94.9%、flash 95.9%，说明判分本身不是瓶颈。",
+      "它和 groups_attempted 的缺口去看 select_groups_failed 和 groups_failed_pod。",
+      "这个数还影响 passrate 类指标的分母口径，跨组比较时留意。"
+    ],
+    "observed": "pro 平均每步 791 组（区间 343~1330），判完率 94.9%；flash 平均 777 组（区间 469~1233），判完率 95.9%（按有数据的 19 步算）。差异主要来自 select_v4 和 select_v4_nogold 两条路各自的失败率。",
+    "traps": [
+      "判完率是拿两边的和算的，单看某一小步的比值会抖，别用单步下结论。",
+      "判完不等于判对。判分质量要看 select_probe_disagree_rate 和几个 r2/r3 相关的量。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/groups_attempted",
+      "penalty/stage_credit_group/select_groups_failed",
+      "penalty/stage_credit_group/select_v4/select_probe_disagree_rate"
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/select_groups_failed",
+    "name": "判分失败的组数 select_groups_failed",
+    "group": "判分组统计",
+    "unit": "组数",
+    "what": "受理了但没能判完的组数。它和 groups_failed_pod、groups_failed_select 是同一条链上的计数。",
+    "how": "看板未给官方说明。数据里 groups_attempted − groups_judged 与它逐点吻合，所以它是判分损失的总数；再往下拆的两个子项是 groups_failed_pod（沙箱环境起不来）和 groups_failed_select（选择环节没过）。",
+    "why": "这是判分环节的直接损耗。它涨了要区分是基础设施问题（pod 起不来）还是判分逻辑问题（选择环节失败），前者是运维问题，后者可能是样本质量问题。",
+    "read": [
+      "先看量级：pro 平均每步 42 组失败、flash 33 组，相对于 800 左右的受理量是 4%~5%。",
+      "再拆子项：pro 平均 pod 失败 9 组、select 失败 33 组，所以主因是选择环节而不是环境。",
+      "它偶尔会跳（pro 第 12 步前后到过 205），单步跳高先去看有没有重启。"
+    ],
+    "observed": "pro 平均每步 42 组（区间 15~205），其中 groups_failed_pod 平均 9 组（区间 3~19）、groups_failed_select 平均 33 组（区间 9~194）。flash 平均 33 组（区间 18~62），其中 groups_failed_select 平均 24 组、groups_failed_pod 这个 tag 在 flash 上不存在。",
+    "traps": [
+      "flash 没有 groups_failed_pod 这个 tag，所以两个 run 的失败构成不能直接对比。",
+      "两个子项之和与总数在小数上有 2~4 的出入，是取整造成的，不要当成数据错误。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/groups_attempted",
+      "penalty/stage_credit_group/groups_failed_select",
+      "penalty/stage_credit_group/groups_failed_pod"
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/end2end_success_rate",
+    "name": "端到端成功率 end2end_success_rate",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "判分流程从头走到尾、没在中途失败的组所占的比例。它衡量的是流水线的健康度，不是模型的正确率。",
+    "how": "看板未给官方说明。数据里它和 pass1_success_rate 几乎相同（pro 最大差 0.0033、flash 0.0058），说明端到端成败基本由第一遍判分决定。",
+    "why": "这是流水线可用性的体温计。它掉下去意味着判分产能受损，那一步的奖励信号会比实际模型表现更差。",
+    "read": [
+      "常态在 0.94~0.97。pro 均值 0.9492、flash 0.9594。",
+      "它有低点：pro 最低 0.7662、flash 最低 0.9417。pro 那次低点值得去查同期有没有重启或判分积压。",
+      "它和模型效果指标不是一回事。它跌了不代表模型变差，只代表那一步的数据可能不完整。"
+    ],
+    "observed": "pro 19 步均值 0.9492，区间 0.7662~0.9670，第 1 步 0.9648、第 19 步 0.9615；flash 均值 0.9594，区间 0.9417~0.9750。flash 从第 20 步起这个 tag 也不上报了，只有前 19 步。",
+    "traps": [
+      "别把它读成模型成功率。模型的成功率是 dynsam/avg@n 和 dynsam/passrate/*。",
+      "flash 只有 19 步有值，做全程对比时要说明这一点。",
+      "pro 的最低点 0.7662 是单步异常，用它代表整体会低估流水线健康度。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/pass1_success_rate",
+      "penalty/stage_credit_group/pass2_success_rate",
+      "penalty/stage_credit_group/groups_judged"
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/pass1_success_rate",
+    "name": "第一遍判分成功率 pass1_success_rate",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "第一遍判分（pass 1）成功的比例。这套判分是两遍制，pass 1 是主路径，pass 2 是补充路径。",
+    "how": "看板未给官方说明。数据里 pass2_success_rate 恒为 1.0 而 judge_pass2_attempts 恒为 0，说明这两个 run 全程没有走到第二遍，pass 1 就是实际发生的全部判分。",
+    "why": "它和端到端成功率几乎重合，所以它才是真正的「判分健康度」。配合 judge_pass1_attempts 能看出每一步尝试判了多少组、成了多少。",
+    "read": [
+      "它和 end2end_success_rate 的差在 0.6 个百分点以内，日常看一个就够。",
+      "判分耗时也集中在 pass 1：time_pass1_sec_mean 和 time_total_sec_mean 基本相等。",
+      "pass 2 全程没被使用，所以「两遍判分」在这两个 run 里并没有真正启用。"
+    ],
+    "observed": "pro 均值 0.9496，区间 0.7662~0.9670；flash 均值 0.9592，区间 0.9418~0.9750。judge_pass1_attempts 平均每步 825 次（pro）和 802 次（flash）。judge_pass2_attempts 在两个 run 的每一步都是 0。",
+    "traps": [
+      "「两遍制」是看板字段命名的暗示，实际数据里第二遍从未运行，不要写着写着把它当成已启用的机制。",
+      "judge_pass1_attempts 与 groups_attempted 不相等（前者略小），两者口径有差别，不要互算成功率。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/pass2_success_rate",
+      "penalty/stage_credit_group/end2end_success_rate",
+      "penalty/stage_credit_group/judge_pass1_attempts"
+    ],
+    "sources": [
+      {
+        "ref": "baitbench",
+        "stance": "context",
+        "note": "他们用的是 two-stage judge pipeline，说明「多阶段判分」在公开工作里是常见设计；但论文没有给出各阶段成功率或耗时口径，所以只能当背景，不能用来验证我们 pass1/pass2 的具体读法。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/pass2_success_rate",
+    "name": "第二遍判分成功率 pass2_success_rate",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "第二遍判分（pass 2）的成功比例。",
+    "how": "看板未给官方说明。这个值在两个 run 的每一步都精确等于 1.0，同时 judge_pass2_attempts 每一步都是 0。两件事合起来只能说明第二遍判分没有运行过，不是「运行了且全部成功」。",
+    "why": "它的价值在于提醒读者：看板上存在一些看起来正常、实际从未被触发的指标。1.0 这个「满分」在这里是空值，不是好消息。",
+    "read": [
+      "恒为 1.0 且尝试次数恒为 0，说明这条路径没启用。看到 1.0 不要当成 100% 成功。",
+      "同类的「看着正常其实没数据」的还有 time_pass2_sec_mean（恒为 0）。",
+      "这类字段在读图时应当忽略，不要纳入判断。"
+    ],
+    "observed": "pro 19 步、flash 25 步，全部精确为 1.0000；judge_pass2_attempts 与 time_pass2_sec_mean 全程为 0。",
+    "traps": [
+      "这是这份看板里最容易读错的一类值：恒定的满分通常意味着没有数据，而不是表现完美。",
+      "不要在结论里引用它作为「判分质量很好」的证据。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/pass1_success_rate",
+      "penalty/stage_credit_group/judge_pass2_attempts"
+    ],
+    "sources": [
+      {
+        "ref": "judge-not-oracle",
+        "stance": "challenge",
+        "note": "这篇论文的核心证据是「满分掩盖了真实能力」——他们用 canary cases 让「完美分数本身就是作弊证据」。直接强化我们那条「恒定的满分通常意味着没有数据/不可信，不是表现完美」的告诫，并提示 pass2_success_rate 恒 1.0 这类满分要当异常而不是好消息。"
+      },
+      {
+        "ref": "baitbench",
+        "stance": "context",
+        "note": "同上：公开工作里确实存在两阶段判分器，但我们这边第二遍从未执行（judge_pass2_attempts 恒 0），这一差异没有任何公开材料可以直接对照，只能写进 gaps。"
+      },
+      {
+        "ref": "self-judge-throughput",
+        "stance": "support",
+        "note": "成功率恒等于 1 而尝试数恒等于 0：这不是「二审全过」，而是二审从未真正执行过。只看成功率会把「没跑」读成「跑了且完美」。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/select_v4/select_tier_share_T1",
+    "name": "分组档位占比 select_tier_share_T1/T2/T3/H",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "判分之后把组按质量分成几档，这里给出各档的占比。T1、T2、T3 是三档质量层级，H 是单独的一档（名字像 hard 或 hold，看板没说明）。",
+    "how": "看板未给官方说明。数据里四项之和精确等于 1（误差不超过 8e-7），所以它们是同一批组的一个划分，不是四个独立指标。",
+    "why": "档位分布反映当前采样的题目难度结构。T1 占比高说明大部分组落在最容易的那一档，学习的边距（margin）可能偏小；占比的漂移比绝对水平更值得看。",
+    "read": [
+      "四项一起看，单看 T1 会丢信息。pro 大致是 T1 68%、T2 30%、T3 0.8%、H 1.1%。",
+      "两个 run 的档位结构几乎一样，说明这是题目分布的性质而不是模型的差别。",
+      "T3 和 H 加起来只有 1%~2%，属于长尾，单步波动大，别用它们做趋势判断。"
+    ],
+    "observed": "pro 均值 T1 0.6804、T2 0.3007、T3 0.0080、H 0.0109；flash 均值 T1 0.6732、T2 0.3049、T3 0.0078、H 0.0141。pro 的 T1 从第 1 步 0.6796 微降到第 19 步 0.6546，T2 从 0.2965 升到 0.3270，也就是高难度的组略微变多。",
+    "traps": [
+      "看板没有说明 T1/T2/T3/H 的定义和排序方向，别假定 T1 一定是最难或最简单。",
+      "T3 和 H 的占比太小，单步的相对变化看起来很大（比如翻倍）但绝对量很小。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/select_v4/select_tier_share_T2",
+      "penalty/stage_credit_group/select_v4/select_tier_share_H",
+      "penalty/stage_credit_group/select_v4/groups_judged"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-7b-tr",
+        "stance": "context",
+        "note": "官方按测试难度分层给奖励，说明「按难度分档」这件事在 MiMo 体系里存在；但报告没有给出 T1/T2/T3/H 这类档位命名，所以只能当背景，不能用来定我们四个档位的排序方向。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+    "name": "疑似作弊尝试率 select_hack_attempt_rate",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "被判分器标记出「疑似作弊尝试」的组所占比例。看板没有给这个信号的定义，从名字看是模型在解题过程中出现了绕过评测而不是真解题的行为。",
+    "how": "看板未给官方说明。它下面还有一串同族的量（ge_min、ge_min_rate、turns_per_pass、exposed_not_relied），说明这个判定本身是分级的。",
+    "why": "Agentic RL 里最怕的就是模型学会改测试、猜答案而不是解题。如果这个比例持续上升，就说明奖励正在被玩法而不是能力驱动。这是这份看板上最需要长期盯的指标之一。",
+    "read": [
+      "看趋势不要看绝对值。pro 从第 1 步 0.4001 升到第 19 步 0.5056；flash 从 0.4139 升到 0.5184。两个 run 都在涨。",
+      "同期 avg@n 也在涨（pro 0.5647→0.6334、flash 0.5137→0.6408）。能力和这个信号同向上升，所以不能只看一边。",
+      "和 select_pass_new_tests_rate 一起看：那个也在涨，说明判分器对「通过新测试」的判定越来越常见。",
+      "它只是「尝试」的比率，不等于真的作弊成功。同族的 exposed_not_relied（暴露但没依赖）就是用来区分这一层的。"
+    ],
+    "observed": "pro 19 步均值 0.4032，区间 0.3216~0.5056；flash 25 步均值 0.4813，区间 0.3814~0.5524。两个 run 都是全程上行，flash 的水平整体更高。同族里 select_v4_nogold 的同类指标低一些：pro 均值 0.3710、flash 0.3832。",
+    "traps": [
+      "看板没有说明这个信号的判定标准，所以不能把它当成「作弊率」来引用，只能说「被判分器标记为疑似作弊尝试的比例」。",
+      "绝对水平偏高（40%~52%）可能是因为判定口径宽，不代表有一半的组真的在作弊。",
+      "它和成功率同向上升，容易被误读成「模型在学坏」；数据支持不了这个结论，只能说要继续盯。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/select_v4/select_pass_new_tests_rate",
+      "penalty/stage_credit_group/select_v4/select_hack_exposed_not_relied",
+      "dynsam/avg@n"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-tr-reward-hacking",
+        "stance": "context",
+        "note": "官方技术报告把「SWE-Bench 的奖励攻击」单列成一个附录（逐字标题如此；附录正文因抓取长度限制没能取到，只引标题本身），说明这类判分器标记的取巧行为在 MiMo 自己的体系里是被专门讨论的对象，不是我们凭空造的观察维度。"
+      },
+      {
+        "ref": "judge-not-oracle",
+        "stance": "support",
+        "note": "agent 从环境里读缓存答案键拿到 100% 通过率，正是「绕过评测而不是解题」的实例，支持我们把 select_hack_attempt_rate 当奖励被玩法驱动的直接信号长期盯。"
+      },
+      {
+        "ref": "monitor-cot-hacking",
+        "stance": "support",
+        "note": "在 agentic coding 环境里用另一个 LLM 监控 CoT 来发现 reward hacking 是公开验证过的做法，支持我们把「被判分器标记为疑似作弊尝试的比例」当作一类有文献支撑的监控指标（该文同时警告：一旦把监控直接写进优化目标，模型会学会混淆式作弊，所以这个比例只能当观察量）。"
+      },
+      {
+        "ref": "baitbench",
+        "stance": "support",
+        "note": "公开基准给出 57.1%、七个模型里五个超过 50% 的作弊率量级，和我们这条线 pro 0.40→0.51、flash 全程均值 0.48 完全同量级，支持我们「绝对水平偏高不等于一半的组真在作弊」的谨慎读法（他们也是靠埋入式 hiddden test 才测出来）。"
+      },
+      {
+        "ref": "hack-verifiable-terminal-bench",
+        "stance": "challenge",
+        "note": "直接挑战我们把这 40%~52% 当稳定信号看的做法：论文指出依赖人工或 LLM judge 检测作弊本身不可靠，所以他们才改用「埋入可检测 hack」的环境。我们这条线的判定标准看板未公开，因此只能按「疑似」引用，不能当作弊率。"
+      },
+      {
+        "ref": "robusttests",
+        "stance": "support",
+        "note": "论文明确把作弊尝试和测试覆盖不足挂钩，支持我们把 hack_attempt_rate 与 pass_new_tests_rate 两条线放在一起读的组合拳。"
+      },
+      {
+        "ref": "scaling-beyond-human-supervision",
+        "stance": "context",
+        "note": "把 reward hacking 列为自主奖励的头号风险，支持我们把这 40%~52% 的疑似作弊尝试率列成「最需要长期盯的指标之一」的定位。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/select_v4/select_probe_disagree_rate",
+    "name": "判分探针不一致率 select_probe_disagree_rate",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "判分器内部的探针之间结论不一致的比例。它衡量的是判分本身有多不确定。",
+    "how": "看板未给官方说明。从命名和数据形态看，判分会对同一组用多个探针/判定路径求证，这里统计它们结论打架的比例。",
+    "why": "判分不可靠，奖励就不可靠，梯度方向就会被噪声带偏。这条指标告诉你「这一步的奖励信号有多少是可信的」。",
+    "read": [
+      "常态在 0.51~0.60，也就是一半以上的判定存在探针分歧，这个水平偏高，说明判分任务本身难度大。",
+      "pro 均值 0.5698、flash 0.5536，pro 的分歧略高。",
+      "它没有明显趋势（pro 第 1 步 0.5593、第 19 步 0.5434），是稳定的背景噪声而不是在恶化。",
+      "和 select_r2_flagged、select_r3_rate 一起看，能区分「分歧」和「确实出错」。"
+    ],
+    "observed": "pro 均值 0.5698，区间 0.5409~0.6031；flash 均值 0.5536，区间 0.5147~0.5880。波动不大，25 步里基本在均值上下 3 个百分点内。",
+    "traps": [
+      "「不一致」不等于「判错」。探针分歧可能是任务本身有多种合理解法，看板没有区分。",
+      "它是比例不是次数，只能说明判定的确定性，不能直接换算成多少组被错判。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/select_v4/select_r2_flagged",
+      "penalty/stage_credit_group/select_v4/select_r3_rate",
+      "penalty/stage_credit_group/select_v4/select_process_severe"
+    ],
+    "sources": [
+      {
+        "ref": "mtbench-judge",
+        "stance": "support",
+        "note": "这篇是 LLM-as-a-judge 偏差的经典出处：位置偏差、长度偏差、自增强偏差都是判分器固有的，支持我们把 51%~60% 的探针分歧读成「判分任务本身难、判分器不可靠」的背景噪声，而不是某个环节坏了。"
+      },
+      {
+        "ref": "judge-consistency-not-reliability",
+        "stance": "challenge",
+        "note": "直接挑战我们那句「它是比例不是次数，只能说明判定的确定性」——论文证明确定性（自洽）与正确性可以脱钩，所以这条线低也不该读成「判分可信」。"
+      },
+      {
+        "ref": "multi-judge-ensemble",
+        "stance": "support",
+        "note": "论文证明「评审之间的一致/分歧模式」本身就能反推出各评审的漏判误判率（无需标注），这正是我们把 select_probe_disagree_rate 当判分可信度读数的公开方法学依据。"
+      },
+      {
+        "ref": "hack-verifiable-terminal-bench",
+        "stance": "support",
+        "note": "论文明写 LLM judge 的检测不可靠，为「探针分歧长期在 51%~60%」提供了外部解释：这是判分器能力的固有上限，不一定是流水线故障。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/select_v4/select_r2_flagged",
+    "name": "判分复核标红组数 select_r2_flagged",
+    "group": "判分组统计",
+    "unit": "组数",
+    "what": "在判分的第二轮复核里被标出来的组数。同族的 select_r2_capped 全程为 0，说明只标红、没有触发上限保护。",
+    "how": "看板未给官方说明。同族还有 select_r2_evidence_rejected（证据被驳回）和 select_r2_rate，看名字是一套复核流程里的计数。",
+    "why": "它衡量判分结果里有多少需要复核。数量降下去通常说明判定更干净，但也可能只是复核标准变了，看板没有说明。",
+    "read": [
+      "绝对量在下降：pro 从第 1 步 120 降到第 19 步 20，flash 从 114 降到 73。",
+      "相对于判完组数（pro 平均 791）大概是 7%，不是大比例。",
+      "select_r2_capped 全程为 0，说明没有触及容量上限，这项保护没被用到。"
+    ],
+    "observed": "pro 平均每步 56 组（区间 17~120），首末 120 → 20；flash 平均 67 组（区间 27~114），首末 114 → 73。两边都在下降，pro 降得更彻底。",
+    "traps": [
+      "看板没有给出复核标准和标红后的处置方式，「下降=变好」这个推断不成立。",
+      "单步波动大（pro 在 17~120 之间），不要用一两步判断趋势。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/select_v4/select_r2_capped",
+      "penalty/stage_credit_group/select_v4/select_r3_rate",
+      "penalty/stage_credit_group/select_v4/select_probe_disagree_rate"
+    ],
+    "sources": [
+      {
+        "ref": "mtbench-judge",
+        "stance": "context",
+        "note": "论文指出这些偏差需要专门的缓解手段（论文自己给了若干缓解方案），与我们「标红数下降不等于变好、要看复核标准」的谨慎读法方向一致，但它没有给出「第二轮复核标红」这种流程口径。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/select_v4/select_r3_rate",
+    "name": "第三轮判定比例 select_r3_rate",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "需要走到第三轮判定的组所占比例。同族的 select_r3_groups 是它的绝对数（平均每步 7~9 组）。",
+    "how": "看板未给官方说明。它和 select_r3_groups 是一个比例和一个计数，量级对得上（7~9 组除以判完组数 380~790 正好是 1%~2%）。",
+    "why": "走到第三轮说明前两轮没能定论。这个比例反映判分流程里「难判」的那一小撮有多少，比例上升意味着判分成本在变高。",
+    "read": [
+      "量级很小，pro 均值 0.0198、flash 0.0224，也就是 2% 左右。",
+      "两个 run 都在缓慢上行：pro 第 1 步 0.0169 → 第 19 步 0.0198，flash 0.0132 → 0.0210。绝对变化只有 0.3~0.8 个百分点，还谈不上趋势。",
+      "和 select_probe_disagree_rate 一起看：50% 的探针分歧里只有 2% 需要第三轮，说明复核机制在起作用。"
+    ],
+    "observed": "pro 均值 0.0198，区间 0.0139~0.0360，对应 select_r3_groups 平均每步 7 组（区间 3~16）；flash 均值 0.0224，区间 0.0129~0.0341，对应平均每步 9 组（区间 5~15）。",
+    "traps": [
+      "分子分母看板都没给，这里的量级一致性是从两个 tag 反推的，不是官方口径。",
+      "总量太小，单步的相对变化没意义（3 组变 6 组就是翻倍）。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/select_v4/select_r3_groups",
+      "penalty/stage_credit_group/select_v4/select_r2_flagged",
+      "penalty/stage_credit_group/select_v4/select_probe_disagree_rate"
+    ],
+    "sources": [
+      {
+        "ref": "judge-consistency-not-reliability",
+        "stance": "challenge",
+        "note": "我们写「50% 的探针分歧里只有 2% 需要第三轮，说明复核机制在起作用」——这篇论文给的边界条件是：判分器可以在自洽率 92%~97% 的同时和人类评分只有 0.28~0.34 的相关系数，所以「走到第三轮的比例低」只能说明流程稳定，不能推出判得准。"
+      },
+      {
+        "ref": "multi-judge-ensemble",
+        "stance": "context",
+        "note": "论文给出的解法是加权多数投票（WMV）这种多评审聚合，支持我们把「走到第三轮判定」当作一种多评审纠偏机制来读，但它讨论的是聚合权重，不是「第三轮」这种轮次设计。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/select_v4/select_pass_new_tests_rate",
+    "name": "通过新测试的比例 select_pass_new_tests_rate",
+    "group": "判分组统计",
+    "unit": "比例 0~1",
+    "what": "判定中「通过新增测试」这一项成立的比例。看板没有给定义，从名字看是判分器在原有测试之外又补了测试，统计有多少组能过。",
+    "how": "看板未给官方说明。它和 select_hack_attempt_rate 是同族，方向相反：一个统计绕过评测的尝试，一个统计通过新增验证的情况。",
+    "why": "如果新增测试能拦住「改测试蒙混过关」的解法，这个比例上升是好事；如果它和作弊尝试率一起涨，就说明两者在同步发生，需要区分是能力提升还是判分器在补漏。",
+    "read": [
+      "它和 select_hack_attempt_rate 同向上升，这是本次数据里最需要留意的组合。",
+      "pro 从第 1 步 0.6598 升到第 19 步 0.7656；flash 从 0.6246 升到 0.7159。",
+      "单独看它没有明确的好/坏方向，必须和 hack_attempt_rate、avg@n 一起读。",
+      "看板未给定义，不要把它直接当成「模型泛化到新测试」的证据。"
+    ],
+    "observed": "pro 均值 0.6795，区间 0.6122~0.7656；flash 均值 0.6940，区间 0.6246~0.7664。两边都是全程上行，幅度 6~10 个百分点。",
+    "traps": [
+      "没有官方定义，名字里的 new tests 具体指什么、由谁生成，看板都没说。",
+      "它上升不能单独解释成模型变强，因为它和作弊尝试率、成功率是同向的。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+      "penalty/stage_credit_group/select_v4/select_hack_exposed_not_relied",
+      "dynsam/avg@n"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-tr-reward-hacking",
+        "stance": "context",
+        "note": "同一附录的存在提示：官方在 SWE-Bench 这类测试驱动判分上确实遇到过奖励攻击问题，与我们把这个比例和 hack_attempt_rate 放在一起读的做法方向一致。"
+      },
+      {
+        "ref": "mimo-7b-tr",
+        "stance": "support",
+        "note": "官方 MiMo-7B 报告明写用「test-difficulty-driven code-reward」做代码 RL，说明用测试（及其难度）来给代码解打分/筛选是 MiMo 自己的既有做法，支持我们把「通过新增测试的比例」读成判分器在补测试覆盖率的信号。"
+      },
+      {
+        "ref": "robusttests",
+        "stance": "support",
+        "note": "论文把「测试覆盖不足 → 奖励攻击 → 策略退化」这条因果链写清楚，并用新合成的测试用例来做筛选，支持我们把 select_pass_new_tests_rate 读成「判分器在原有测试之外补验证」的做法，而不是当成模型泛化的证据。"
+      },
+      {
+        "ref": "reality-final-verifier",
+        "stance": "challenge",
+        "note": "给我们那句「新增测试能拦住改测试蒙混过关的解法，这个比例上升是好事」加了边界条件：论文说奖励攻击利用的正是需求与部署环境模型的遗漏，即使测试全过（甚至形式证明通过）也不保证部署后行为可接受，所以这条比例上升不能被当成「判分器补漏成功」的证明。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/time_total_sec_mean",
+    "name": "单组判分平均耗时 time_total_sec_mean",
+    "group": "判分组统计",
+    "unit": "秒",
+    "what": "一个组从开始判到结束的平均墙钟耗时。同族还有 time_pass1_sec_mean（第一遍）、time_pass2_sec_mean（第二遍）和 time_pod_setup_sec_mean（环境准备）。",
+    "how": "看板未给官方说明。数据里 time_total_sec_mean ≈ time_pass1_sec_mean + time_pod_setup_sec_mean（pro 平均 562.44 对 547.32+14.66=561.98，差 0.5 秒以内），而 time_pass2_sec_mean 恒为 0。",
+    "why": "判分耗时决定判分流水线的吞吐。判分慢，采样出来的组就要排队等，这会直接推高数据过期程度（partial/avg_staleness）。",
+    "read": [
+      "单组 9~11 分钟，其中 97% 花在第一遍判分上，环境准备只占 15 秒左右。",
+      "和 judge_pool_in_flight、judge_pending 一起看，才能判断流水线是不是满负荷。",
+      "它没有明显趋势（pro 均值 562 秒、flash 570 秒），说明判分成本是稳定的。"
+    ],
+    "observed": "pro 平均 562.44 秒（区间 508~655），其中第一遍 547.32 秒、环境准备 14.66 秒；flash 平均 570.13 秒（区间 523~624），其中第一遍 554.40 秒、环境准备 15.27 秒。第二遍耗时两边全程为 0。",
+    "traps": [
+      "三个分量相加与总耗时的关系是从数据反推的，看板没有给出计时口径。",
+      "这是均值，不是分位数。长尾的慢组不会体现在这里，用均值评估超时会低估。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/judge_pending",
+      "penalty/stage_credit_group/judge_pool_in_flight",
+      "partial/avg_staleness"
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/judge_pending",
+    "name": "待判组数与判分池负载 judge_pending / judge_pool_in_flight",
+    "group": "判分组统计",
+    "unit": "组数",
+    "what": "judge_pending 是当前待判的组数，judge_pool_in_flight 是判分池里正在处理的组数，judge_pool_max_load 是单个判分节点的最大负载。",
+    "how": "看板未给官方说明。数据里 judge_pending 与 judge_pool_in_flight 几乎逐点相等（pro 均值 95 对 94，flash 114 对 113），说明待判的基本就是在飞的那些，没有额外排队。",
+    "why": "这两个数接近意味着判分池一直是满的：新来的组立刻被接走，没有积压缓冲。一旦采样量再涨，排队就会立刻出现，进而推高数据过期程度。",
+    "read": [
+      "pending ≈ in_flight 是「满负荷但没积压」的状态。两个数拉开差距才是出问题的信号。",
+      "judge_pool_max_load 平均 8~9（pro 区间 4~11、flash 3~14），反映单节点并行度。",
+      "judge_pool_dead_replaced 全程为 0，说明没有节点因为故障被替换。",
+      "和 time_total_sec_mean 一起看能估算判分吞吐。"
+    ],
+    "observed": "pro 的 judge_pending 平均 95（区间 29~145）、judge_pool_in_flight 平均 94（区间 29~146）、judge_pool_max_load 平均 8（区间 4~11）；flash 分别是 114（24~189）、113（24~190）、9（3~14）。两者全程基本相等。",
+    "traps": [
+      "这两个 tag 的关系（包含还是并列）看板没有说明，只能说数值上几乎相等。",
+      "它们是瞬时快照不是累计量，每一步只采到一个点，不能代表该步全程的排队情况。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/time_total_sec_mean",
+      "penalty/stage_credit_group/judge_pool_max_load",
+      "penalty/stage_credit_group/judge_pool_dead_replaced"
+    ],
+    "sources": [
+      {
+        "ref": "self-judge-throughput",
+        "stance": "support",
+        "note": "待判数几乎等于在飞池大小，说明判分端一直是满负荷在跑、没有积压。这种形态下「判分慢」不是流程卡住，而是产能上限。"
+      }
+    ]
+  },
+  {
+    "id": "penalty/stage_credit_group/always-zero",
+    "name": "判分流程里那些恒为 0 的计数器",
+    "group": "判分组统计",
+    "unit": "组数或比例",
+    "what": "这一族里有十来个字段在两个 run 的每一步都精确为 0。它们分布在丢弃、跳过、失败和优势改写几个环节。",
+    "how": "逐个核验过的恒零字段：groups_judged_after_drop、groups_failed_pass1、groups_failed_pass2、groups_skipped_unbalanced、groups_skipped_empty_inputs、groups_expired_unjudged、dev_neg_turns、keep_mass_capped、rollouts_masked、judge_pool_dead_replaced、select_v4/select_r2_capped、select_adv_group_sum_abs_mean、tq_adv_mul_tokens、tq_adv_pos_mass、tq_adv_neg_mass、tq_adv_rows_rewritten、select_v4/groups_total、select_v4_nogold/groups_total。",
+    "why": "这一族的作用是反向的：它们存在的意义是让你知道哪些环节从来没有触发过。看到 0 不要当成「没有问题」，要意识到这些保护机制或异常路径在本次训练里根本没被走到。",
+    "read": [
+      "恒为 0 通常有两种解释：机制没启用，或者条件从没满足。看板不区分，只能说没触发。",
+      "特别留意 select_adv_group_sum_abs_mean 和 tq_adv_* 这一批：它们都在优势改写路径上，全程为 0 说明那条路径没有被用到。",
+      "想做数据校验时不要拿这些字段当恒等式的一边，它们提供不了约束。"
+    ],
+    "observed": "pro 19 步、flash 25 步，上述字段全部精确为 0（不是 null）。另外 select_v4/groups_total 和 select_v4_nogold/groups_total 虽然名字像总数，也是全程 0，真正有数的是同一前缀下的 groups_attempted 和 groups_judged。",
+    "traps": [
+      "0 和 null 是两回事：这些字段是实打实的 0，说明计数器在跑只是没计数；而 flash 第 20 步之后的 groups_attempted 是 null，那是没上报。",
+      "别因为名字里有 groups_ 就以为它们和 groups_total 能对上，这一族里大部分对不上。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/select_adv_group_sum_abs_mean",
+      "penalty/stage_credit_group/keep_mass_capped",
+      "penalty/stage_credit_group/select_v4/select_r2_capped"
+    ]
+  }
+]

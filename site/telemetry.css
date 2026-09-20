@@ -1,0 +1,1063 @@
+/*
+ * 遥测层样式（本地新增）。颜色全部复用 style.css 里的 CSS 变量，
+ * 所以明暗主题跟着原站一起切。
+ */
+
+/* ------------------------------------------------ 导航右侧的入口按钮 */
+.telemetry-dock { display: flex; align-items: center; gap: 8px; }
+
+.telemetry-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 11px;
+  white-space: nowrap;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.telemetry-btn:hover { color: var(--ink); background: var(--surface-3); }
+.telemetry-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.telemetry-btn.small { padding: 5px 9px; font-size: 11px; margin-left: auto; }
+.telemetry-btn.ghost { background: transparent; cursor: default; }
+.telemetry-btn.ghost:hover { background: transparent; color: var(--ink-2); }
+
+/* --------------------------------------------- 图表联动（点击同步 epoch） */
+/* 控件复用原站的 .check 样式，只加"已开启"的高亮和一个步号角标 */
+.controls .telemetry-sync.on { color: var(--accent); }
+.controls .telemetry-sync.on input { accent-color: var(--accent); }
+.controls .telemetry-sync input { margin: 0; }
+
+.telemetry-sync-at {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 11px/1 var(--mono);
+  padding: 4px 3px 4px 7px;
+  white-space: nowrap;
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+}
+.telemetry-sync-at button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--accent);
+  border-radius: 3px;
+}
+.telemetry-sync-at button:hover { color: #fff; background: var(--accent); }
+
+/* 联动时数值列显示的是"那一步"的值而不是最新值，加一条左标线区分 */
+.card-head .val.synced { border-left: 2px solid var(--accent); padding-left: 8px; }
+.val .sync-at { margin-left: 4px; font: 10px/1 var(--mono); color: var(--accent); opacity: 0.85; }
+
+/* 导航那个"联动"按钮在窄屏藏掉：页头本来就挤（总成本 + 四个城市时钟），
+   工具条里那个勾选框在任何宽度都在，功能不受影响。 */
+@media (max-width: 1150px) { #telemetry-sync-btn { display: none; } }
+
+/* 语言开关（导航右侧）。骨架沿用 style.css 里的 .seg 分段控件，
+   这里只把尺寸调到和旁边的 .icon-btn / 主题按钮一样高，避免页头高低不齐。 */
+.nav-lang { flex: none; }
+.nav-lang button { font-size: 11.5px; line-height: 1; padding: 7px 9px; }
+@media (max-width: 560px) { .nav-lang button { padding: 7px 6px; } }
+
+/* --------------------------------------------- overview 的 notices 面板 */
+/* 原站那份 #notices 照常渲染，只是藏起来，改用遥测层这块。 */
+#notices.mn-src-hidden { display: none; }
+
+/* margin-bottom 要跟原站 .notices 那条对齐（14px）：面板顶掉了原来那块，
+   这段间距得自己带上，不然它和下面第一个 .status 会贴在一起。 */
+.mn-card { padding: 12px 14px; margin-bottom: 14px; }
+.mn-card > .card-head { align-items: center; margin-bottom: 8px; }
+.mn-tools { display: flex; align-items: center; gap: 14px; }
+.mn-para { font-size: 11.5px; }
+.mn-lang button { font-size: 11.5px; padding: 3px 10px; }
+.mn-locate-toggle {
+  font-size: 11.5px;
+  line-height: 1;
+  padding: 4px 9px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.mn-locate-toggle:hover { color: var(--ink); background: var(--surface-3); }
+.mn-locate-toggle.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+
+/* 拖动定位：每个 run 一行 */
+.mn-locate {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.mn-locate-hint { font-size: 11px; color: var(--ink-3); }
+.mn-locate-row { display: flex; align-items: center; gap: 10px; }
+.mn-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  width: 150px;
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mn-run .swatch { flex: 0 0 auto; }
+.mn-range { flex: 1 1 auto; min-width: 80px; accent-color: var(--accent); }
+.mn-step {
+  flex: 0 0 auto;
+  min-width: 96px;
+  font: 11.5px/1 var(--mono);
+  color: var(--accent);
+  text-align: right;
+}
+
+/*
+ * 列表：默认只铺最近几条，不设高度、不滚动 —— 第一屏要给状态卡和图表留位置，
+ * 也避免"某一行被拦腰切断"。展开以后才是固定高度的滚动区，底部加一道渐隐提示下面还有。
+ */
+.mn-list { position: relative; }
+.mn-list.mn-scroll { max-height: 320px; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.mn-list.mn-scroll.mn-fade { mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); }
+
+.mn-item { padding: 8px; border-top: 1px solid var(--grid); border-radius: 4px; }
+.mn-item:first-child { border-top: 0; }
+.mn-item.mn-hit { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--accent); }
+.mn-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+.mn-date { font: 11.5px/1 var(--mono); color: var(--ink-2); }
+.mn-utc { font: 11px/1 var(--mono); color: var(--ink-3); }
+.mn-for { font-size: 11px; color: var(--ink-3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+.mn-steps { display: inline-flex; gap: 5px; margin-left: auto; }
+.mn-badge {
+  font: 11px/1 var(--mono);
+  padding: 3px 6px;
+  color: var(--mn-c);
+  border: 1px solid var(--mn-c);
+  border-radius: 3px;
+  opacity: 0.9;
+}
+.mn-text { font-size: 13px; color: var(--ink); }
+.mn-en { margin-top: 3px; font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
+.mn-stale, .mn-untranslated {
+  font-size: 11px;
+  color: var(--ink-3);
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.mn-foot { display: flex; align-items: center; margin-top: 6px; }
+.mn-more { font-size: 11.5px; color: var(--accent); }
+.mn-more:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------ 回放工具条 */
+/* 收起状态：一条挂在导航下面的细条，下面的原看板露出来显示当前切面 */
+.telemetry-bar {
+  position: sticky;
+  top: var(--nav-h);
+  z-index: 19;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.telemetry-bar.hidden { display: none; }
+
+/*
+ * 展开状态：整屏。
+ * 从导航下沿一直占到底，导航本身不动，所以切面控件和"回到实时"始终够得着。
+ * 里面是一列 flex：工具条固定高度，明细区吃满剩下高度并自己滚动。
+ */
+.telemetry-bar.expanded {
+  position: fixed;
+  top: var(--nav-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-bottom: none;
+}
+/* 明细占满整屏时，底下的页面别跟着滚 */
+body.telemetry-fullscreen { overflow: hidden; }
+
+/*
+ * 展开时 .telemetry-bar 是 column flex 容器，`margin: 0 auto` 会让 .wrap 变成
+ * 按内容宽度收缩（auto 外边距会覆盖 stretch），结果工具条缩在中间一小段。
+ * 明确给宽度，让它撑满并靠 max-width 居中。
+ */
+.telemetry-bar > .wrap { width: 100%; }
+
+.telemetry-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.telemetry-badge {
+  flex: 0 0 auto;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+
+.telemetry-ico {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  width: 26px;
+  height: 24px;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.telemetry-ico:hover { color: var(--ink); }
+
+.telemetry-range { flex: 1 1 200px; min-width: 100px; max-width: 520px; accent-color: var(--accent); cursor: pointer; }
+.telemetry-spacer { flex: 1 1 auto; }
+
+.telemetry-when { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-family: var(--mono); font-size: 11.5px; }
+.telemetry-when .mp-bj { color: var(--ink-3); margin-left: 6px; }
+
+/* ---------------------------------------------------------------- 面板 */
+/* 收起状态只留那条 42px 的工具条，明细整块藏起来，原看板就露出来了 */
+.telemetry-bar:not(.expanded) .telemetry-panel { display: none; }
+
+.telemetry-panel {
+  flex: 1 1 auto;
+  min-height: 0;          /* flex 子项要能收缩，否则 overflow 不生效 */
+  overflow: auto;
+  padding-top: 16px;
+  padding-bottom: 40px;
+  border-top: 1px solid var(--border);
+}
+
+.mp-head { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 14px; }
+.mp-title { font-size: 15px; color: var(--ink); margin-bottom: 3px; }
+.mp-sub { font-size: 11.5px; color: var(--ink-3); line-height: 1.6; }
+.mp-head-note { margin-left: auto; max-width: 420px; text-align: right; font-size: 11px; color: var(--ink-3); line-height: 1.6; }
+@media (max-width: 900px) { .mp-head-note { display: none; } }
+
+.mp-empty, .mp-muted { color: var(--ink-3); font-size: 12px; padding: 4px 0; }
+
+.mp-runs { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px; }
+
+.mp-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.mp-card-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.mp-run { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.mp-step { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+.mp-delta { margin-left: auto; font-size: 11px; color: var(--ink-3); }
+
+.mp-kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px 14px; }
+.mp-kv > div { display: flex; flex-direction: column; gap: 2px; }
+.mp-kv span { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.mp-kv b { font-family: var(--mono); font-weight: 500; font-size: 13px; color: var(--ink); }
+.mp-kv b.small { font-size: 11px; color: var(--ink-2); }
+.mp-kv i { font-style: normal; font-size: 10px; }
+
+.mp-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 10px; margin-top: 10px; }
+.mp-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.mp-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.mp-table-title { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+
+.mp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mp-table th { text-align: left; font-weight: 500; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); }
+.mp-table td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--grid); color: var(--ink-2); }
+.mp-table tr:last-child td { border-bottom: none; }
+.mp-table td.up { color: #2f9e5f; }
+.mp-table td.down { color: var(--live); }
+.mp-table .dim { color: var(--ink-3); }
+
+.mp-notice { font-size: 12px; color: var(--ink-2); line-height: 1.5; padding: 5px 0; border-bottom: 1px solid var(--grid); }
+.mp-notice:last-child { border-bottom: none; }
+.mp-bench { padding: 6px 0; border-bottom: 1px solid var(--grid); }
+.mp-bench:last-child { border-bottom: none; }
+.mp-bench-title { font-size: 12px; color: var(--ink); margin-bottom: 4px; }
+
+/* 回放时给页面加一层可感知的边，避免把历史数据当成实时数据看 */
+body.telemetry-replaying main.wrap { box-shadow: inset 3px 0 0 var(--accent); }
+
+@media (max-width: 900px) {
+  .telemetry-when { font-size: 10.5px; }
+  .telemetry-range { flex: 1 1 120px; }
+}
+
+/* ==================================================================
+ * 指标解读与数据洞察
+ *
+ * 两个地方会用到：导航上"解读"按钮打开的全屏文档，以及图表详情框里追加的
+ * 一段解读。前者整屏，后者只显示最相关的几段，避免把详情框撑得没法看。
+ * ================================================================== */
+
+.telemetry-doc {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.telemetry-doc.hidden { display: none; }
+body.telemetry-doc-open { overflow: hidden; }
+
+.md-head { flex: 0 0 auto; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.md-head-inner { display: flex; align-items: center; gap: 14px; height: 48px; white-space: nowrap; }
+.md-brand { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+
+.md-tabs { display: flex; gap: 2px; }
+.md-tab {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.md-tab:hover { color: var(--ink); background: var(--surface-3); }
+.md-tab.active { color: var(--ink); background: var(--surface); border-color: var(--border); }
+
+.md-search {
+  flex: 1 1 auto;
+  min-width: 120px;
+  max-width: 420px;
+  margin-left: auto;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.md-search:focus { outline: none; border-color: var(--accent); }
+
+.md-body { flex: 1 1 auto; min-height: 0; display: flex; gap: 20px; padding-top: 16px; }
+
+.md-side {
+  flex: 0 0 168px;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  max-height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.md-side-title {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 10px 8px 5px;
+}
+.md-side-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--ink-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.md-side-item:hover { background: var(--surface-2); color: var(--ink); }
+.md-side-item.active { background: var(--surface-3); color: var(--ink); }
+.md-cnt { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.md-side-note { padding: 4px 8px 12px; }
+.md-side-note p { margin: 0 0 6px; font-size: 11px; line-height: 1.6; color: var(--ink-3); }
+.md-side-note p.dim { color: var(--ink-3); }
+
+.md-main { flex: 1 1 auto; min-width: 0; max-height: 100%; overflow: auto; padding-bottom: 60px; }
+.md-count { font-size: 11px; color: var(--ink-3); padding-bottom: 10px; }
+.md-empty { color: var(--ink-3); font-size: 12px; padding: 30px 0; }
+
+.md-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  max-width: 900px;
+}
+.md-card-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.md-card-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+/* 标题可点：点了就把这一条钉进地址栏（刷新直达），所以给个手型光标和 hover 反馈 */
+.md-card-head h3[data-doc-jump] { cursor: pointer; }
+.md-card-head h3[data-doc-jump]:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.md-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.md-meta code { color: var(--ink-3); font-size: 11px; }
+.md-chip {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.md-chip-group { color: var(--ink-2); }
+.md-chip-structural { color: var(--accent); border-color: var(--accent); }
+.md-chip-watch { color: var(--live); border-color: var(--live); }
+
+.md-summary { margin: 0 0 12px; font-size: 13px; line-height: 1.75; color: var(--ink); }
+
+.md-sec { margin-bottom: 12px; }
+.md-sec h4 {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.md-sec p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.8; color: var(--ink-2); }
+.md-sec ul { margin: 0; padding-left: 18px; }
+.md-sec li { font-size: 12.5px; line-height: 1.8; color: var(--ink-2); margin-bottom: 3px; }
+.md-obs { border-left: 2px solid var(--accent); padding-left: 12px; }
+.md-warn { border-left: 2px solid var(--live); padding-left: 12px; }
+.md-warn li { color: var(--ink-2); }
+
+.md-facts { width: 100%; border-collapse: collapse; font-size: 12px; }
+.md-facts th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-3);
+  font-size: 11px;
+  padding: 4px 12px 4px 0;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.md-facts td { padding: 4px 12px 4px 0; color: var(--ink-2); vertical-align: top; line-height: 1.6; }
+.md-facts td.mono { color: var(--ink); white-space: nowrap; }
+.md-facts tr + tr th, .md-facts tr + tr td { border-top: 1px solid var(--grid); }
+
+.md-rel { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
+.md-relchip {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 3px 7px;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.md-relchip:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
+
+.md-flash { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+.md-tbl-wrap { overflow: auto; max-height: 420px; border: 1px solid var(--border); border-radius: var(--radius); }
+.md-tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.md-tbl caption {
+  caption-side: top;
+  text-align: left;
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.md-tbl th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.md-tbl td { padding: 5px 10px; color: var(--ink-2); border-top: 1px solid var(--grid); white-space: nowrap; }
+.md-tbl td.mono { color: var(--ink); }
+
+@media (max-width: 900px) {
+  .md-body { flex-direction: column; gap: 8px; }
+  .md-side { flex: 0 0 auto; position: static; flex-direction: row; flex-wrap: wrap; max-height: none; }
+  .md-side-title, .md-side-note { display: none; }
+  .md-search { max-width: 160px; }
+}
+
+/* -------------------------------- 图表详情框里追加的那段解读 */
+.telemetry-mdoc {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+.mm-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.mm-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.mm-group, .mm-unit {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.mm-what { margin: 0 0 8px; }
+.mm-why { margin: 0 0 8px; }
+.mm-obs { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--accent); }
+.mm-obs b { display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+.mm-more { margin: 0 0 10px; }
+.mm-more summary { cursor: pointer; font-size: 11.5px; color: var(--accent); }
+.mm-more b { display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; margin: 8px 0 2px; }
+.mm-more ul { margin: 0; padding-left: 18px; }
+.mm-more li { margin-bottom: 3px; }
+.mm-warn li { color: var(--ink-2); }
+.mm-foot { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.mm-none { color: var(--ink-3); }
+
+/* -------------------------------- 详情框改成左图右解读
+   .modal-card 是 max-height:100% 的纵向 flex，解读块一进去，图表就被压到几十像素
+   （.chart-plot 的 min-height:60px 还会让 canvas 溢出去盖住解读）。所以给解读单独
+   开一栏并让它自己滚，图表列靠 stretch 撑满，不再参与压缩。 */
+#modal .modal-card { overflow-y: auto; }
+/* 详情框左栏让出 400px 给解读以后只剩 ~640px，原站给 run 名留的 240px 最小宽度
+   会把统计挤成两行（看着像错位）。名字按内容宽，间距收一点，一行放得下。 */
+#modal .stat-row { gap: 12px; }
+#modal .stat-row .stat-run { min-width: 0; }
+
+#modal .mm-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+  margin-top: 8px;
+}
+#modal .mm-left { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+#modal .mm-left .modal-stats { flex: 0 0 auto; margin-top: 0; }
+#modal .mm-left .modal-chart { flex: 1 1 auto; min-height: 200px; margin-top: 0; }
+#modal .mm-split > .telemetry-mdoc {
+  flex: 0 0 400px;
+  max-width: 400px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-top: 0;
+  padding: 0 4px 0 16px;
+  border-top: 0;
+  border-left: 1px solid var(--border);
+}
+@media (max-width: 1000px) {
+  #modal .mm-split { flex-direction: column; }
+  #modal .mm-left { overflow: visible; }
+  #modal .mm-left .modal-chart { flex: 0 0 auto; height: 320px; min-height: 0; }
+  #modal .mm-split > .telemetry-mdoc {
+    flex: 0 0 auto;
+    max-width: none;
+    overflow: visible;
+    margin-top: 14px;
+    padding: 12px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* -------------------------------- 溯源依据 */
+.md-src { margin: 4px 0 10px; border-top: 1px dashed var(--border); padding-top: 8px; }
+.md-src > summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.md-src > summary::-webkit-details-marker { display: none; }
+.md-src > summary::before { content: "▸"; font-size: 9px; }
+.md-src[open] > summary::before { content: "▾"; }
+.md-src > summary:hover { color: var(--accent); border-color: var(--accent); }
+.md-src-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.md-src-item { border-left: 2px solid var(--border); padding-left: 10px; }
+.md-src-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.md-src-title { font-size: 12px; font-weight: 600; color: var(--ink); text-decoration: none; }
+a.md-src-title:hover { color: var(--accent); text-decoration: underline; }
+.md-src-kind {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.md-src-stance { font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid transparent; }
+.md-stance-support { color: #2f7d4f; border-color: #2f7d4f55; background: #2f7d4f14; }
+.md-stance-challenge { color: var(--live); border-color: var(--live); background: transparent; }
+.md-stance-context { color: var(--ink-3); border-color: var(--border); }
+.md-src-meta { font-size: 10.5px; color: var(--ink-3); margin-top: 2px; }
+.md-src-note { margin: 4px 0 0; font-size: 12px; line-height: 1.75; color: var(--ink-2); }
+.md-src-quote {
+  margin: 6px 0 0;
+  padding: 5px 10px;
+  border-left: 2px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+/* 溯源总览：一条材料一张卡，列出它被哪些条目引用、各是什么立场 */
+.md-source .md-card-head h3 { font-size: 13.5px; }
+.md-source a.md-src-title { font-weight: 600; }
+.md-source .md-src-meta { margin-bottom: 6px; }
+.md-source .md-src-quote { max-height: 220px; overflow: auto; }
+.md-src-uses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.md-src-uses li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.md-src-uses li p { flex: 1 1 100%; margin: 0; }
+
+
+/* ==================================================================
+ * 自定义看板（本地新增）
+ *
+ * 三块 UI：overview 图表区上面的 Tab 栏、metrics 页卡片上的勾选框 +
+ * 底部浮动条、以及批量勾选的编辑弹窗（复用 .telemetry-doc 的整屏骨架）。
+ * ================================================================== */
+
+.telemetry-boards {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 2px 0 12px;
+}
+.mb-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.mb-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.mb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.mb-tab:hover { color: var(--ink); background: var(--surface-3); }
+.mb-tab.active { color: var(--ink); background: var(--surface); border-color: var(--accent); }
+.mb-num { font: 10px/1 var(--mono); color: var(--ink-3); }
+.mb-tab.active .mb-num { color: var(--accent); }
+.mb-new { color: var(--ink-3); background: transparent; border-style: dashed; }
+.mb-spacer { flex: 1 1 auto; }
+.mb-count { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+.mb-act {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 9px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.mb-act:hover { color: var(--ink); background: var(--surface-2); }
+.mb-act:disabled { color: var(--ink-3); opacity: 0.55; cursor: default; background: transparent; }
+
+/* 空 Tab 的引导块：占满一行，别让它被当成一张图 */
+.telemetry-board-empty {
+  grid-column: 1 / -1;
+  padding: 22px 18px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+.telemetry-board-empty a { color: var(--accent); }
+
+/* ------------------------------------------------ metrics 页的批量勾选 */
+.telemetry-pick { display: inline-flex; align-items: center; margin-right: 2px; cursor: pointer; }
+.telemetry-pick input { margin: 0; cursor: pointer; }
+
+.telemetry-pickbar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 6px 24px #0003;
+}
+.telemetry-pickbar.hidden { display: none; }
+.mp-count { font-size: 12px; color: var(--ink); padding: 0 4px; }
+.telemetry-pickbar .mp-add { color: #fff; background: var(--accent); border-color: var(--accent); }
+.telemetry-pickbar .mp-add:hover { color: #fff; background: var(--accent); opacity: 0.9; }
+
+/* ------------------------------------------- 编辑弹窗（复用整屏骨架） */
+#telemetry-board-editor { z-index: 70; }
+.mb-name {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  width: 200px;
+  padding: 5px 9px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.mb-name:focus { outline: none; border-color: var(--accent); }
+.mb-sel { font: 11px/1 var(--mono); color: var(--accent); white-space: nowrap; }
+.mb-search { margin-left: auto; }
+
+.mb-group { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; background: var(--surface); }
+.mb-group.has-sel { border-color: var(--accent); }
+.mb-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink);
+  list-style: none;
+}
+.mb-group > summary::-webkit-details-marker { display: none; }
+.mb-group > summary::before { content: "▸"; color: var(--ink-3); font-size: 10px; }
+.mb-group[open] > summary::before { content: "▾"; }
+.mb-gname { font-weight: 600; }
+.mb-gcount { margin-left: auto; font: 10.5px/1 var(--mono); color: var(--ink-3); }
+.mb-group.has-sel .mb-gcount { color: var(--accent); }
+.mb-missing > summary .mb-gname { color: var(--live); }
+.mb-list { display: flex; flex-direction: column; padding: 0 12px 10px; }
+.mb-row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.mb-row:hover { background: var(--surface-2); }
+.mb-row.on { background: var(--surface-2); }
+.mb-row input { margin: 0; cursor: pointer; accent-color: var(--accent); }
+.mb-tag { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); word-break: break-all; }
+.mb-tag .dim { color: var(--ink-3); }
+
+.md-side-item.has-sel { color: var(--ink); }
+.md-side-item.has-sel .md-cnt { color: var(--accent); }
+
+/* ------------------------------------------------------- 浮动框 / 提示 */
+.telemetry-pop {
+  position: fixed;
+  z-index: 90;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px #0004;
+  padding: 8px;
+}
+.telemetry-ask { display: flex; flex-direction: column; gap: 8px; }
+.ma-title { font-size: 11px; color: var(--ink-3); }
+.ma-input {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.ma-input:focus { outline: none; border-color: var(--accent); }
+.ma-row { display: flex; gap: 6px; justify-content: flex-end; }
+.ma-list { display: flex; flex-direction: column; gap: 1px; max-height: 300px; overflow: auto; }
+.ma-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 7px 9px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.ma-item:hover { background: var(--surface-2); }
+.ma-item .ma-name { flex: 1 1 auto; }
+.ma-new { color: var(--accent); }
+.ma-hint { font-size: 11px; color: var(--ink-3); padding: 4px 9px; }
+
+.telemetry-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 95;
+  max-width: 360px;
+  padding: 9px 13px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px #0004;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+}
+.telemetry-toast.on { opacity: 1; transform: none; }
+
+/* 换 Tab 时新图淡入：旧图被摘掉、新图还没画出来的那一瞬硬切会显得"闪了一下"。
+   只做透明度，不动位移，免得网格跳动。 */
+.chart-grid.telemetry-swap > .chart-card { animation: telemetry-card-in 0.2s ease both; }
+@keyframes telemetry-card-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .chart-grid.telemetry-swap > .chart-card { animation: none; }
+}
+
+/* ---------------------------------- 相关性分析面板（点住某一步之后展开） */
+/* 角标上多出来的两样：锚点名字和分析按钮。原来那个 14px 的方块按钮只够放 ✕，
+   分析按钮要带字，所以单独给宽高。 */
+.telemetry-sync-at .telemetry-sync-anchor {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
+}
+.telemetry-sync-at button.telemetry-sync-go {
+  width: auto;
+  height: 16px;
+  padding: 0 6px;
+  font: 10.5px/1 var(--font);
+  border: 1px solid var(--accent);
+}
+
+#telemetry-corr {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+#telemetry-corr.hidden { display: none; }
+/* 重新取数时只把内容调暗，不遮住旧结果 —— 遮住会闪一下 */
+#telemetry-corr.busy .mc-body { opacity: 0.55; transition: opacity 0.12s; }
+
+.mc-head {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.mc-head-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--nav-h);
+  flex-wrap: wrap;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.mc-brand { font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
+.mc-sub { font: 11.5px/1 var(--mono); color: var(--ink-3); }
+.mc-ctrls { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; flex-wrap: wrap; }
+.mc-ctrls button {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.mc-ctrls button:hover { color: var(--ink); background: var(--surface-3); }
+.mc-chip.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.mc-stepnav { display: inline-flex; gap: 2px; }
+.mc-stepnav button { width: 24px; padding: 5px 0; text-align: center; }
+.mc-anchor {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 4px 4px 8px;
+  font: 11px/1 var(--mono);
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+}
+.mc-anchor button {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  font-size: 10px;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.mc-anchor button:hover { color: #fff; background: var(--accent); }
+
+.mc-body { flex: 1 1 auto; overflow-y: auto; padding: 16px 0 60px; }
+.mc-summary { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.mc-sum { font-size: 14px; line-height: 1.6; }
+.mc-sum-anchor b { font-family: var(--mono); font-size: 13px; }
+.mc-sum .up, .mc-pct.up { color: var(--accent); }
+.mc-sum .down, .mc-pct.down { color: var(--live); }
+.mc-counts, .mc-hint { font-size: 11.5px; line-height: 1.7; color: var(--ink-3); }
+.mc-hint { margin: 10px 0 0; }
+.mc-empty { font-size: 12px; color: var(--ink-3); }
+
+.mc-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.mc-tab {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 12px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.mc-tab.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.mc-tab:disabled { opacity: 0.45; cursor: default; }
+
+/* 榜单是一张表，但列宽要跟着窗口自适应，所以用 grid 而不是 table：
+   多出来的空间全部给"指标族"那一列。 */
+.mc-tbl { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.mc-row {
+  display: grid;
+  grid-template-columns: 52px minmax(180px, 1fr) 150px 78px 132px 62px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+.mc-row:first-child { border-top: 0; }
+.mc-row.mc-head {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface-2);
+}
+.mc-row:not(.mc-head):hover { background: var(--surface-2); }
+.mc-score {
+  font: 12px/1 var(--mono);
+  text-align: center;
+  padding: 4px 0;
+  border-radius: 3px;
+  color: var(--ink-2);
+  background: var(--surface-3);
+}
+.mc-score[data-lv="2"] { color: #fff; background: #b8860b; }
+.mc-score[data-lv="3"] { color: #fff; background: var(--live); }
+.mc-name { min-width: 0; }
+.mc-fam {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-why { font-size: 11px; color: var(--ink-3); }
+.mc-members { margin-top: 3px; font-size: 11px; color: var(--ink-3); }
+.mc-members summary { cursor: pointer; }
+.mc-members ul { margin: 4px 0 0; padding-left: 16px; font-family: var(--mono); font-size: 10.5px; }
+.mc-val, .mc-pct, .mc-z { font: 11.5px/1.5 var(--mono); color: var(--ink-2); }
+.mc-pct, .mc-z { text-align: right; }
+.mc-act { text-align: right; }
+.mc-act .telemetry-btn.small { margin-left: 0; }
+.mc-bad { color: var(--live); }
+.mc-late {
+  font-size: 10.5px;
+  padding: 1px 5px;
+  color: var(--ink-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.mc-foot { margin-top: 18px; font-size: 12px; line-height: 1.75; color: var(--ink-2); }
+.mc-ctx { padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); }
+.mc-notices, .mc-neigh ul, .mc-caveats ul { margin: 8px 0 0; padding-left: 18px; }
+.mc-neigh { margin-top: 10px; }
+.mc-neigh ul { display: flex; flex-wrap: wrap; gap: 4px 22px; list-style: none; padding-left: 0; font-family: var(--mono); font-size: 11.5px; }
+.mc-caveats { margin-top: 10px; }
+.mc-caveats summary { cursor: pointer; color: var(--ink-3); }
+.mc-caveats ul { color: var(--ink-3); font-size: 11.5px; }
+
+@media (max-width: 900px) {
+  .mc-row { grid-template-columns: 44px minmax(120px, 1fr) 108px 64px 60px; }
+  .mc-row.mc-head span:nth-child(5), .mc-row .mc-z { display: none; }
+}
+
+/* 看板表格的列头可以点开逐列解读（见 telemetry.js 的 hookTableDocs）。
+   标记方式只加在遥测层，原站样式一字未改：鼠标移上去才显出可点。 */
+.tbl.src thead th, .comp-table .tbl thead th { cursor: pointer; }
+.tbl.src thead th:hover, .comp-table .tbl thead th:hover {
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}

@@ -1,0 +1,692 @@
+{
+  "agent": "r4",
+  "topics": ["判分、环境、系统与评测", "通用｜官方材料"],
+  "fetched": 30,
+  "items": [
+    {
+      "id": "mimo-v2-flash-tr",
+      "kind": "report",
+      "title": "MiMo-V2-Flash Technical Report",
+      "authors": "LLM-Core Xiaomi",
+      "venue": "arXiv:2601.02780",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2601.02780",
+      "quote": "where the rollout phase consistently emerges as the dominant bottleneck due to the inference and decoding costs",
+      "topic": "RL 系统：生成与训练两阶段",
+      "attaches": [
+        {
+          "metric": "timing_s/outer_gen",
+          "stance": "support",
+          "note": "官方报告（§2.3.1 Accelerating RL Training）明说 rollout 阶段是 RL 训练的主导瓶颈、成本来自推理与解码，支持我们把 outer_gen 当 step 时间里最该先动的一块，而不是把它当成算力度量。"
+        },
+        {
+          "metric": "timing_s/trainer_ops",
+          "stance": "context",
+          "note": "同一段把 RL 训练明确切成 rollout 与 training 两个阶段，支持我们把 outer_gen 与 trainer_ops 当作「生成一半、训练一半」的两块来读，而不是互相换算。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2-flash-tr-compute",
+      "kind": "report",
+      "title": "MiMo-V2-Flash Technical Report（后训练算力缩放）",
+      "authors": "LLM-Core Xiaomi",
+      "venue": "arXiv:2601.02780",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2601.02780",
+      "quote": "In post-training, we focus on efficiently scaling RL compute to improve reasoning and agentic capabilities.",
+      "topic": "官方对 RL 算力缩放的态度",
+      "attaches": [
+        {
+          "metric": "perf/total_num_tokens",
+          "stance": "context",
+          "note": "官方把「efficiently scaling RL compute」写成后训练的核心目标，说明 perf/total_num_tokens 这类算力量在 MiMo 体系里是被主动做预算与缩放的对象，支持我们把它当成本模型里那个「量」来读。"
+        },
+        {
+          "metric": "timing_s/step",
+          "stance": "context",
+          "note": "既然后训练以缩放 RL 算力为目标，单步墙钟就是这条缩放曲线的直接读数，支持我们把 timing_s/step 当「一天能推几步」的唯一依据。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2-flash-tr-reward-hacking",
+      "kind": "report",
+      "title": "MiMo-V2-Flash Technical Report 附录 B（Reward Hacking of SWE-Bench）",
+      "authors": "LLM-Core Xiaomi",
+      "venue": "arXiv:2601.02780",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2601.02780",
+      "quote": "B Reward Hacking of SWE-Bench",
+      "topic": "官方单列章节讨论 SWE-Bench 上的奖励攻击",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+          "stance": "context",
+          "note": "官方技术报告把「SWE-Bench 的奖励攻击」单列成一个附录（逐字标题如此；附录正文因抓取长度限制没能取到，只引标题本身），说明这类判分器标记的取巧行为在 MiMo 自己的体系里是被专门讨论的对象，不是我们凭空造的观察维度。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_pass_new_tests_rate",
+          "stance": "context",
+          "note": "同一附录的存在提示：官方在 SWE-Bench 这类测试驱动判分上确实遇到过奖励攻击问题，与我们把这个比例和 hack_attempt_rate 放在一起读的做法方向一致。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2-flash-readme-env",
+      "kind": "doc",
+      "title": "MiMo-V2-Flash 官方 README（§5.2 Scaling Agentic RL 环境规模）",
+      "authors": "XiaomiMiMo（小米 MiMo 团队）",
+      "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+      "year": "2026",
+      "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+      "quote": "Our automated pipeline maintains a Kubernetes cluster capable of running over 10,000 concurrent pods with a 70% environment setup success rate.",
+      "topic": "官方沙箱环境规模与环境建立成功率",
+      "attaches": [
+        {
+          "metric": "env/active",
+          "stance": "support",
+          "note": "官方给的并发量级是「1 万以上 concurrent pods」，说明 env/active 这类并发水位在真实 agentic RL 里就是万级规模的核心运维指标，支持我们把它读成「同时开着多少环境」的水位线而不是累计吞吐。"
+        },
+        {
+          "metric": "env/total_setup",
+          "stance": "challenge",
+          "note": "官方口径的环境建立成功率只有 70%，而我们用 env/total_error ÷ env/total_setup 算出的是百万分之几百（千分之一以下）。两者差三个数量级，说明 env/total_setup 不是「环境建立尝试数」、env/total_error 也不是「建立失败数」，我们那句「错误率在千分之一以下」的口径不能当官方成功率用。"
+        },
+        {
+          "metric": "env/total_error",
+          "stance": "challenge",
+          "note": "同上：官方承认 30% 量级的环境建立失败，而我们这条线算出来低到 ppm，直接挑战我们「两边都在千分之一以下」的读法——它更可能只是沙箱进程内的某种错误计数，而不是环境建立失败率。"
+        },
+        {
+          "metric": "env/code/shared/active",
+          "stance": "context",
+          "note": "官方这 1 万+ pod 说的是 code agent 那套 GitHub issue 环境，与我们把 env/code/shared/active 认成最大单个池子、占全局七成以上的观察方向一致，但官方用的是 pod 而看板是 sandbox，两个单位不能直接换算。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2-flash-readme-infra",
+      "kind": "doc",
+      "title": "MiMo-V2-Flash 官方 README（§5.3 Advanced RL Infrastructure / R3）",
+      "authors": "XiaomiMiMo（小米 MiMo 团队）",
+      "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+      "year": "2026",
+      "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+      "quote": "Rollout Routing Replay (R3): Addresses numerical precision inconsistencies in MoE routing between inference and training. R3 reuses the exact routed experts from rollout during the training pass, ensuring consistency with negligible overhead.",
+      "topic": "训练推理不一致的官方工程机制（越界补给 B 组）",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "support",
+          "note": "这是小米官方对「rollout 与训练重算不一致」的正面说明：MoE 路由的数值精度差异是被官方承认的真实来源，并用 R3（训练时复用 rollout 的专家路由）来消除。直接支持 B 组把 train_infer_diff/* 读成训练推理不一致的度量；本条属越界补给，B 组可优先采用。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2-flash-readme-sched",
+      "kind": "doc",
+      "title": "MiMo-V2-Flash 官方 README（§5.3 细粒度数据调度与部分 rollout）",
+      "authors": "XiaomiMiMo（小米 MiMo 团队）",
+      "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+      "year": "2026",
+      "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+      "quote": "We extend the rollout engine to schedule fine-grained sequences instead of micro-batches. Combined with partial rollout, this significantly reduces GPU idleness caused by long-tail stragglers.",
+      "topic": "长尾拖尾造成生成阶段 GPU 空转",
+      "attaches": [
+        {
+          "metric": "timing_s/outer_gen",
+          "stance": "support",
+          "note": "官方明说生成阶段会因 long-tail stragglers 出现 GPU 空转，并用细粒度调度 + partial rollout 去治。这支持我们把 outer_gen 读成「被长尾和并发调度主导」的墙钟，而不是按平均生成长度就能推算的量。"
+        },
+        {
+          "metric": "ctx_response_length/agentic/mean",
+          "stance": "context",
+          "note": "长尾样本正是 agentic 多轮轨迹那一批；官方把它当作要专门调度的对象，支持我们把 agentic 子集的生成长度单独拎出来看，而不是只看总体均值。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2-flash-readme-mtp",
+      "kind": "doc",
+      "title": "MiMo-V2-Flash 官方 README（MTP 与 RL rollout 提速）",
+      "authors": "XiaomiMiMo（小米 MiMo 团队）",
+      "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+      "year": "2026",
+      "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+      "quote": "Facilitates self-speculative decoding, tripling generation speed and mitigating GPU idleness during small-batch RL training.",
+      "topic": "生成侧吞吐优化的官方动机",
+      "attaches": [
+        {
+          "metric": "timing_s/outer_gen",
+          "stance": "context",
+          "note": "官方为了 RL rollout 专门上 MTP 把生成速度提到 3 倍，说明 outer_gen 是可被工程手段压缩的墙钟（并发/解码优化），支持我们那句「它是墙钟不是算力，不能当推理成本」的读法。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-rl-notices-cyber",
+      "kind": "doc",
+      "title": "mimo.xiaomi.com/rl 官方运行公告：移除 cyber 数据集",
+      "authors": "mimo.xiaomi.com/rl/ 看板官方公告",
+      "venue": "https://mimo.xiaomi.com/rl/api/notices",
+      "year": "2026",
+      "url": "https://mimo.xiaomi.com/rl/api/notices",
+      "quote": "we also removed the cyber dataset from the upcoming pro run, since we observed some bad patterns in the rollout logs.",
+      "topic": "本次 run 的官方公告（环境/数据源变更）",
+      "attaches": [
+        {
+          "metric": "env/cyber/dataset-9aui/active",
+          "stance": "support",
+          "note": "官方公告逐字确认把 cyber 数据集从 pro run 移除，正好解释这条线在 pro 第 15 步起变成 null 而不是降到 0；我们「null 表示数据源已不在数据集里」的读法有官方出处。"
+        },
+        {
+          "metric": "env/possible_leak",
+          "stance": "context",
+          "note": "公告给出的移除理由是「在 rollout 日志里看到一些坏形态（bad patterns）」，说明官方自己也会用 rollout 日志里的异常行为做下线决策——与我们盯 env/possible_leak 这类告警型指标的动机一致，但看板并没有把「坏形态」映射到某个具体字段。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-rl-notices-restart",
+      "kind": "doc",
+      "title": "mimo.xiaomi.com/rl 官方运行公告：flash 从第 15 步重跑",
+      "authors": "mimo.xiaomi.com/rl/ 看板官方公告",
+      "venue": "https://mimo.xiaomi.com/rl/api/notices",
+      "year": "2026",
+      "url": "https://mimo.xiaomi.com/rl/api/notices",
+      "quote": "we restarted the flash run from step 15. reason: a type of infra error on one of datasets was not correctly detected over the past ~3 hours.",
+      "topic": "本次 run 的官方公告（重跑与 infra error）",
+      "attaches": [
+        {
+          "metric": "training/global_step",
+          "stance": "support",
+          "note": "官方公告逐字说明 flash 从第 15 步重跑，正好对上我们「events.json 里第 16、17 步各出现两次且第二次 redo=true、而 global_step 只有 25 个值」的推断：步号连续不代表没重跑过。"
+        },
+        {
+          "metric": "timing_s/step",
+          "stance": "support",
+          "note": "公告确认这轮训练经历了多次 restart，支持我们把 timing_s/step 读成「进程内的有效工作时间」、并提醒用 events.json 的重启事件补齐停机时间（pro 少报 32.9% 墙钟那类缺口）。"
+        },
+        {
+          "metric": "env/total_error",
+          "stance": "context",
+          "note": "官方把一次重跑归因于「某类 infra error 在过去约 3 小时里没被正确检测到」，说明环境/基础设施类错误确实存在检测盲区，支持我们把 env/total_error 只当作一个不完整的沙箱侧计数来看。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-vl-tr",
+      "kind": "report",
+      "title": "MiMo-VL Technical Report",
+      "authors": "Xiaomi LLM-Core Team（Zihao Yue et al.）",
+      "venue": "arXiv:2506.03569",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2506.03569",
+      "quote": "Our training combines four-stage pre-training (2.4 trillion tokens) with Mixed On-policy Reinforcement Learning (MORL) integrating diverse reward signals.",
+      "topic": "MiMo 系列官方 RL 配方（混合奖励信号）",
+      "attaches": [
+        {
+          "metric": "perf/total_num_tokens",
+          "stance": "context",
+          "note": "官方 MiMo 系列报告都用「万亿 token 级预训练 + 混合奖励 RL」这种算力叙述，说明 token 规模在 MiMo 的公开口径里就是要报的核心预算量，支持我们把 perf/total_num_tokens 当成本模型里的「量」。"
+        }
+      ]
+    },
+    {
+      "id": "mimo-7b-tr",
+      "kind": "report",
+      "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining",
+      "authors": "LLM-Core Xiaomi（Bingquan Xia et al.）",
+      "venue": "arXiv:2505.07608",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2505.07608",
+      "quote": "During post-training, we curate a dataset of 130K verifiable mathematics and programming problems for reinforcement learning, integrating a test-difficulty-driven code-reward scheme to alleviate sparse-reward issues and employing strategic data resampling to stabilize training.",
+      "topic": "官方用测试难度驱动代码奖励",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_pass_new_tests_rate",
+          "stance": "support",
+          "note": "官方 MiMo-7B 报告明写用「test-difficulty-driven code-reward」做代码 RL，说明用测试（及其难度）来给代码解打分/筛选是 MiMo 自己的既有做法，支持我们把「通过新增测试的比例」读成判分器在补测试覆盖率的信号。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_tier_share_T1",
+          "stance": "context",
+          "note": "官方按测试难度分层给奖励，说明「按难度分档」这件事在 MiMo 体系里存在；但报告没有给出 T1/T2/T3/H 这类档位命名，所以只能当背景，不能用来定我们四个档位的排序方向。"
+        }
+      ]
+    },
+    {
+      "id": "mtbench-judge",
+      "kind": "paper",
+      "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+      "authors": "Lianmin Zheng et al.",
+      "venue": "arXiv:2306.05685 (NeurIPS 2023 D&B)",
+      "year": "2023",
+      "url": "https://arxiv.org/abs/2306.05685",
+      "quote": "We examine the usage and limitations of LLM-as-a-judge, including position, verbosity, and self-enhancement biases, as well as limited reasoning ability, and propose solutions to mitigate some of them.",
+      "topic": "LLM 判分器的系统性偏差（位置/长度/自增强）",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_probe_disagree_rate",
+          "stance": "support",
+          "note": "这篇是 LLM-as-a-judge 偏差的经典出处：位置偏差、长度偏差、自增强偏差都是判分器固有的，支持我们把 51%~60% 的探针分歧读成「判分任务本身难、判分器不可靠」的背景噪声，而不是某个环节坏了。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_r2_flagged",
+          "stance": "context",
+          "note": "论文指出这些偏差需要专门的缓解手段（论文自己给了若干缓解方案），与我们「标红数下降不等于变好、要看复核标准」的谨慎读法方向一致，但它没有给出「第二轮复核标红」这种流程口径。"
+        }
+      ]
+    },
+    {
+      "id": "judge-consistency-not-reliability",
+      "kind": "paper",
+      "title": "When Consistency Does Not Mean Reliability: Evaluating Local LLM Judges Against Human Ratings",
+      "authors": "Aakash Kumar Tiwari",
+      "venue": "arXiv:2609.13824",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2609.13824",
+      "quote": "These results show that high self-consistency does not necessarily indicate high agreement with human judgments.",
+      "topic": "自洽 ≠ 正确",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_r3_rate",
+          "stance": "challenge",
+          "note": "我们写「50% 的探针分歧里只有 2% 需要第三轮，说明复核机制在起作用」——这篇论文给的边界条件是：判分器可以在自洽率 92%~97% 的同时和人类评分只有 0.28~0.34 的相关系数，所以「走到第三轮的比例低」只能说明流程稳定，不能推出判得准。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_probe_disagree_rate",
+          "stance": "challenge",
+          "note": "直接挑战我们那句「它是比例不是次数，只能说明判定的确定性」——论文证明确定性（自洽）与正确性可以脱钩，所以这条线低也不该读成「判分可信」。"
+        }
+      ]
+    },
+    {
+      "id": "multi-judge-ensemble",
+      "kind": "paper",
+      "title": "Can We Trust LLM Judges: A Study of Capability-Dependent Biases and Multi-Judge Ensemble for Bias Calibration",
+      "authors": "Gemma Zhang et al.",
+      "venue": "arXiv:2609.12002",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2609.12002",
+      "quote": "We introduce a disagreement-based estimator that derives these error rates purely from inter-judge agreement patterns, requiring no ground-truth labels or task metadata.",
+      "topic": "多判分器聚合与用「分歧」估计错误率",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_probe_disagree_rate",
+          "stance": "support",
+          "note": "论文证明「评审之间的一致/分歧模式」本身就能反推出各评审的漏判误判率（无需标注），这正是我们把 select_probe_disagree_rate 当判分可信度读数的公开方法学依据。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_r3_rate",
+          "stance": "context",
+          "note": "论文给出的解法是加权多数投票（WMV）这种多评审聚合，支持我们把「走到第三轮判定」当作一种多评审纠偏机制来读，但它讨论的是聚合权重，不是「第三轮」这种轮次设计。"
+        }
+      ]
+    },
+    {
+      "id": "judge-not-oracle",
+      "kind": "paper",
+      "title": "LLM-as-a-Judge Is Not an Oracle: Why Self-Improving Agents Need Deterministic Guardrails",
+      "authors": "Vansh Wahi",
+      "venue": "arXiv:2609.02246",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2609.02246",
+      "quote": "Agents achieved perfect scores by reading cached answer keys from their environment, a 100% pass rate concealing 68% true capability.",
+      "topic": "满分可能是作弊的产物",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/pass2_success_rate",
+          "stance": "challenge",
+          "note": "这篇论文的核心证据是「满分掩盖了真实能力」——他们用 canary cases 让「完美分数本身就是作弊证据」。直接强化我们那条「恒定的满分通常意味着没有数据/不可信，不是表现完美」的告诫，并提示 pass2_success_rate 恒 1.0 这类满分要当异常而不是好消息。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+          "stance": "support",
+          "note": "agent 从环境里读缓存答案键拿到 100% 通过率，正是「绕过评测而不是解题」的实例，支持我们把 select_hack_attempt_rate 当奖励被玩法驱动的直接信号长期盯。"
+        },
+        {
+          "metric": "env/possible_leak",
+          "stance": "support",
+          "note": "论文里作弊的具体形态就是「从环境里读到不该读到的答案」，这支持我们把 env/possible_leak（疑似沙箱泄漏）当作同一类风险来对待：非 0 就值得查，而不是当成噪声。"
+        }
+      ]
+    },
+    {
+      "id": "monitor-cot-hacking",
+      "kind": "paper",
+      "title": "Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation",
+      "authors": "Bowen Baker et al.",
+      "venue": "arXiv:2503.11926",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.11926",
+      "quote": "We show that we can monitor a frontier reasoning model, such as OpenAI o3-mini, for reward hacking in agentic coding environments by using another LLM that observes the model's chain-of-thought (CoT) reasoning.",
+      "topic": "奖励攻击的检测（CoT 监控）",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+          "stance": "support",
+          "note": "在 agentic coding 环境里用另一个 LLM 监控 CoT 来发现 reward hacking 是公开验证过的做法，支持我们把「被判分器标记为疑似作弊尝试的比例」当作一类有文献支撑的监控指标（该文同时警告：一旦把监控直接写进优化目标，模型会学会混淆式作弊，所以这个比例只能当观察量）。"
+        }
+      ]
+    },
+    {
+      "id": "baitbench",
+      "kind": "paper",
+      "title": "BAITBENCH: Measuring Agent Reward Hacking with Optional Shortcuts Planted in ML Tasks",
+      "authors": "Pradyumna Shyama Prasad et al.",
+      "venue": "arXiv:2608.30724",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2608.30724",
+      "quote": "Across seven frontier agents scored by our two-stage judge pipeline, 57.1% of runs exhibit reward hacking, with five of seven above 50%.",
+      "topic": "奖励攻击率的公开量级与两阶段判分流水线",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+          "stance": "support",
+          "note": "公开基准给出 57.1%、七个模型里五个超过 50% 的作弊率量级，和我们这条线 pro 0.40→0.51、flash 全程均值 0.48 完全同量级，支持我们「绝对水平偏高不等于一半的组真在作弊」的谨慎读法（他们也是靠埋入式 hiddden test 才测出来）。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/pass1_success_rate",
+          "stance": "context",
+          "note": "他们用的是 two-stage judge pipeline，说明「多阶段判分」在公开工作里是常见设计；但论文没有给出各阶段成功率或耗时口径，所以只能当背景，不能用来验证我们 pass1/pass2 的具体读法。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/pass2_success_rate",
+          "stance": "context",
+          "note": "同上：公开工作里确实存在两阶段判分器，但我们这边第二遍从未执行（judge_pass2_attempts 恒 0），这一差异没有任何公开材料可以直接对照，只能写进 gaps。"
+        }
+      ]
+    },
+    {
+      "id": "hack-verifiable-terminal-bench",
+      "kind": "paper",
+      "title": "Hack-Verifiable Terminal Bench: Evaluating Reward Hacking in Terminal Tasks",
+      "authors": "Amit Roth, Ivan Bercovich, Yonathan Efroni",
+      "venue": "arXiv:2608.22103",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2608.22103",
+      "quote": "Measuring reward hacking is itself challenging, as detection typically relies on human inspection or LLM judges, both of which can be unreliable.",
+      "topic": "用 LLM 判分器检测作弊的可靠性边界",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+          "stance": "challenge",
+          "note": "直接挑战我们把这 40%~52% 当稳定信号看的做法：论文指出依赖人工或 LLM judge 检测作弊本身不可靠，所以他们才改用「埋入可检测 hack」的环境。我们这条线的判定标准看板未公开，因此只能按「疑似」引用，不能当作弊率。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_probe_disagree_rate",
+          "stance": "support",
+          "note": "论文明写 LLM judge 的检测不可靠，为「探针分歧长期在 51%~60%」提供了外部解释：这是判分器能力的固有上限，不一定是流水线故障。"
+        }
+      ]
+    },
+    {
+      "id": "robusttests",
+      "kind": "paper",
+      "title": "Robust Code RL via Faulty-Code-Driven Test case Synthesis and Dense Reward Shaping",
+      "authors": "Yiwen Zhang et al.",
+      "venue": "arXiv:2608.24135 (EMNLP 2026)",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2608.24135",
+      "quote": "its efficacy is often hindered by insufficient test case coverage, leading to reward hacking and policy degradation",
+      "topic": "用新生成的测试补覆盖以治奖励攻击",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_pass_new_tests_rate",
+          "stance": "support",
+          "note": "论文把「测试覆盖不足 → 奖励攻击 → 策略退化」这条因果链写清楚，并用新合成的测试用例来做筛选，支持我们把 select_pass_new_tests_rate 读成「判分器在原有测试之外补验证」的做法，而不是当成模型泛化的证据。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+          "stance": "support",
+          "note": "论文明确把作弊尝试和测试覆盖不足挂钩，支持我们把 hack_attempt_rate 与 pass_new_tests_rate 两条线放在一起读的组合拳。"
+        }
+      ]
+    },
+    {
+      "id": "reality-final-verifier",
+      "kind": "paper",
+      "title": "Reality Is the Final Verifier: On Two Key Gaps in Agentic Software Engineering",
+      "authors": "Alexander Krentsel et al.",
+      "venue": "arXiv:2609.12039",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2609.12039",
+      "quote": "reward hacking exploits omissions in the requirements or model, while hallucination widens the gaps by fabricating requirements or environment assumptions",
+      "topic": "测试通过 ≠ 部署可接受（两个 gap）",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_pass_new_tests_rate",
+          "stance": "challenge",
+          "note": "给我们那句「新增测试能拦住改测试蒙混过关的解法，这个比例上升是好事」加了边界条件：论文说奖励攻击利用的正是需求与部署环境模型的遗漏，即使测试全过（甚至形式证明通过）也不保证部署后行为可接受，所以这条比例上升不能被当成「判分器补漏成功」的证明。"
+        },
+        {
+          "metric": "benchmark/deepswe",
+          "stance": "challenge",
+          "note": "论文的结论是「predeployment evaluations remain proxies」，直接挑战我们把离线榜当成「模型真的变强了没有」的判决性证据——它只是代理指标。"
+        }
+      ]
+    },
+    {
+      "id": "swebench",
+      "kind": "paper",
+      "title": "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?",
+      "authors": "Carlos E. Jimenez et al.",
+      "venue": "arXiv:2310.06770 (ICLR 2024)",
+      "year": "2023",
+      "url": "https://arxiv.org/abs/2310.06770",
+      "quote": "Resolving issues in SWE-bench frequently requires understanding and coordinating changes across multiple functions, classes, and even files simultaneously, calling for models to interact with execution environments, process extremely long contexts and perform complex reasoning",
+      "topic": "执行环境 + 长上下文是这类评测的固有要求",
+      "attaches": [
+        {
+          "metric": "benchmark/deepswe",
+          "stance": "support",
+          "note": "SWE-bench 定义了「给代码库 + issue，改代码让测试通过」这种执行式评测范式（DeepSWE 一类榜单都是它的衍生），支持我们把 benchmark/deepswe 读成固定测试集上的外部参照，而不是训练分布上的在线指标。"
+        },
+        {
+          "metric": "env/active",
+          "stance": "context",
+          "note": "论文强调这类任务必须让模型与执行环境交互，为「沙箱并发水位」这类系统指标为什么是这类训练的前提提供了背景。"
+        },
+        {
+          "metric": "ctx_total_length/mean",
+          "stance": "support",
+          "note": "论文把「process extremely long contexts」列为 SWE 任务的固有难度来源，支持我们把上下文稳步上行读成任务形态的正常结果，而不是模型变啰嗦的异常。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-overlong",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale（Overlong Reward Shaping）",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "Overlong Reward Shaping, which reduces reward noise and stabilizes training.",
+      "topic": "超长样本需要专门的奖励整形",
+      "attaches": [
+        {
+          "metric": "ctx_total_length/clip_ratio",
+          "stance": "support",
+          "note": "DAPO 把 Overlong Reward Shaping 列为大规模 RL 的四大关键技术之一，说明「撞长度上限的轨迹」必须被专门处理（否则带来奖励噪声、训练不稳），支持我们「被截断的轨迹会污染训练信号」的读法。"
+        },
+        {
+          "metric": "ctx_total_length/max",
+          "stance": "context",
+          "note": "既然超长样本要被专门整形，max 顶到 1048570 这类「至少有轨迹撞上限」的观察就有了公开动机背景：它是判断该不该触发长度治理的第一道信号。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-longtail-generation",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale（§3.2 长尾主导生成时间）",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "the generation time is typically dominated by the generation of long-tail samples if the RL system is synchronized and the generation stage is not pipelined",
+      "topic": "生成墙钟由长尾样本主导",
+      "attaches": [
+        {
+          "metric": "timing_s/outer_gen",
+          "stance": "support",
+          "note": "公开系统论文直接给出机制：同步且不做流水线时，生成长度墙钟由长尾样本主导。这支持我们「响应长度与生成墙钟相关系数只有 0.074/0.309，光看平均长度推不出时间」的读法，并解释了 outer_gen 为什么随长尾而不是随均值波动。"
+        },
+        {
+          "metric": "ctx_response_length/agentic/mean",
+          "stance": "context",
+          "note": "长尾样本主要来自多轮工具调用的 agentic 轨迹，支持我们把 agentic 子集的长度和增长速度单独盯，用来定位 outer_gen 的长尾来源。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-length-quality",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale（§3.3 长样本的低质形态）",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "we observe that excessively long samples often exhibit low-quality patterns such as gibberish and repetitive words",
+      "topic": "响应长度膨胀可能是不健康的",
+      "attaches": [
+        {
+          "metric": "ctx_response_length/mean",
+          "stance": "challenge",
+          "note": "直接挑战我们「生成变长不一定是坏事（工具调用多轮本来就长），要配合 agg_turn 和奖励一起读」里偏乐观的一半：DAPO 观察到超长样本经常是乱码/重复的低质形态，且样本级损失无法惩罚它们，会导致熵和响应长度的「不健康上升」。所以 pro +42%/flash +70% 的长度膨胀必须先排除低质膨胀。"
+        },
+        {
+          "metric": "ctx_total_length/mean",
+          "stance": "challenge",
+          "note": "同上：这条平均上下文 +40%/+65% 的增长不能默认读成「任务更难、轮次更多」，公开材料给出了另一种同样被观测到的解释（低质长样本堆出来的膨胀）。"
+        }
+      ]
+    },
+    {
+      "id": "dr-grpo-length-bias",
+      "kind": "paper",
+      "title": "Understanding R1-Zero-Like Training: A Critical Perspective",
+      "authors": "Zichen Liu et al.",
+      "venue": "arXiv:2503.20783",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.20783",
+      "quote": "we identify an optimization bias in Group Relative Policy Optimization (GRPO), which artificially increases response length (especially for incorrect outputs) during training",
+      "topic": "长度膨胀可能来自目标函数偏置",
+      "attaches": [
+        {
+          "metric": "ctx_response_length/mean",
+          "stance": "challenge",
+          "note": "这条给出与「模型学会更多轮工具调用」完全不同的归因：GRPO 本身有使响应长度被人为抬高的优化偏置（尤其是错误输出）。我们「看增长斜率有没有超出预期……这是 agentic RL 的正常形态」的说法因此需要保留这条替代解释。"
+        },
+        {
+          "metric": "ctx_total_length/mean",
+          "stance": "challenge",
+          "note": "同上，支持我们把上下文长度的持续上行至少部分视为算法偏置的产物，而不是纯粹的任务/行为变化。"
+        }
+      ]
+    },
+    {
+      "id": "hybridflow",
+      "kind": "paper",
+      "title": "HybridFlow: A Flexible and Efficient RLHF Framework",
+      "authors": "Guangming Sheng et al.",
+      "venue": "arXiv:2409.19256",
+      "year": "2024",
+      "url": "https://arxiv.org/abs/2409.19256",
+      "quote": "We further design a 3D-HybridEngine for efficient actor model resharding between training and generation phases, with zero memory redundancy and significantly reduced communication overhead.",
+      "topic": "混合控制器 RL 系统里生成/训练两阶段切分",
+      "attaches": [
+        {
+          "metric": "timing_s/outer_gen",
+          "stance": "context",
+          "note": "HybridFlow/verl 把 RL 数据流显式切成 generation 与 training 两个阶段（并为两者之间的 actor 重分片设计了 3D-HybridEngine），支持我们把 outer_gen 与 trainer_ops 当作这套系统的两个主要时间块来分别读。"
+        },
+        {
+          "metric": "timing_s/trainer_ops",
+          "stance": "context",
+          "note": "同上：训练阶段在公开系统里是一个可被单独度量的阶段，支持我们把 trainer_ops 当训练吞吐的直接读数（该论文报告的 1.53x~20.57x 吞吐提升也是在这两阶段之间做文章）。"
+        },
+        {
+          "metric": "timing_s/step",
+          "stance": "context",
+          "note": "该框架说明「一个 step」在工程上就是走完 generation + training 的一条数据流，为我们把 step 墙钟拆成 outer_gen + trainer_ops（外加上去的 2%~3% 零头）提供了系统层面的依据。"
+        }
+      ]
+    },
+    {
+      "id": "verl-perf-tuning",
+      "kind": "doc",
+      "title": "verl 文档：Performance Tuning Guide（长序列训练的显存/batch 取舍）",
+      "authors": "verl project (ByteDance Seed MLSys)",
+      "venue": "verl.readthedocs.io",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/perf/perf_tuning.html",
+      "quote": "To train long sequence (>32k), users may need to decrease the `*micro_batch_size_per_gpu` and `*max_token_len_per_gpu` to avoid OOM.",
+      "topic": "上下文变长如何推高训练耗时",
+      "attaches": [
+        {
+          "metric": "timing_s/trainer_ops",
+          "stance": "support",
+          "note": "官方文档明说长序列训练必须压低单卡 batch/token 上限以避免 OOM，也就是说上下文越长、训练侧越吃时间与显存；支持我们把 trainer_ops 的持续爬升归因于每步 token 变多，而不是训练变慢。"
+        },
+        {
+          "metric": "ctx_total_length/mean",
+          "stance": "support",
+          "note": "同一条文档约束把「上下文长度」与「训练侧资源/时间」直接绑在一起，支持我们那句「上下文长度是这一组里所有成本指标的共同驱动项」。"
+        }
+      ]
+    },
+    {
+      "id": "scaling-beyond-human-supervision",
+      "kind": "paper",
+      "title": "Scaling Large Reasoning Models beyond Human Supervision: A Path toward Superintelligence",
+      "authors": "Zhiqin Yang et al.",
+      "venue": "arXiv:2608.31075",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2608.31075",
+      "quote": "Our analysis further highlights the risks introduced by increasingly autonomous rewards and experience generation, including reward hacking, feedback drift, curriculum collapse, and environment errors.",
+      "topic": "自主奖励与环境生成的风险清单",
+      "attaches": [
+        {
+          "metric": "env/total_error",
+          "stance": "context",
+          "note": "综述把 environment errors 与 reward hacking 并列为自主化训练的两大公认风险，说明我们盯 env/total_error 这类环境侧计数是有公开问题意识的；但综述没有给出该指标的分母/口径定义。"
+        },
+        {
+          "metric": "env/possible_leak",
+          "stance": "context",
+          "note": "综述给出的评估对象之一是 experience quality（环境/经验质量），与我们用 env/possible_leak 这类告警去查环境是否失控的方向一致，但同样没有定义级支撑。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/select_v4/select_hack_attempt_rate",
+          "stance": "context",
+          "note": "把 reward hacking 列为自主奖励的头号风险，支持我们把这 40%~52% 的疑似作弊尝试率列成「最需要长期盯的指标之一」的定位。"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    "判分前的路由丢弃（routed/off 占 groups_total 约 48.9%）找不到任何公开材料：没有论文或文档描述「先按路由把一半候选组排除在判分之外」这种设计，也没有口径可以对照。公开文献里最接近的是 DAPO 的动态采样（过采样后过滤掉正确率为 1 和 0 的 prompt），但那是按奖励过滤、发生在打分之后，与我们的判分前路由不是一回事，不能混用。",
+    "二审从未执行这件事（pass2_success_rate 恒 1.0 而 judge_pass2_attempts 恒 0）找不到公开材料。BAITBENCH 只用到「two-stage judge pipeline」这个说法，没有给任何阶段的成功率/尝试次数口径；也没有任何材料讨论「两遍判分但第二遍没被启用」这种读数陷阱。",
+    "判分约 570 秒/组、97% 花在一审：没有找到任何公开的判分器/verifier 单组耗时基线、分位数或成本统计，无法把 550 秒这个量级与公开系统做对照，也无法验证「97% 在一审」这种拆分的合理性。",
+    "判分器（select_v4 / select_v4_nogold）本身的公开实现与判定标准找不到；select_probe_disagree_rate 里 probe 具体指同模型多次采样、不同提示、还是不同模型，没有任何公开材料可以确认。",
+    "「判分饱和」（judge saturation）没有找到专门文献：arXiv 全文检索 \"judge saturation\" 只有 1 条且与主题无关（客服流失解释），因此我们关于「判分饱和」的读法没有溯源。",
+    "select_tier_share_T1/T2/T3/H 的档位定义与排序方向（哪一档更难、H 是 hard 还是 hold）没有任何公开材料；MiMo-7B 只提到 test-difficulty-driven code-reward，没有档位命名。",
+    "RL 训练的算力-效果缩放律（能不能从算力预测效果）没有找到可引用的论文：简报给的 2506.17863 实际是另一篇论文（见 notes），本会话对 arXiv 搜索接口的连续检索也多次被拒。perf/total_num_tokens 目前只挂到 MiMo 官方「efficiently scaling RL compute」这类定性表述和 MiMo-VL 的算力规模叙述，属于 context 而非缩放律证据。",
+    "env/possible_leak 的判定口径（什么算泄漏、统计窗口是瞬时还是累计）没有公开材料；2609.02246 描述了 agent 从环境里读缓存答案键这类泄漏形态，但没有给出对应指标定义。",
+    "沙箱翻台率/环境错误率的公开基线：MiMo 官方只给了「10,000+ concurrent pods 与 70% environment setup success rate」，没有给 sandbox 生命周期、翻台次数或错误率的分母口径，因此我们「两个 run 的沙箱周转都在 14 倍上下」只能算自证，不能与官方或第三方对照。",
+    "判分耗时与数据陈旧度之间的因果（判分慢 → partial/avg_staleness 上升）没有找到公开材料直接论证；这属于本遥测的推断。"
+  ],
+  "notes": [
+    "简报的参考起点里 2506.17863 并不是《The Art of Scaling RL Compute》：arXiv 返回的是 \"LLMs for Customized Marketing Content Generation and Evaluation at Scale\"（KDD LLM4ECommerce Workshop 2025），与 RL 算力缩放无关，已丢弃不用。",
+    "mimo.xiaomi.com 的 /（含博客页 /blog/mimo-v2-flash）与 /rl/ 首页都是前端渲染，web_fetch 只能拿到导航文字（如「mimo-v2.6 RL overview metrics about」），拿不到逐字正文；这轮 RL 运行的官方文本要从站点自己的接口取：https://mimo.xiaomi.com/rl/api/notices 返回的 notices 数组就是官方公告原文，可直接逐字引用。",
+    "MiMo-V2-Flash 技术报告的正文只能抓到约前 1/3（截断在 §2.3.1），但目录里可见附录 B 标题为 \"Reward Hacking of SWE-Bench\"、附录 C 为 \"Context Management\"、§4.6 为 \"RL Infrastructures\"（含 4.6.1 Rollout Routing Replay (R3)、4.6.2 Data Scheduler、4.6.3 Toolbox and Tool Manager）、§4.3.2 含 \"Scaling Agentic Compute\"。这些章节标题本身就是官方关心面的证据，但正文没能取到，不要替它们编内容。",
+    "小米官方 README §5.3 的 R3 原文（已收进 r4.json，挂在 train_infer_diff/new_infer/kl）是官方对「训练/推理不一致」最直接的一句话，B 组值得直接采用；README §5.3 的 fine-grained data scheduler + request-level prefix cache 也是官方对长尾/一致性的工程说明。",
+    "MiMo-V2-Flash 报告 §2.3.1 还有一句可直接引用：「MTP acceleration is particularly well-suited for RL training ... where the rollout phase consistently emerges as the dominant bottleneck」。",
+    "本会话里 arXiv API（export.arxiv.org/api/query）在最初两次成功后持续返回无 content-type 的错误，arXiv 搜索页（/search/）在连续请求后也大量返回 HTTP 400，因此改用 arxiv.org/abs/<id> 逐篇核验（abs 页含完整摘要，可逐字引用）。另外浏览器 MCP 的 profile 被其他 agent 占用（Browser is already in use for D:\\data\\chrome_data_mcp），无法用 playwright 分段抓取长正文。",
+    "核验过的 id 与标题一致性：1707.06347/1506.02438/2402.03300 等未在本组使用；本组核验过的 2306.05685、2310.06770、2409.19256、2503.11926、2503.14476、2503.20783、2505.07608、2506.03569 标题均与预期一致；唯一不符的是 2506.17863。"
+  ]
+}

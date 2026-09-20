@@ -1,0 +1,142 @@
+[
+  {
+    "id": "benchmark/deepswe",
+    "name": "DeepSWE v1.1（离线评测榜）",
+    "group": "评测榜",
+    "unit": "分数，满分 100",
+    "what": "用 mini-swe-agent 在 DeepSWE v1.1 上跑离线评测的成绩。每个训练步测一次，每次采 3 个样本取平均（avg@3）。它是固定测试集上的成绩，和训练分布上的在线指标不是一回事。",
+    "how": "数据来自站点的 benchmarks 接口，按训练步号组织。看板只给出分数，没有给题目数量、采样参数或判分细节。",
+    "why": "这是在线的 dynsam/avg@n 之外唯一的外部参照。在线指标量的是训练分布上的通过率，会随着数据配方变化而漂移；离线榜是固定的，所以它能回答「模型真的变强了没有」。",
+    "read": [
+      "看趋势不看单点。pro 从第 1 步 58.41 涨到第 15 步 63.42（+5.01），flash 从 48.67 涨到 59.59（+10.92）。",
+      "单步会回落，pro 有过 65.97 → 63.27 的回落，flash 波动更大（第 10 步 60.18 之后掉到 54.13 再涨回来）。",
+      "它的覆盖范围落后训练进度：pro 只到第 15 步，flash 只到第 21 步。",
+      "flash 起点低、涨幅大，和 pro 的差距在收窄：同为第 15 步时 pro 63.42、flash 60.77，差 2.65 分；第 1 步差 9.74 分。"
+    ],
+    "observed": "pro 有记录的步：1~8、10~15，缺第 9 步，最后一个点是第 15 步的 63.42，全程最高是第 12 步 65.97。flash 有记录的步：1~6、8、10~21，缺第 7、9 步，最后一个点是第 21 步的 59.59，全程最高是第 18 步 64.01。",
+    "traps": [
+      "avg@3 的 3 次采样意味着单步有大约几个点的抽样噪声，相邻两步的升降不能当趋势。",
+      "缺步和滞后是常态，不是数据出错。官方公告说过线下评测成绩是陆续补发的。",
+      "它和 dynsam/avg@n 量纲相近但含义不同（固定测试集 vs 训练分布），不要叠加或互相换算。"
+    ],
+    "related": [
+      "benchmark/lag",
+      "benchmark/inhouse-coding",
+      "dynsam/avg@n"
+    ],
+    "sources": [
+      {
+        "ref": "reality-final-verifier",
+        "stance": "challenge",
+        "note": "论文的结论是「predeployment evaluations remain proxies」，直接挑战我们把离线榜当成「模型真的变强了没有」的判决性证据——它只是代理指标。"
+      },
+      {
+        "ref": "swebench",
+        "stance": "support",
+        "note": "SWE-bench 定义了「给代码库 + issue，改代码让测试通过」这种执行式评测范式（DeepSWE 一类榜单都是它的衍生），支持我们把 benchmark/deepswe 读成固定测试集上的外部参照，而不是训练分布上的在线指标。"
+      }
+    ]
+  },
+  {
+    "id": "benchmark/inhouse-coding",
+    "name": "In-house Coding Bench（离线评测榜）",
+    "group": "评测榜",
+    "unit": "分数，满分 100",
+    "what": "内部编码评测榜的成绩，avg@3。题目没有公开，是自家出的编码题集。",
+    "how": "和 DeepSWE 一样来自 benchmarks 接口，按步号组织。看板给了榜单标题和采样方式（avg@3），没给题目构成。",
+    "why": "它和 DeepSWE 是两个不同来源的参照。两个榜同向变化时结论更可靠；只有一个动的时候要怀疑是那个榜的题目和当前训练数据更接近。",
+    "read": [
+      "涨幅比 DeepSWE 小：pro 从 57.54 到 62.26（+4.72），flash 从 53.83 到 61.33（+7.50）。",
+      "它是三个榜里唯一 pro 全程没缺步的（第 1~15 步连续）。",
+      "曲线比 DeepSWE 平滑，逐级抬升，没有明显回落，说明这个榜的题目难度分布更均匀。",
+      "flash 追得很紧：同为第 15 步时 pro 62.26、flash 58.96。"
+    ],
+    "observed": "pro 第 1~15 步连续，从 57.54 涨到 62.26，最高第 13、14 步的 62.54。flash 有记录的步为 1~6、8、10~21，缺第 7、9 步，从 53.83 涨到第 21 步的 61.33，最高第 20 步 61.28 与第 21 步基本持平。",
+    "traps": [
+      "内部榜的题目没有公开，无法判断它和训练数据有没有重叠，成绩偏高时要留意这一点。",
+      "同样是 avg@3，单步噪声不小，pro 在第 13~15 步连着三个点几乎相同（62.54、62.54、62.26），这是平台期不是精确值。"
+    ],
+    "related": [
+      "benchmark/deepswe",
+      "benchmark/automation",
+      "benchmark/lag"
+    ]
+  },
+  {
+    "id": "benchmark/automation",
+    "name": "AutomationBench v1.0.6（离线评测榜）",
+    "group": "评测榜",
+    "unit": "分数，满分 100",
+    "what": "自动化类任务的评测榜成绩，avg@3。三个榜里分数最低的一个，说明这组任务整体更难。",
+    "how": "同样来自 benchmarks 接口。看板给了榜单名称、版本号和 avg@3，没给题目构成和判分细节。",
+    "why": "它衡量的是偏「操作/执行」的能力，和两个编码榜考察的方向不完全一样。三个榜一起看才能判断进步是普遍的还是只在某一类任务上。",
+    "read": [
+      "pro 从 46.2 涨到 50.7（+4.50），flash 从 43.3 涨到 49.9（+6.60）。",
+      "它在第 7 步前后有过回落（pro 47.5 → 45.4），说明这类任务对训练阶段比较敏感。",
+      "flash 是三个榜里唯一到第 21 步都连续的（1~21 无缺步），所以它的趋势线最完整。",
+      "绝对水平比编码榜低 10 分以上，横向比较时不要用同一个「及格线」。"
+    ],
+    "observed": "pro 第 1~15 步连续，46.2 → 50.7，中间第 7 步回落到 45.4。flash 第 1~21 步连续无缺步，43.3 → 第 15 步的 51.2 为最高，之后回落到第 21 步的 49.9，末段是平台略降。",
+    "traps": [
+      "flash 第 15 步冲到 51.2 之后连续 6 步在 49.3~50.8 之间，这段是平台，不要读成「停止进步」。",
+      "三个榜的难度不同，用「涨了多少分」横向比较两个 run 时，基数不同会放大差异。"
+    ],
+    "related": [
+      "benchmark/deepswe",
+      "benchmark/inhouse-coding",
+      "benchmark/lag"
+    ]
+  },
+  {
+    "id": "benchmark/lag",
+    "name": "离线评测比训练落后 5~8 步，而且两个 run 不一样",
+    "group": "评测榜",
+    "unit": "步",
+    "what": "三个离线榜的覆盖范围都停在训练进度之前，这是这份看板上最容易被忽略的结构性问题。",
+    "how": "把 benchmarks 里的步号集合和训练当前步号对比即可。离线评测要跑完整的 agent 流程并判分，比在线指标慢得多，官方公告也说过成绩是陆续补发的。",
+    "why": "它决定了你能对最近几步下多强的结论。最后这几步没有独立评测背书，只能用 dynsam/avg@n 这个在线指标，而在线指标是训练分布上的，不能替代外部验证。缺口还不是一个固定值：它随评测补发的节奏变，pro 在上一轮观察时是 4 步，现在扩到 6~8 步。",
+    "read": [
+      "pro：训练已到第 24 步，DeepSWE 与 In-house Coding 都停在第 18 步（缺 6 步），AutomationBench 停在第 16 步（缺 8 步）。",
+      "flash：训练 30 步后结束，三个榜全部停在第 25 步，缺 5 步。",
+      "缺口不是固定延迟：它由官方补发的节奏决定，pro 上一轮是 4 步、这一轮是 6~8 步。公告里那次「补发 flash 第 12 步与 pro 第 8 步」也说明标称步号不等于这个成绩什么时候真的能看到 —— pro 第 8 步的成绩在它完成后 5.27 小时才可读，flash 第 12 步是 3.75 小时。",
+      "所以「最近几步还在涨」这个判断只有在线指标一个来源（flash 第 29 步 0.6623 是全程最高，第 30 步回落到 0.6435）。"
+    ],
+    "observed": "pro 训练 24 步，DeepSWE 与 In-house Coding 到第 18 步、AutomationBench 到第 16 步，缺口分别是 6、6、8 步；flash 训练 30 步（已结束），三个榜都到第 25 步，缺口 5 步。两个 run 的缺口并不相同，所以这不是一个固定的评测周期，而是补发节奏 —— 这条数字会随官方补发继续变，读之前先看一眼当前值。",
+    "traps": [
+      "不要用「榜没涨」来判断最近几步没进步——榜压根没测那几步。",
+      "也不要用 avg@n 的涨幅去补榜单的空白，两者量的不是同一个东西。",
+      "回放历史切面时，越早的切面榜单缺口越大，别把「那一刻还没有成绩」读成「那一刻成绩是 0」。"
+    ],
+    "related": [
+      "benchmark/deepswe",
+      "benchmark/inhouse-coding",
+      "benchmark/automation",
+      "dynsam/avg@n"
+    ]
+  },
+  {
+    "id": "notices",
+    "name": "公告：5 条全是故障通报，没有训练结论",
+    "group": "公告",
+    "unit": "条",
+    "what": "看板底部的公告栏。截至当前一共 5 条，全部是稳定性通报和一次数据集调整，没有任何一条在讲训练效果。",
+    "how": "数据来自站点的 notices 接口，按时间倒序排列。每条有 id、时间戳、英文正文和一个 run 字段。",
+    "why": "它解释了数据里那些看起来奇怪的地方：为什么某一步会重跑、为什么某个数据集的计数突然断了。读时间线之前先读公告，能省掉很多猜测。",
+    "read": [
+      "按时间正序读这 5 条，能对上数据的几个断点（下面原文里有标注）。",
+      "run 字段 5 条全是 null，说明都是全局公告，不区分 run。",
+      "公告只解释了 13 次重启里的 4 次（pro 3 次、flash 1 次），其余没有单独公告。",
+      "公告栏的定位是故障日志，不是进展汇报——不要期待从里面读到「涨了多少分」。"
+    ],
+    "observed": "按时间正序，原文如下。\n\n1）2026-09-16 17:58Z（北京 09-17 01:58）\n\"we have updated the latest deepswe results for flash step 12 & pro step 8. we will keep posting as the offline evaluation results come out.\"\n这条解释了为什么 DeepSWE 榜上 pro 第 8 步和 flash 第 12 步的成绩是后补的。\n\n2）2026-09-16 20:08Z（北京 09-17 04:08）\n\"the mimo-v2.6-pro run is restarting due to a vram issue on one node.\"\n\n3）2026-09-17 02:27Z（北京 09-17 10:27）\n\"we restarted the flash run from step 15. reason: a type of infra error on one of datasets was not correctly detected over the past ~3 hours.\"\n这条对得上事件流里 flash 第 16、17 步各出现两次——「从第 15 步重跑」的直接结果。\n\n4）2026-09-17 12:20Z（北京 09-17 20:20）\n\"there was a network connectivity issue between the pro training cluster and the grader deployment. we have restarted the run. we also removed the cyber dataset from the upcoming pro run, since we observed some bad patterns in the rollout logs.\"\n这条对得上 pro 的 partial/cyber/**/n_tokens 从第 15 步起全为 null。\n\n5）2026-09-18 03:49Z（北京 09-18 11:49）\n\"the pro run restarted at step 17 due to a GPU OOM issue caused by expert load imbalance. we have adjusted the training parallelism strategy.\"\n这是最后一条，时间上紧接着 pro 第 18、19 步。",
+    "traps": [
+      "公告的 run 字段全是 null，别以为它只和某一个 run 相关；第 3 条讲的是 flash，第 4、5 条讲的是 pro。",
+      "「移除 cyber 数据集」说的是「下一轮」，而数据里 cyber 的计数从第 15 步就断了，两者时间上要自己对齐着看。",
+      "其余 9 次重启没有公告，不代表没发生——重启次数要从事件流里数，不能靠公告条数。"
+    ],
+    "related": [
+      "penalty/stage_credit_group/groups_total",
+      "timing_s/step"
+    ]
+  }
+]

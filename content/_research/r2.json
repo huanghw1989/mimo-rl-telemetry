@@ -1,0 +1,579 @@
+{
+  "agent": "r2",
+  "topics": ["离策略、陈旧度与训练推理一致性"],
+  "fetched": 19,
+  "items": [
+    {
+      "id": "tis-blog",
+      "kind": "blog",
+      "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+      "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+      "venue": "Notion 工程博客（verl/THUDM 生态，被 verl 文档列为 TIS 来源）",
+      "year": "2025",
+      "url": "https://fengyao.notion.site/off-policy-rl",
+      "quote": "In modern RL training frameworks (e.g., VeRL), different implementations are used for rollout generation (e.g., vLLM) and model training (e.g., FSDP). Here, we show the implementation gap implicitly turns the on-policy RL to be off-policy",
+      "topic": "训练推理不一致与截断重要性采样（TIS）的原创定义",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "support",
+          "note": "我们写「它量的不是策略和参考模型的偏离，而是生成这条轨迹的那台引擎和正在训练的这个模型之间的数值分歧」。这篇博客正是这条读法的原始出处：同一份参数下 vLLM 与 FSDP 的 token 概率可以矛盾到一边是 1、一边是 0，作者把它称为 implementation gap 造成的隐式 off-policy。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "我们写「它量的是 rollout 与训练重算概率的偏差被截断的比例」。博客提出的 TIS 就是 min(π_learner/π_sampler, C) 这个截断比值本身，指标名 pg_tis_clipfrac 与这一方法族直接对应，而不是 PPO ratio 的 clip。"
+        }
+      ]
+    },
+    {
+      "id": "tis-blog-clamp",
+      "kind": "blog",
+      "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+      "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+      "venue": "Notion 工程博客（verl/THUDM 生态）",
+      "year": "2025",
+      "url": "https://fengyao.notion.site/off-policy-rl",
+      "quote": "Therefore, we use a clamp operation in our truncated importance sampling (TIS) for training stabilization.",
+      "topic": "TIS 的 clamp 口径",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "我们写「值在 1e-5~1e-3 量级、远小于 1，说明绝大多数重要性采样权重都落在容许范围内」。TIS 的官方口径就是对一个比值做 clamp(max=C)，所以「被 clamp 的比例」在 1e-4 量级确实等价于「几乎没截断」；同页还给出替代口径（AReaL 直接把超阈样本整条丢弃）说明这个读数是被公开实现过的。"
+        }
+      ]
+    },
+    {
+      "id": "tis-blog-kl-bias",
+      "kind": "blog",
+      "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+      "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+      "venue": "Notion 工程博客（verl/THUDM 生态）",
+      "year": "2025",
+      "url": "https://fengyao.notion.site/off-policy-rl",
+      "quote": "These negative KL estimates signal ill-conditioned training dynamics.",
+      "topic": "训练推理不一致下的 KL 估计有偏",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "challenge",
+          "note": "我们强调这条 KL 全程为正、量级 1e-3，把它当引擎一致性的头号仪表。博客指出：当 rollout 实际来自 π_vllm 而不是 π_fsdp 时，k1 型 KL 估计本身有偏，训练失稳时会频繁给出负值；所以「恒正」只能说明本站用的是非负估计量（K3 一类），不能反过来当成引擎没问题的证据。"
+        }
+      ]
+    },
+    {
+      "id": "when-speed-kills",
+      "kind": "blog",
+      "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+      "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+      "venue": "Notion 博客（ByteDance，verl Rollout Correction 的动机来源）",
+      "year": "2025",
+      "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+      "quote": "The relentless push for faster inference has created a dangerous \"training-inference mismatch\" that can silently kill reinforcement learning with LLMs.",
+      "topic": "训练推理不一致是训练崩溃的直接原因",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "support",
+          "note": "我们写「这是训练稳定性的头号仪表……KL 大到一定程度等于在用严重偏离当前策略的数据做 on-policy 更新」。该文用 called vllm-kl 的同一类指标证明：vllm-kl 的尖峰几乎精确触发 fsdp-ppl 与梯度范数爆炸，随后奖励崩溃。"
+        },
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "context",
+          "note": "我们写「看到这类指标恶化，先看 staleness，再决定要不要动引擎或调并行策略」。该文给出的是一半的答案：它把崩溃归因于引擎侧数值不一致（同一批 in-flight 数据），说明 staleness 之外的引擎轴同样能独立造成崩溃，两条轴要分开排查。"
+        }
+      ]
+    },
+    {
+      "id": "wsk-hardware",
+      "kind": "blog",
+      "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+      "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+      "venue": "Notion 博客（ByteDance）",
+      "year": "2025",
+      "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+      "quote": "the magnitude of the vllm-kl essentially follows: H20 < L20 < A100. Specifically, the vllm-kl for the H20 is generally on the order of 5e-4 to 1e-3, for the L20 it is around 1e-3 to 1e-2, and for the A100, it is predominantly between 1e-2 and 1.",
+      "topic": "KL 量级的硬件基准带",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "support",
+          "note": "我们这条全局 KL 在 2e-3~1e-2（桶 0 在 2.2e-3~3.5e-3），正好落在该文「正常硬件」的 L20/H20 区间；该文明确只有在 1e-2~1 那一档训练才会变得不可行。这给了我们「1e-3 量级本身离危险很远」一个逐字可引的标尺，同时说明这个量主要由硬件/后端决定。"
+        }
+      ]
+    },
+    {
+      "id": "wsk-lowprob",
+      "kind": "blog",
+      "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+      "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+      "venue": "Notion 博客（ByteDance）",
+      "year": "2025",
+      "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+      "quote": "the divergence is most severe for tokens that have a low probability according to the vLLM inference engine. As a token's inference probability approaches zero, the training probability can become orders of magnitude smaller, leading to an infinite PPL and gradient.",
+      "topic": "低概率 token 是分歧的集中地",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/diff_abs_max",
+          "stance": "support",
+          "note": "我们写「它在这一组里唯一能看到尾部有多长……一个 token 上概率相差 e^60 量级」。该文给出了机制：分歧随推理侧概率趋零而急剧放大，可以差若干数量级，所以 mean 是 0.04 而 max 是几十 nats 是同一现象的两端。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/F(tau=10)",
+          "stance": "support",
+          "note": "我们写「这一档只看得到真正的数值离群点」。该文说明极端分歧只发生在推理概率趋零的那批 token 上，因此 F(10) 这种极端阈值统计的必然是同一小撮 token，量级小但不可忽略。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/diff_abs_std",
+          "stance": "support",
+          "note": "我们写「比值突然变大说明少数 token 的分歧在爆炸，那比 mean 上涨更值得报警」。该文正是这个机制：分歧集中在低概率 token 上、可以差若干数量级，所以在 |差| 这种重尾量上标准差主要由少数爆炸 token 驱动。"
+        }
+      ]
+    },
+    {
+      "id": "wsk-logppl-sign",
+      "kind": "blog",
+      "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+      "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+      "venue": "Notion 博客（ByteDance）",
+      "year": "2025",
+      "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+      "quote": "The mismatch consistently show that the fsdp-log-ppl is greater than the vllm-log-ppl indicating that the FSDP engine produces more extreme low-probability tokens.",
+      "topic": "训练侧 log-ppl 系统性偏大（符号不翻转）",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/nll_loss/log_probs",
+          "stance": "support",
+          "note": "我们观察到「差值是正值且符号从不翻转：pro 每步 log_probs 比 rollout_log_probs 大 2.2e-3~9.8e-3」，并据此推断 log_probs 是训练侧的 -log p。该文在 FSDP/vLLM 组合上独立报告了同一方向：训练侧 log-ppl 恒大于推理侧，因为训练引擎给低概率 token 的概率更低。"
+        },
+        {
+          "metric": "train_infer_diff/nll_loss/rollout_log_probs",
+          "stance": "support",
+          "note": "我们写「不要反过来读成推理引擎算错了」。该文把方向性偏差归因于两个引擎对低概率 token 的处理不同（p 越小差距越大），说明恒正的差值是两个前向的数值特性，不是推理侧的错误。"
+        }
+      ]
+    },
+    {
+      "id": "wsk-token-vs-seq",
+      "kind": "blog",
+      "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+      "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+      "venue": "Notion 博客（ByteDance）",
+      "year": "2025",
+      "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+      "quote": "A common heuristic, often inspired by algorithms like PPO and used in (Yao et al., 2025), applies a per-token importance ratio. While this typically has lower variance than the sequence-level ratio, it is a biased estimator that is theoretically unsound for autoregressive models.",
+      "topic": "token 级 IS 有偏、序列级才无偏",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "我们的 pg_tis_clipfrac 是 token 级口径（还按 pos/neg×high/low 拆四侧）。该文明确说 token 级重要性比值对自回归模型「理论上不成立/有偏」，只有 sequence-level IS 无偏；所以这个读数只能用来回答「有多少权重被截断」，不能作为「off-policy 已被正确修正」的证据。"
+        }
+      ]
+    },
+    {
+      "id": "wsk-nonfirst-round",
+      "kind": "blog",
+      "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+      "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+      "venue": "Notion 博客（ByteDance）",
+      "year": "2025",
+      "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+      "quote": "The mismatch primarily occurs in non-first-round model outputs, manifested by a larger mean absolute difference in both log-ppl and token probability between FSDP policy and vLLM policy compared to the first-round output",
+      "topic": "多轮/agentic 输出的不一致更严重",
+      "attaches": [
+        {
+          "metric": "partial/agentic/avg_staleness",
+          "stance": "support",
+          "note": "我们写「它的用途是判断全局 staleness 的上涨是某一类任务拖的还是全局现象，如果 agentic 明显更陈旧就该去查 agent 任务的 rollout 时延」。该文给出机制侧的对应证据：agentic 多轮输出（非首轮）承受 OOD 工具返回，train/infer 差距最大，且 tool call 上限越高崩溃越早——所以 agentic 切片值得单独看，尽管本站它与全局相关 0.9999。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/diff_abs_mean",
+          "stance": "support",
+          "note": "我们写「它和 avg_staleness 的相关系数是 0.9171……是新鲜度温度计」。该文显示平均绝对差在非首轮（更陈旧、更 OOD 的上下文）输出上系统性更大，与我们把均值差读成新鲜度/OOD 程度的温度计一致。"
+        }
+      ]
+    },
+    {
+      "id": "wsk-sample-size",
+      "kind": "blog",
+      "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+      "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+      "venue": "Notion 博客（ByteDance）",
+      "year": "2025",
+      "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+      "quote": "Rollout batches were collected within the following three vllm-kl ranges, with five batches (around 5M tokens) in each group",
+      "topic": "按不一致程度分组统计时的样本量下限",
+      "attaches": [
+        {
+          "metric": "partial/<k>/n_tokens",
+          "stance": "support",
+          "note": "我们写「桶里 token 少于百万级时，KL、entropy、F(tau) 都会开始剧烈跳动，因为样本太少」，并用 flash 第 25 步桶 6（32 万 token）作为不可信的例子。该文做同一类「按不一致程度分组的统计」时，每组用了约 5M token 才敢下结论，给「桶级读数需要百万级以上 token」提供了一个逐字可引的量级参照。"
+        }
+      ]
+    },
+    {
+      "id": "verl-rollout-corr",
+      "kind": "doc",
+      "title": "Rollout Correction — verl documentation",
+      "authors": "Yingru Li（verl 文档作者）",
+      "venue": "verl 官方文档（readthedocs）",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+      "quote": "These off-policy gaps can cause training instability and policy collapse.",
+      "topic": "off-policy 问题的官方分类：引擎实现差异 vs 时间滞后",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "support",
+          "note": "该文档把 off-policy 场景显式分成 Policy Mismatch（不同精度/不同后端/相同权重不同实现）与 Temporal Lag（Model Staleness）两类，正对应我们把 new_infer/kl（引擎差异）与 avg_staleness（时间滞后）当成两条独立轴来读的写法。"
+        },
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "support",
+          "note": "我们写「staleness 上涨本身不一定是坏事，异步流水线本来就有一到两个版本的固有延迟」。文档把 temporal lag 列为需要 IS/RS 修正的正常工程场景之一，而不是故障，佐证了这个判断。"
+        }
+      ]
+    },
+    {
+      "id": "verl-rollout-corr-threshold",
+      "kind": "doc",
+      "title": "Rollout Correction — verl documentation",
+      "authors": "Yingru Li（verl 文档作者）",
+      "venue": "verl 官方文档（readthedocs）",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+      "quote": "Typical threshold: 1.5 - 5.0",
+      "topic": "token 级 IS 截断阈值的常用量纲",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/F(tau=1.5)",
+          "stance": "support",
+          "note": "我们写「tau 的单位没有写出来……最合理的解释是 nats，但这是推断」。verl 文档给出的 token 级截断阈值典型区间正是 1.5–5.0，与本看板 F(tau) 用的 1.5/2/3/5 完全同尺度；文档还把指标 rollout_is_ratio_fraction_high 定义为「权重超过上阈的占比」，这是公开材料里最接近 F(tau) 的口径，但它是按 IS 权重阈值而非 log-prob 差阈值定义的。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/F(tau=2)",
+          "stance": "support",
+          "note": "我们写「tau 越大，越只反映真正失控的那部分 token」「F(1.5)/F(2) 的比值长期稳定在 2.8~3.5 可以当形状指标」。verl 的 token 级截断阈值典型区间 1.5–5.0 把 tau=2 也包在里面，说明这一档仍属于工程上默认的「正常容许范围」边界，而不是极端离群档。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/F(tau=3)",
+          "stance": "support",
+          "note": "我们写「到了 3 nats，被算进来的基本就是真正会让 ratio 爆炸的 token 了……每百万 token 里只有约 100~200 个」。verl 文档把 token 级截断阈值上限定在典型 1.5–5.0，tau=3 落在其中，支持把这一档理解为「工程容许带的内部刻度」而非极端尾部。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/F(tau=5)",
+          "stance": "support",
+          "note": "我们写「到了这个门槛，剩下的基本是明确的数值坏点」。verl 文档的 token 级阈值典型上限是 5.0，tau=5 正好是该区间的上端点，支持把 F(5) 当作「容许带最外侧」的读数。"
+        }
+      ]
+    },
+    {
+      "id": "fp16-mismatch",
+      "kind": "paper",
+      "title": "Defeating the Training-Inference Mismatch via FP16",
+      "authors": "Penghui Qi, Zichen Liu, Xiangxin Zhou, Tianyu Pang, Chao Du, Wee Sun Lee, Min Lin",
+      "venue": "arXiv:2510.26788",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2510.26788",
+      "quote": "we show that its root cause lies in the floating point precision itself. The widely adopted BF16, despite its large dynamic range, introduces large rounding errors that breaks the consistency between training and inference.",
+      "topic": "数值精度是 TIM 的根因",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/diff_abs_max",
+          "stance": "support",
+          "note": "我们写「它的数值受推理引擎和训练器的数值精度影响很大：一个 token 上概率算到 1e-30 还是 1e-40 决定了 max 是 30 还是 90」。该文把整个 TIM 的根因归给 BF16 的舍入误差，正是这条「极值由精度决定」的公开依据。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "challenge",
+          "note": "我们写「训练器和推理引擎数值不一致（不同 CUDA kernel、不同精度、MoE 路由实现差异、不同 attention 后端）会让重要性采样比一开头就偏离 1」。该文说只要统一换成 FP16 就能基本消除这个不一致，说明它更像可配置的精度选择而不是引擎架构的固有属性，我们列的「必然存在」清单偏强。"
+        }
+      ]
+    },
+    {
+      "id": "fp8-rl",
+      "kind": "paper",
+      "title": "FP8-RL: A Practical and Stable Low-Precision Stack for LLM Reinforcement Learning",
+      "authors": "Zhaopeng Qiu, Shuang Yu, Jingqi Zhang, Shuai Zhang, Xue Huang, Jingyi Yang, Junjie Lai",
+      "venue": "arXiv:2601.18150",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2601.18150",
+      "quote": "low-precision rollouts can deviate from the higher-precision policy assumed by the trainer, causing train-inference mismatch and potential instability",
+      "topic": "低精度 rollout 与 KV cache 造成的 TIM",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "support",
+          "note": "我们写「不同的 CUDA kernel、不同的精度、MoE 路由实现差异、不同的 attention 后端」是分歧来源。该文正是这一清单的工程实现：它把 FP8 扩展到 KV-cache（per-step QKV scale 重校准）来加速长上下文 rollout，代价就是要显式处理由此产生的 train-inference mismatch。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "我们写「它升高说明数据陈旧度或在途更新幅度在变大，此时一部分旧数据被截断」。该文用的缓解手段就是 importance-sampling-based rollout correction（token-level TIS/MIS variants），说明 TIS 裁剪这一路读数是当前主流的公开工程口径。"
+        }
+      ]
+    },
+    {
+      "id": "m2po",
+      "kind": "paper",
+      "title": "Prosperity before Collapse: How Far Can Off-Policy RL Reach with Stale Data on LLMs?",
+      "authors": "Haizhong Zheng, Jiawei Zhao, Beidi Chen",
+      "venue": "arXiv:2510.01161",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2510.01161",
+      "quote": "M2PO sharply reduces the fraction of clipped tokens under high staleness (from 1.22% to 0.06% over training), precisely masking high-variance tokens while maintaining stable optimization.",
+      "topic": "高陈旧度下的被裁剪 token 占比量级",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "我们写「值在 1e-4 量级不等于不重要……绝大多数重要性采样权重都落在容许范围内」。该文在明确的高陈旧度设定下报告的裁剪比例是 0.06%~1.22%，比本 run 的首值 2.1e-5 高 2~3 个数量级，佐证「本 run 实际被截断的权重极少」这个相对判断。"
+        },
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "context",
+          "note": "我们写「它整个看板最容易被误读……staleness 上涨本身不一定是坏事」。该文的 prosperity-before-collapse 现象支持「陈旧数据可以和在策略数据一样有信息量」，即 staleness 高本身不等于训练变坏。"
+        }
+      ]
+    },
+    {
+      "id": "stabilizing-rl",
+      "kind": "paper",
+      "title": "Stabilizing Reinforcement Learning with LLMs: Formulation and Practices",
+      "authors": "Chujie Zheng, Kai Dang, Bowen Yu, Mingze Li, Huiqiang Jiang, Junrong Lin, Yuqiong Liu, Hao Lin, Chencan Wu, Feng Hu, An Yang, Jingren Zhou, Junyang Lin",
+      "venue": "arXiv:2512.01374",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2512.01374",
+      "quote": "through a first-order approximation, we show that this surrogate becomes increasingly valid only when both the training-inference discrepancy and policy staleness are minimized.",
+      "topic": "TIM 与 staleness 是两个必须同时压小的独立量",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "support",
+          "note": "我们写「涨了必须先把引擎分歧变大和数据变陈旧两件事分开，否则会去调不该调的东西」。该文把 training-inference discrepancy 与 policy staleness 并列成同一个代理目标成立的两个前提，正是「两件事要分开看」的理论依据（Qwen 团队，30B MoE，数十万 GPU 小时）。"
+        },
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "support",
+          "note": "我们写「判断引擎一致性要配桶 0 的 KL 一起看：staleness 高、桶 0 KL 平，说明只是流水线松了」。该文把 policy staleness 单列为可独立恶化代理目标有效性的因素，支持我们把它当作与引擎差异正交的一维。"
+        }
+      ]
+    },
+    {
+      "id": "missing-old-logits",
+      "kind": "paper",
+      "title": "Missing Old Logits in Asynchronous Agentic RL: Semantic Mismatch and Repair Methods for Off-Policy Correction",
+      "authors": "Zhong Guan, Yongjian Guo, Haoran Sun, Wen Huang, Shuai Di, Likang Wu, Xiong Jun Wu, Hongke Zhao",
+      "venue": "arXiv:2605.12070",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2605.12070",
+      "quote": "This missing-old-logit problem entangles discrepancy repair with staleness correction, breaks the intended semantics of decoupled correction, and makes clipping and masking thresholds interact undesirably.",
+      "topic": "总比值本应拆成「引擎差异项」与「陈旧度项」两项",
+      "attaches": [
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "support",
+          "note": "我们写「全局 KL 约等于 Σ(frac_k × KL_k)……桶 0 的 KL 与 avg_staleness 基本无关」，据此把全局指标拆成配比项与桶自身项。该文从重要性比值的语义层面给了同一个拆分：总比值应分解为「同一行为版本上的训练-推理性差异项」和「历史策略到当前策略的陈旧度项」，而且延迟更新/partial rollout 会让这两项纠缠——正是我们观察到「全局 KL 与 staleness 相关 0.93、桶 0 KL 与它无关」的原因。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "我们的 pg_tis_clipfrac 按 pos/neg×high/low 四侧解读裁剪方向。该文指出在缺旧 logits 的异步流水线里 clipping 与 masking 的阈值会互相污染（interact undesirably），所以我们按四侧方向做的解读只在「旧 logits 完整可得」的前提下成立。"
+        }
+      ]
+    },
+    {
+      "id": "pipeline-rl",
+      "kind": "paper",
+      "title": "PipelineRL: Faster On-policy Reinforcement Learning for Long Sequence Generation",
+      "authors": "Alexandre Piche, Ehsan Kamalloo, Rafael Pardinas, Xiaoyin Chen, Dzmitry Bahdanau",
+      "venue": "arXiv:2509.19128",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2509.19128",
+      "quote": "PipelineRL employs concurrent asynchronous data generation and model training, distinguished by the novel in-flight weight updates.",
+      "topic": "异步流水线里序列跨策略版本生成",
+      "attaches": [
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "support",
+          "note": "我们写「异步流水线本来就有一到两个版本的固有延迟」「0 表示数据就是当前这一步采的」。该文的 in-flight weight update 机制正是让一条生成中的序列横跨策略版本的技术，给「落后 k 个策略版本」这个桶定义提供了物理来由；它也说明为什么要追新鲜度（否则退化成 stale off-policy 数据）。"
+        },
+        {
+          "metric": "partial/<k>/frac",
+          "stance": "context",
+          "note": "我们写「权重的重心多数时候落在桶 1（pro 全期均值 0.4414）不是桶 0，这是异步流水线的正常相位：大约落后一个版本的数据占大头」。该文描述的正是这种「生成与训练并发、数据平均落后一截」的运行形态。"
+        }
+      ]
+    },
+    {
+      "id": "trust-region-masking",
+      "kind": "paper",
+      "title": "Trust Region Masking for Long-Horizon LLM Reinforcement Learning",
+      "authors": "Yingru Li, Jiacai Liu, Jiawei Xu, Yuxuan Tong, Ziniu Li, Qian Liu, Baoxiang Wang",
+      "venue": "arXiv:2512.23075",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2512.23075",
+      "quote": "a sequence-level quantity that cannot be controlled by token-independent methods like PPO clipping",
+      "topic": "决定误差界的是最大 token 级散度（序列级量）",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "我们写「它量的是有多少权重因为超出容许范围被截断掉」，隐含把它当成信任域是否生效的证据。该文证明所有误差界都依赖最大 token 级散度这个序列级量，而它「无法被 PPO clipping 这类与 token 无关的方法控制」；token 级 TIS 裁剪比例因此不能用来论证信任域有效。"
+        }
+      ]
+    },
+    {
+      "id": "gspo",
+      "kind": "paper",
+      "title": "Group Sequence Policy Optimization",
+      "authors": "Chujie Zheng, Shixuan Liu, Mingze Li, Xiong-Hui Chen, Bowen Yu, Chang Gao, Kai Dang, Yuqiong Liu, Rui Men, An Yang, Jingren Zhou, Junyang Lin",
+      "venue": "arXiv:2507.18071",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2507.18071",
+      "quote": "Unlike previous algorithms that adopt token-level importance ratios, GSPO defines the importance ratio based on sequence likelihood and performs sequence-level clipping, rewarding, and optimization.",
+      "topic": "从 token 级比值改为序列级比值",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "我们写「四个分侧子指标要分开看方向：pos_low 和 neg_low 明显大于 pos_high 和 neg_high」。这整套「按 token 级比值分侧统计」的口径在 2025 下半年已被公开替代：GSPO 直接用序列似然定义比值并做序列级裁剪，并报告它稳定了 MoE RL 训练。我们的分侧解读要限定为「token 级口径下的现象」。"
+        }
+      ]
+    },
+    {
+      "id": "grpo-offpolicy",
+      "kind": "paper",
+      "title": "Group-Relative REINFORCE Is Secretly an Off-Policy Algorithm: Demystifying Some Myths About GRPO and Its Friends",
+      "authors": "Chaorui Yao, Yanxi Chen, Yuchang Sun, Yushuo Chen, Wenhao Zhang, Xuchen Pan, Yaliang Li, Bolin Ding",
+      "venue": "arXiv:2509.24203 (ICLR 2026)",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2509.24203",
+      "quote": "without assuming a specific training data distribution, showing that it admits a native off-policy interpretation. This perspective yields two general principles for adapting REINFORCE to truly off-policy settings: regularizing policy updates, and actively shaping the data distribution.",
+      "topic": "GRPO 类算法本身就有 off-policy 的解读",
+      "attaches": [
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "support",
+          "note": "我们写「staleness 上涨本身不一定是坏事……低于 1.0 说明流水线很紧，是好状态」。该文从第一性原理证明组相对 REINFORCE 不依赖训练数据分布、天然有 off-policy 解释，处理 off-policy 的原则是正则化更新和塑造数据分布，而不是把陈旧度压到 0。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "context",
+          "note": "该文摘要明确「重解了 importance sampling 与 clipping 在 GRPO 里的作用」，并把 Asymmetric REINFORCE 等近期算法统一解释成 REINFORCE 损失的正则化形式。这是公开文献里最接近「非对称」这一支的来源，但它不是按正/负优势或 high/low 边界拆分的四侧 IS 裁剪口径。"
+        }
+      ]
+    },
+    {
+      "id": "score-centering",
+      "kind": "paper",
+      "title": "Score Centering Stabilizes Off-policy Reinforcement Learning",
+      "authors": "Martin Marek, Max Ryabinin",
+      "venue": "arXiv:2609.20807",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2609.20807",
+      "quote": "we show that the instability of RL under TIM is primarily caused by drift: a persistent bias between training and inference engines that accumulates with every training step.",
+      "topic": "两个引擎之间存在随步累积的持续性偏置",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/nll_loss/log_probs",
+          "stance": "support",
+          "note": "我们观察到带符号的平均差值恒为正、从不翻转（pro 2.2e-3→7.7e-3），并把它解释为「剩下的才是系统性偏移」。该文给这个系统性偏移命名并给出机制：drift，即两个引擎之间随每个训练步累积的持续性偏置——正对应我们看到的差值随步放大 3.5 倍。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "我们写「它升高说明数据陈旧度或在途更新幅度在变大……是判断 partial/avg_staleness 是否开始伤害训练的直接读数」。该文报告在量化下 score centering 单独就能匹敌或超过基于重要性采样的方法，说明 IS/TIS 类修正并非唯一甚至未必最优的修法，pg_tis_clipfrac 只能读成被截断的比例，不能读成修正的有效性。"
+        }
+      ]
+    },
+    {
+      "id": "beyond-precision",
+      "kind": "paper",
+      "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+      "authors": "Yaxiang Zhang, Yingru Li, Jiacai Liu, Jiawei Xu, Ziniu Li, Qian Liu, Haoyuan Li",
+      "venue": "arXiv:2602.01826",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2602.01826",
+      "quote": "standard remedies, such as Importance Sampling, might fail during extended training runs",
+      "topic": "长期训练里 IS 类修正可能失效",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "我们写「本 run 在 1e-4 量级，本身离危险很远，值得说的是它随训练抬升」，隐含把 TIS 裁剪比例持续上行当作值得跟踪的修正信号。该文明确说长期训练中重要性采样这类标准修正可能失效，而本 run 只有 19/25 步，把它外推到长训练要加上这个前提。"
+        }
+      ]
+    },
+    {
+      "id": "beyond-precision-dynamic",
+      "kind": "paper",
+      "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+      "authors": "Yaxiang Zhang, Yingru Li, Jiacai Liu, Jiawei Xu, Ziniu Li, Qian Liu, Haoyuan Li",
+      "venue": "arXiv:2602.01826",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2602.01826",
+      "quote": "we deduce that the mismatch is not merely a static numerical discrepancy, but a dynamic failure coupled with the model's optimization.",
+      "topic": "TIM 是与优化耦合的动态失效",
+      "attaches": [
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "challenge",
+          "note": "我们写「训练器和推理引擎数值不一致……会让重要性采样比一开头就偏离 1」，把它当成一个相对静态的引擎属性，只在桶 0 上看慢变量。该文说 mismatch 是与模型优化耦合的动态失效（梯度噪声与 mismatch 同步升级），所以全局 KL 上行不能只读成「引擎变差」，也不能指望桶 0 的斜率完全代表引擎固有水平。"
+        }
+      ]
+    },
+    {
+      "id": "drpo",
+      "kind": "paper",
+      "title": "Rethinking the Divergence Regularization in LLM RL",
+      "authors": "Jiarui Yao, Xiangxin Zhou, Penghui Qi, Wee Sun Lee, Liefeng Bo, Tianyu Pang",
+      "venue": "arXiv:2606.09821",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2606.09821",
+      "quote": "In practice, LLM RL is often off-policy because of training-inference mismatch and policy staleness, making trust-region control essential for stable optimization.",
+      "topic": "off-policy 的两个来源并列",
+      "attaches": [
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "context",
+          "note": "我们写「它是整个看板最容易被误读的指标，也是解释全局 KL 的关键」，把 staleness 与引擎差异分开处理。该文把 training-inference mismatch 与 policy staleness 并列为 LLM RL 变成 off-policy 的两个来源，与这个两轴框架一致。"
+        },
+        {
+          "metric": "train_infer_diff/new_infer/kl",
+          "stance": "context",
+          "note": "该文同时指出重要性比值在长尾词表下是分布偏移的劣质代理，提示我们不要只靠比值类读数判断 trust region；这与我们把 new_infer/kl 与 staleness 拆开、并用桶 0 做引擎基准的做法同向。"
+        }
+      ]
+    },
+    {
+      "id": "estr",
+      "kind": "paper",
+      "title": "Deconstructing Off-Policy Ratios: Entropy-Scaled Trust Regions for Asynchronous Reinforcement Learning",
+      "authors": "Guanqun Zhao, Zijun Xie, Binbin Zheng, Enlei Gong, Jiafeng Lu, Yehan Yang, Aoqi Hu, Zeyu Chen",
+      "venue": "arXiv:2607.22186",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2607.22186",
+      "quote": "we reveal that the natural scale of the importance ratio varies systematically with token entropy. Under asynchronous dynamics, this entropy-ratio scaling dictates two distinct phenomena: at low entropy, the inherent train-inference discrepancy is drastically amplified into substantial sampling noise",
+      "topic": "离策略偏差的尺度与 token 熵系统相关",
+      "attaches": [
+        {
+          "metric": "partial/<k>/entropy_loss",
+          "stance": "challenge",
+          "note": "我们观察到「越旧的桶熵确实偏高，但只是弱趋势（相关 0.18~0.26）」，并建议把全局熵变化拆成「策略本身变了」和「buckets 里塞进不同新鲜度的数据」。该文说 off-policy 偏差的自然尺度与 token 熵系统相关：低熵处 train-infer 差异被放大成采样噪声。所以分桶比熵时必须先控制熵与陈旧度的交互，「旧桶熵高」不能直接读成 off-policy 更严重。"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    "没有任何公开材料解释本看板自己的 tag 口径：partial/<k> 的 k 到底如何计数（pro 只开 8 个桶、flash 开 10 个）、为什么 Σ_k n_tokens_k 只有同一步 perf/total_num_tokens 的 44%~56%、以及 partial/agentic 与 partial/<类目>/<数据集> 两个切片的分母关系（两者相加超过 1.6 倍）。",
+    "train_infer_diff/new_infer/F(tau=*) 这一族在公开文献里找不到同名或同定义的指标，tau 的单位也没有任何材料写明；verl 只有 rollout_is_ratio_fraction_high（IS 权重超阈占比）和 log_ppl_abs_diff（平均绝对 log-perplexity 差）这两个相近但口径不同的名字。",
+    "没有找到「全局 KL 精确等于 Σ_k frac_k × KL_k」这一 shift-share 恒等式（我们验算相关 1.000000）的公开表述；公开材料只在概念层面把「引擎差异项」与「陈旧度项」拆开（arXiv:2605.12070、verl Rollout Correction），没有给出按新鲜度桶加权求和的口径。",
+    "没有找到按数据集拆 staleness 的公开做法或阈值参考，因此 partial/code/dataset-yfch/avg_staleness 高达 7.27 这件事没有可对标的公开基线。",
+    "「asymmetric importance sampling」作为具名方法在 arXiv 全库检索没有对应文献；最接近的是 Asymmetric REINFORCE（被 arXiv:2509.24203 重新解释成 REINFORCE 的正则化形式），没有任何材料支持「按正/负优势或以 high/low 边界拆成四侧裁剪」这种口径。",
+    "没有找到讨论 agentic 这一数据切片口径的公开材料；本看板 meta.json 声明的 categories 里也没有 agentic，无法用公开材料解释 partial/agentic/avg_staleness 与全局相关 0.9999 这个现象。"
+  ],
+  "notes": "id 核验坑（两个都记错了）：2508.10695 不是 TIS 来源博客的 arXiv 版，API 返回的是 \"Learning from Natural Language Feedback for Personalized Question Answering\"；2509.23798 不是 \"When Speed Kills Stability\"，返回的是 quant-ph 的原子分束器论文。TIS 博客与 When Speed Kills Stability 目前只存在于 Notion（richardli.xyz/rl-collapse 会 302 到 Notion），web_fetch 抓 Notion 只得到 \"Notion\" 两个字，正文是用 Playwright 打开后取 innerText 得到的，所以这两条的 quote 是页面渲染文本。已逐个核验标题一致的 id：2503.14476 DAPO、2507.18071 GSPO、2503.20783 Dr. GRPO、2505.22617 Entropy Mechanism、2510.26788 FP16、2512.01374 Stabilizing RL with LLMs、2510.01161 M2PO、2512.23075 Trust Region Masking、2509.24203 Group-Relative REINFORCE。arXiv API 有速率限制：并发或密集调用会返回 429，或让 web_fetch 报 unsupported content type \"unknown\"，必须间隔十几秒重试；arXiv 的 HTML 搜索页（arxiv.org/search）在 API 被限流时仍可用。另外该文（When Speed Kills Stability）在页面里声明 DeepSeek-V3.2（arXiv:2512.02556）采用了它的 geometric sequence masking，但这条我只在 Notion 页面上看到、没有独立核验该 id。"
+}

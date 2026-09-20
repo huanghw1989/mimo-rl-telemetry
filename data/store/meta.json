@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "title": "mimo-v2.6 RL",
+  "subtitle": "Two reinforcement-learning runs, mimo-v2.6-pro and mimo-v2.6-flash, read directly from the trainer's logs.",
+  "runs": [
+    {
+      "key": "pro",
+      "label": "mimo-v2.6-pro",
+      "note": "",
+      "color_index": 1
+    },
+    {
+      "key": "flash",
+      "label": "mimo-v2.6-flash",
+      "note": "",
+      "color_index": 0
+    }
+  ],
+  "pins": [
+    "dynsam/avg@n",
+    "critic/rewards/mean",
+    "actor/entropy_loss",
+    "actor/pg_loss",
+    "actor/grad_norm",
+    "train_infer_diff/new_infer/kl",
+    "ctx_total_length/mean",
+    "dynsam/agg_turn/mean",
+    "perf/total_num_tokens",
+    "timing_s/step",
+    "timing_s/outer_gen",
+    "timing_s/trainer_ops",
+    "dynsam/passrate/zero",
+    "dynsam/passrate/one",
+    "dynsam/infra_error/seq_rate",
+    "env/active",
+    "partial/avg_staleness",
+    "dynsam/num_measurable"
+  ],
+  "formats": [
+    [
+      "^timing_s/",
+      "duration"
+    ],
+    [
+      "^perf/time_per_step$",
+      "duration"
+    ],
+    [
+      "^perf/gpu_time_s/",
+      "duration"
+    ],
+    [
+      "_ns$",
+      "compact"
+    ],
+    [
+      "_gb$",
+      "gb"
+    ],
+    [
+      "^actor/lr$",
+      "sci"
+    ],
+    [
+      "(^|/)(avg@n|avg@n_no_infra|score_mean|accept_rate|valid_rate)$",
+      "ratio"
+    ],
+    [
+      "(^|/)(seq_rate|effect_ratio|ok_frac|missing_frac|zero|one|mid|zero_no_infra|one_no_infra|mid_no_infra|hist9_ratio/\\d+)$",
+      "pct"
+    ],
+    [
+      "(^|/)(hist9_cnt/\\d+|num_[a-z_]+|n_[a-z_]+|count|size|in_flight|active|total|rollouts|max_load|min_load|dead_replaced)$",
+      "int"
+    ],
+    [
+      "(length|tokens|_len|decode|prefill)",
+      "compact"
+    ]
+  ],
+  "compositions": [
+    {
+      "key": "source",
+      "label": "data source",
+      "prefix": "dynsam",
+      "groups": [
+        "code",
+        "general",
+        "cyber",
+        "visual",
+        "chat"
+      ],
+      "derive": "trained",
+      "unit": "prompts"
+    },
+    {
+      "key": "harness",
+      "label": "harness (trained)",
+      "prefix": "train/harness",
+      "metric": "training/rollouts",
+      "unit": "rollouts"
+    }
+  ],
+  "categories": [
+    "code",
+    "general",
+    "cyber",
+    "visual",
+    "chat"
+  ],
+  "social": {
+    "handle": "@XiaomiMiMo",
+    "url": "https://x.com/XiaomiMiMo"
+  },
+  "footer_note": "Open is what we value.",
+  "stream_start": 1789531200,
+  "descriptions": {
+    "dynsam/avg@n": "mean pass rate: for each prompt sampled this step, the fraction of its n attempts that succeed, averaged over prompts",
+    "dynsam/avg@n_no_infra": "avg@n with attempts that failed for infrastructure reasons excluded",
+    "critic/rewards/mean": "mean reward over trajectories trained on this step",
+    "actor/entropy_loss": "mean per-token entropy of the policy",
+    "actor/pg_loss": "clipped policy-gradient objective",
+    "actor/grad_norm": "global gradient norm before clipping",
+    "train_infer_diff/new_infer/kl": "KL between inference-engine and trainer log-probs on the same tokens",
+    "ctx_response_length/mean": "tokens generated per trajectory",
+    "dynsam/agg_turn/mean": "agent turns per trajectory",
+    "perf/total_num_tokens": "tokens trained on this step",
+    "timing_s/step": "wall-clock of the whole step",
+    "timing_s/outer_gen": "wall-clock of rollout generation",
+    "timing_s/trainer_ops": "wall-clock of the trainer",
+    "dynsam/passrate/zero": "share of prompts where no attempt succeeded",
+    "dynsam/passrate/one": "share of prompts where every attempt succeeded",
+    "dynsam/infra_error/seq_rate": "share of sequences lost to infrastructure failures",
+    "env/active": "sandbox environments in flight",
+    "partial/avg_staleness": "policy versions between sampling and training, on average",
+    "dynsam/num_measurable": "prompts with a measurable pass rate this step; per data source under dynsam/<source>/num_measurable",
+    "dynsam/passrate/hist9_ratio": "share of prompts by pass rate, in nine bins from none solved to all solved",
+    "train/harness/*/training/rollouts": "rollouts in the training batch, per agent harness",
+    "ctx_total_length/mean": "total context length per trajectory (prompt + response), in tokens"
+  },
+  "about": [
+    "We are streaming our RL big runs. The mimo-v2.6 series is coming soon.",
+    "Follow us @XiaomiMiMo."
+  ],
+  "headline_tag": "dynsam/avg@n",
+  "hist_prefix": "dynsam/passrate/hist9_ratio/",
+  "updated_at": 1789872476.28
+}

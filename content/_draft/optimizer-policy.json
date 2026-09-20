@@ -1,0 +1,809 @@
+[
+  {
+    "id": "actor/entropy_loss",
+    "name": "策略熵（mean per-token entropy of the policy）",
+    "group": "优化器与策略",
+    "unit": "nats/token，约 0~1.5（本 run 实测 0.38~0.46）",
+    "what": "这个数回答的是「模型在生成每个 token 时有多犹豫」。数值越大，下一个 token 的概率分布越平摊，模型越愿意尝试不同的说法；数值越小，分布越尖锐，模型越倾向于每次都输出同一个 token。它不是 loss，而是策略分布的熵，只是沿用了 loss 这个上报名字。",
+    "how": "官方说明原文是 mean per-token entropy of the policy。按本轮训练 batch 里真正参与训练的那些 token，逐个算当前策略输出分布的熵，再对所有 token 取平均。context 里的 prompt token 不产生生成分布，不计入。",
+    "why": "熵是策略的探索余量。掉到很低说明模型已经塌成少数几条固定回答，RL 基本收不到有效梯度，后面再练也难变——这是训练里最常见的一种坏法（entropy collapse）。涨得太高则相反，说明模型开始乱答，奖励信号的区分度被稀释成噪声。所以它是「还能不能继续学」的前置指标，而不是「学得好不好」的结果指标。",
+    "read": [
+      "先看趋势方向，再看绝对值。稳定缓降是多数 RL run 的常态；陡然掉底是塌缩；本 run 是稳定缓升，属于第三种、也最容易被误读的一类。",
+      "绝对值要结合任务看。0.38~0.46 属于中等偏平的分布，离 0（完全确定）和 log(vocab)（完全均匀）都很远，本身不构成危险。",
+      "要跟 dynsam/avg@n 一起看：熵涨、成功率也涨，是探索有产出；熵涨、成功率不动，是白花钱。",
+      "按 token 加权，所以长回答（agentic 轨迹动辄几万 token）的权重远大于短回答，整体熵会被长轨迹主导。"
+    ],
+    "observed": "两个 run 的熵都随训练上升，不是下降。pro 第 1 步 0.395265 → 第 19 步 0.406269，涨 0.011004（相对 +2.8%）；过程不单调，18 个间隔里 8 个是下降，最低点是第 2 步 0.379237、最高点是第 17 步 0.408738，整体是把第 1~9 步的 0.38~0.40 平台抬到第 13~19 步的 0.40~0.409 平台。flash 第 1 步 0.413307 → 第 25 步 0.456110，涨 0.042803（相对 +10.4%），是 pro 的近 4 倍；24 个间隔里 9 个下降，最低点第 5 步 0.408574，最高点就是第 25 步。同期 dynsam/avg@n pro 从 0.5647 升到 0.6334，flash 从 0.5137 升到 0.6408（critic/rewards/mean 是另一个口径，量的是被训练轨迹的奖励平均，数值比 avg@n 低，pro 从 0.5522 升到 0.5946、flash 从 0.5167 升到 0.5935，两者不相等）；dynsam/passrate/one 从 0.1779 升到 0.2620（pro）、0.1208 升到 0.3123（flash）。熵与 avg@n 的相关系数 pro 0.827、flash 0.861，与 rewards 的相关 pro 0.716、flash 0.821，都是明显正相关。",
+    "traps": [
+      "名字里的 loss 是误导：它不参与反向传播，值上升不代表训练变差，把它当 loss 下降去期待就会读反。",
+      "它在两个 run 里都上升，说明这不是某次重启或某个数据集的偶然，别当成单点噪声。",
+      "熵和「batch 内多样性」不是同一个量：熵是单条序列内部的 token 分布平摊程度，batch 多样性还取决于不同 rollout 之间是否答得不一样。熵涨只能说明前者变宽。",
+      "看似相关不等于因果：熵和 avg@n 都在随时间上升，两者各自也可能只是跟随训练进度，这里只有 19/25 个点，做不了因果判断。"
+    ],
+    "related": [
+      "actor/pg_loss",
+      "dynsam/avg@n",
+      "critic/rewards/mean",
+      "actor/pg_tis_clipfrac",
+      "train_infer_diff/new_infer/kl"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-clip-higher",
+        "stance": "support",
+        "note": "该页面把熵与“多样性/探索”直接挂钩，佐证我们把 actor/entropy_loss 上行读成探索强度上升这一句。"
+      },
+      {
+        "ref": "dr-grpo",
+        "stance": "context",
+        "note": "同一偏置会让回答变长、token 权重结构改变，因此 entropy_loss 上行有可能部分来自长度膨胀而不是分布变平——本 run 的 ctx_response_length/mean 在 flash 上正好明显变长。"
+      },
+      {
+        "ref": "entropy-mechanism",
+        "stance": "challenge",
+        "note": "论文给的 R=-a·e^H+b 方向是“熵越高性能越低”，且把熵坍缩当成常态；本 run 熵上行而 avg@n 同时上行，与该经验律相反，所以“熵上行是良性”这条读法落在该文框架之外的边界情形。"
+      },
+      {
+        "ref": "simpletir",
+        "stance": "context",
+        "note": "同一机制（外部反馈引入低概率 token）也是 agentic 分路熵波动的一个候选解释；本条只作背景，不据此判定本 run 的熵上行性质。"
+      },
+      {
+        "ref": "dispo",
+        "stance": "challenge",
+        "note": "论文消融显示熵被哪一侧的裁剪推起来是有区别的，且“过度”会带来性能缓慢退化；所以本 run 的熵上行不能一律读成良性，还要看幅度是否过头——这正是我们那条读法的边界条件。"
+      },
+      {
+        "ref": "iclr-ppo-entropy-bonus",
+        "stance": "context",
+        "note": "PPO 的目标里本来就带 -entropy*coef 的 bonus 项；所以熵不是纯粹的“自发探索”读数，它同时被目标函数显式最大化，把熵上行整条归因于模型主动探索之前要先算进这一项。"
+      }
+    ]
+  },
+  {
+    "id": "actor/pg_loss",
+    "name": "策略梯度目标（clipped policy-gradient objective）",
+    "group": "优化器与策略",
+    "unit": "无量纲，本 run 实测 0.0008~0.020",
+    "what": "这是 PPO 真正在最小化的那个目标函数值（按官方口径是 clipped policy-gradient objective），直觉上就是「这一步策略相对采样时那版策略改了多少、改的方向对不对」。它跟语言模型预训练的 loss 不是一个量级的东西，绝对值很小是正常的，看的是趋势和相对大小，不是「降到多少才算收敛」。",
+    "how": "官方说明是 clipped policy-gradient objective。用本轮 rollout（旧策略）与当前策略的 log-prob 比值乘上优势估计，比值超出 clip 区间就截断，对参与训练的 token 取平均。本 run 的 clip 区间可以从两条常数列读出来：actor/clip_high 恒为 0.27、actor/clip_low 恒为 0.2，两个 run、所有步都不变。",
+    "why": "它是「策略还在不在被有效推动」的主要读数。接近 0 且长期不动，通常说明优势估计已经没有区分度（比如一批 prompt 全对或全错，advantage 全为 0），这一刻的训练基本白做；突然放大一个量级，说明这批数据的新旧策略差异大，是分布漂移或数据质量变化的信号。",
+    "read": [
+      "不看绝对值看量级和趋势：稳定在一个小平台上缓升是健康的；单步跳 5~10 倍要回去查那一步的数据组成和有效样本量。",
+      "结合 dynsam/avg@n 看。成功率涨、pg_loss 也涨，说明这一步确实在改策略；成功率涨、pg_loss 一直贴 0，说明改进主要来自采样运气而非策略更新。",
+      "和 actor/pg_tis_clipfrac 对照：TIS 裁剪比例升高时，重要性采样权重被截掉得更多，pg_loss 的读数会被压低，二者要一起解释。",
+      "跨 run 比较没有意义，除非两个 run 的 batch 构成、序列长度、超参一致。pro 和 flash 的 pg_loss 量级差近 2 倍，首先要怀疑的是这两者不同，而不是「flash 学得更猛」。"
+    ],
+    "observed": "pro 19 步：首 0.00411032、末 0.00529222、均值 0.004061；最小 0.00199298（第 17 步）、最大 0.00738070（第 13 步）。前半段均值 0.003535、后半段 0.004534，是缓慢抬升而不是发散。flash 25 步：首 0.000840813、末 0.00952360、均值 0.007565；最小就是第 1 步 0.000840813，最大 0.01947720（第 19 步）。前半段均值 0.003431、后半段 0.011380，抬升幅度远大于 pro。所以「flash 比 pro 大 3 倍左右」这个说法要分两步说：按均值 flash 是 pro 的 1.86 倍（0.007565 / 0.004061），按第 19 步对第 19 步是 1.80 倍（0.00529222 / 0.00952360 取倒数即 1.80）；只有拿 pro 的低位（约 0.002）对 flash 的高位（约 0.006~0.020）才会得到 3 倍以上。pro 全程 19 步没有出现过负值（最小 0.00199298），flash 同样全为正。",
+    "traps": [
+      "「差 3 倍」是量级印象，不是严格比值：均值口径是 1.86 倍，同一步对同一步是 1.80 倍。跨 run 比这个数本身没有绝对标准。",
+      "这个小数值不能和预训练 loss 的绝对值对照，量纲和归一化方式都不同。",
+      "全局 pg_loss 全为正，但按数据集拆开看大量为负（见 actor/visual/dataset-pt5v/pg_loss），所以不能拿全局的符号去推断单个数据集的符号。",
+      "flash 的抬升一部分来自长上下文变长（ctx_response_length/mean 从约 5.5 万涨到 12 万 token 量级），token 权重变化会影响均值读数，看趋势时要知道这一点。"
+    ],
+    "related": [
+      "actor/entropy_loss",
+      "actor/pg_tis_clipfrac",
+      "actor/clip_high",
+      "actor/clip_low",
+      "dynsam/avg@n",
+      "critic/rewards/mean"
+    ],
+    "sources": [
+      {
+        "ref": "ppo",
+        "stance": "context",
+        "note": "这段话说明 pg_loss 是代理目标（surrogate objective）而不是监督损失，所以它的绝对值没有量纲意义，只有相对走势可读。"
+      },
+      {
+        "ref": "dr-grpo",
+        "stance": "challenge",
+        "note": "论文指出 GRPO 类目标自带“人为拉长回答（尤其错误回答）”的优化偏置，所以 pg_loss 缓慢抬升不能直接读成“策略在变好”，我们那条趋势读法必须带上这个混杂因素。"
+      },
+      {
+        "ref": "spurious-rewards",
+        "stance": "context",
+        "note": "该文说明 clip 项即使不做“有用的奖励”也会影响优化方向，是理解 pg_loss 口径的一个必要背景。"
+      }
+    ]
+  },
+  {
+    "id": "actor/grad_norm",
+    "name": "全局梯度范数（global gradient norm before clipping）",
+    "group": "优化器与策略",
+    "unit": "无量纲（L2 范数），本 run 实测 0.0048~0.0335",
+    "what": "把这一步算出来的所有参数梯度当成一个大向量，量它有多长。官方说明明确是裁剪前的值（global gradient norm before clipping），所以它反映的是优化器动手之前、模型原始想要迈多大的一步；真正施加到参数上的步长已经被 optimizer 的裁剪规则压过一道，看板没有给出裁剪后的范数。",
+    "how": "对全部参与更新的参数收集梯度，拼成一个全局向量取 L2 范数，取裁剪之前的值上报。本 run 的 actor/lr 恒为 0.000003（两个 run、所有步都不变），所以梯度的相对变化会直接反映到这一步的实际更新幅度上。",
+    "why": "它是优化器稳定性的体温计。长期缓慢上升通常意味着 loss 面在变陡或学习率相对偏大；单步剧烈尖峰最常见的原因是遇到了异常样本或异常 batch（脏数据、超长序列、reward 打错、某条 rollout 的 log-prob 数值异常），这类样本会产生巨大的梯度，如果不裁剪，一次更新就可能把模型推坏、之后若干步都在往回捡。所以工程上它常和 optimizer 的裁剪阈值配对使用，是「要不要人工介入」的第一道开关。",
+    "read": [
+      "先看是不是一次性。把所有步排序，如果第二名离第一名很远，就按单点事件处理，不要据此判断趋势。",
+      "尖峰必须去查同一步的其他指标：pg_loss、entropy_loss、rewards/mean、train_infer_diff/new_infer/kl、avg@n、timing_s/* 有没有同时异常。只有 grad_norm 单独跳，通常说明这一步的更新被裁剪吸收了，没影响结果。",
+      "配合 actor/num_zeros_in_grad 一起看：零梯度参数占比突然变化，说明这批数据没有覆盖到某些参数，和 grad_norm 尖峰可能是同一个根因。",
+      "本指标是裁剪前的值，所以它大不等于参数真的被推了一大步。反过来，它平稳也不能证明没有触发裁剪阈值——看板没有给裁剪后的范数，也没有给触发裁剪的比例。"
+    ],
+    "observed": "pro 第 19 步 0.0335148，是唯一一次、也是最末一步。前后各步：第 15 步 0.00537442、第 16 步 0.00532933、第 17 步 0.00699047、第 18 步 0.00480826、第 19 步 0.0335148。除第 19 步外的 18 步中位数 0.005626（均值 0.005833，范围 0.004808~0.008726），尖峰是其余各步中位数的 5.96 倍，按简报给的 0.0054 口径是 6.2 倍；第二高峰是第 9 步 0.00872634，只有尖峰的 26%。flash 全程平稳：25 步范围 0.004928~0.009054，中位数 0.005700、均值 0.005836，最大值出现在第 16 步，只是中位数的 1.59 倍，没有可比的一次性尖峰。关于是否伴随其他指标异常：同一步（pro 第 19 步）与第 18 步对比，actor/pg_loss 0.00392328→0.00529222、actor/entropy_loss 0.406803→0.406269、critic/rewards/mean 0.590478→0.594634、dynsam/avg@n 0.617368→0.633419、dynsam/passrate/zero 0.162622→0.134837、actor/pg_tis_clipfrac 0.00025761→0.00019634、actor/lr 恒为 0.000003、actor/skipped_iter 与 actor/update_skipped 恒为 0，全部在正常波动范围内，没有跟着异常。相对第 15/16/17 步的均值，timing_s/trainer_ops 第 19 步 7332.5 秒偏高（前三个非平稳步为 3822.2、6353.6、6443.8），ctx_response_length/mean 从 5.9 万升至 9.7 万 token 量级属于该 run 的正常抬升区间，train_infer_diff/new_infer/kl 从 0.00679548 升至 0.00768816 也是连续的缓升、不是跳变。结论：这次尖峰在数据里是孤立的，没有伴随任何其他指标异常；看板没有说明它的原因。需要补一句，只看时间序列无法排除「这是本 run 的第一次、且第 19 步就是最后一步」这个巧合，后续步数才是判断它是不是新常态的依据。",
+    "traps": [
+      "它是裁剪前的值，和真正施加到参数上的更新幅度不是一回事，不能直接说「模型被推了一大步」。",
+      "只看单点尖峰就判断训练发散是过度解读；这次同一步的其他指标全部正常。",
+      "pro 的尖峰恰好出现在已记录的最后一步，flash 又从来没有类似尖峰，样本量不支持任何趋势结论。",
+      "中位数和均值在这里差得多（0.005626 对 0.007290，被尖峰拉高），引用这个指标要说明用的是哪个口径。"
+    ],
+    "related": [
+      "actor/lr",
+      "actor/pg_loss",
+      "actor/num_zeros_in_grad",
+      "train_infer_diff/new_infer/kl",
+      "timing_s/trainer_ops"
+    ],
+    "sources": [
+      {
+        "ref": "grad-clip-theory",
+        "stance": "support",
+        "note": "论文证明梯度光滑度与梯度范数正相关、可随范数增长，即大范数步意味着有效曲率变大、单步更新可能失控；这支持把 pro 第 19 步的 6 倍尖峰当“单步异常”单独排查，而不是并进趋势里。"
+      },
+      {
+        "ref": "gradient-stabilizer",
+        "stance": "support",
+        "note": "论文直接把“稀有但极端的梯度范数尖峰”列为训练不稳定的触发源，并指出它会造成过大更新、污染优化器状态；这是我们“grad_norm 尖峰要当异常单点查”的第一个排查依据。"
+      },
+      {
+        "ref": "simpletir",
+        "stance": "support",
+        "note": "论文给出机制：多轮工具反馈造成分布漂移、低概率 token 逐轮累积，最终表现为梯度范数爆炸并搞崩训练；本 run 正是 43~65 轮的 agentic 训练，这条把 grad_norm 尖峰与崩溃连了起来。"
+      },
+      {
+        "ref": "mismatch-lr-scheduler",
+        "stance": "challenge",
+        "note": "论文称梯度噪声与训练-推理不匹配会随训练同步升级；但本 run pro 的 grad_norm 只有单点尖峰、没有单调上升，与该叙事不符，说明这条规律不必然适用于本 run。"
+      },
+      {
+        "ref": "iclr-ppo-gradclip",
+        "stance": "support",
+        "note": "这条说明梯度裁剪针对的是“全参数拼接后的 global L2 norm”、并配一个固定阈值；支持我们把 actor/grad_norm 读成裁剪前的全局范数、且必须和裁剪阈值一起看。"
+      },
+      {
+        "ref": "self-grad-spike-isolated",
+        "stance": "support",
+        "note": "把它判成「单步异常」的依据是：同一批效果指标都没有跟着动。但注意第 19 步就是记录范围内的最后一步，没有后续步可以验证它是新常态还是孤立事件 —— 这属于证据不足，不是已证清白。"
+      }
+    ]
+  },
+  {
+    "id": "actor/pg_clipfrac",
+    "name": "PPO 裁剪比例（clip fraction）",
+    "group": "优化器与策略",
+    "unit": "比例 0~1",
+    "what": "它本该回答「这一步有多少比例的 token 因为新旧策略差异太大、被 PPO 的 ratio 裁剪挡掉了」，是 PPO 里最常看的健康度指标之一。但在本仓库的数据里它恒为 0。看板没有给这个指标的官方 description，也没有解释为什么是 0。",
+    "how": "看板未给官方说明。从名字直译是 PPO ratio 被 clip 的 token 占比，通常按本轮训练 batch 的有效 token 统计。这里只能报告读到的值本身就是 0，不能反推它实际是怎么聚合的。",
+    "why": "在正常的 PPO 训练里，这个数代表有多少梯度信号被裁剪规则丢掉了。持续高于 0.1~0.2 往往说明策略每步走得太远、需要调小学习率或者缩短数据陈旧度；长期贴 0 又说明裁剪规则基本没生效，策略更新很保守。所以它和 actor/pg_loss 是一组，前者说「改了但被挡掉多少」，后者说「改的方向对不对」。",
+    "read": [
+      "本 run 不能用它判断裁剪有没有发生。恒为 0 只说明这一列没有携带信息，不代表「从不裁剪」，也不代表「一直在裁剪」。",
+      "要判断裁剪，只能看 actor/clip_high（恒 0.27）和 actor/clip_low（恒 0.2）这两个 clip 区间边界：它们证明裁剪区间确实被配置了，但同样不含触发比例。",
+      "替代读数在别处：actor/pg_tis_clipfrac 系列是有数据的，train_infer_diff/new_infer/kl 也是真实变化的，要看策略漂移应该读这两个。",
+      "先确认不是自己读错。这一列在两个 run、所有步、所有按类目和数据集的同名 tag 上都是 0，不是某一步缺失或某个子集的问题。"
+    ],
+    "observed": "确认恒为 0。两个 run 合计：pro 有 25 个含 pg_clipfrac 的 tag（1 个全局、3 个类目聚合、1 个 agentic、20 个数据集级），共 475 个数值，非 0 的 0 个；flash 同样是 25 个 tag、合计 625 个数值，非 0 的 0 个。所有值都是数字 0，不是 null，也就是说这一列是被上报的、只是上报的全是 0。作为对照，同名的 clip 区间边界 actor/clip_high 恒为 0.27、actor/clip_low 恒为 0.2，两个 run 所有步都不变；而 TIS 相关的 actor/pg_tis_clipfrac 系列全程有非零数据。因此可以判断：看板配了 clip 区间，也配了 TIS 裁剪的统计，但没有给出 PPO ratio 的裁剪比例。看板上没有说明这个 0 的成因，我们只能报告这个观察。",
+    "traps": [
+      "最常见的误读是把 0 解读成「训练非常健康、完全没有裁剪」。这是个上报值，不是测量结论。",
+      "也不该反过来猜测「裁剪功能坏了」——看板没有给出任何解释，两种解释都超出了数据能支持的范围。",
+      "不要把它和 actor/pg_tis_clipfrac 混为一谈，后者有非零数据且有明显趋势，两者统计的不是同一件事。",
+      "它的 0 和 actor/lr 恒为 3e-6 不同：学习率不变本身就是一条成立的事实描述，而 clip fraction 恒为 0 更像这一列没有接入实际统计。"
+    ],
+    "related": [
+      "actor/pg_tis_clipfrac",
+      "actor/ppo_kl",
+      "actor/clip_high",
+      "actor/clip_low",
+      "actor/pg_loss"
+    ],
+    "sources": [
+      {
+        "ref": "ppo",
+        "stance": "support",
+        "note": "论文把 PPO 的卖点定义为“同一批数据做多轮 minibatch 更新”，ratio 只有在多轮更新下才会偏离 1；本 run pg_clipfrac 全程恒 0，正说明这个前提没有兑现，而不是裁剪失效。"
+      },
+      {
+        "ref": "spurious-rewards",
+        "stance": "challenge",
+        "note": "论文把 GRPO 的行为偏置归因于 clip 项；但本 run pg_clipfrac 恒 0（裁剪从未触发），说明这个机制在本 run 不活跃，不要把这篇描述的失效模式直接搬到本 run。"
+      },
+      {
+        "ref": "decoupled-ppo",
+        "stance": "support",
+        "note": "论文的核心洞见就是把“控制更新的 proximal policy”与“做离策略修正的 behavior policy”分开；本 run pg_clipfrac(≡0) 与 pg_tis_clipfrac(>0) 正是这两件事的读数，所以 pg_clipfrac 恒 0 只否定了前者。"
+      },
+      {
+        "ref": "iclr-ppo-clipfrac",
+        "stance": "support",
+        "note": "这条给出 clipfrac 的标准定义＝触发裁剪的数据占比；本 run 全部取值恒为 0，按定义就是“没有任何 token 触发过裁剪”，支持我们“裁剪从未生效”那句。"
+      },
+      {
+        "ref": "verl-ppo-config",
+        "stance": "context",
+        "note": "把该默认值与 clipfrac 的定义合起来看，可确认本 run 的裁剪区间是 [1−0.2, 1+0.27] = [0.8, 1.27]，而不是文档里的 [0.8, 1.2]。"
+      },
+      {
+        "ref": "verl-ppo-epochs",
+        "stance": "support",
+        "note": "单轮更新时 ratio 在更新前恒等于 1，clipfrac 因此在第一步就注定为 0；这条把“pg_clipfrac 恒 0”从一个观察变成可解释的配置后果。"
+      },
+      {
+        "ref": "verl-three-policy",
+        "stance": "challenge",
+        "note": "文档指出 π_rollout 与 π_old 是两件事、很多实现错误地把 π_old 当行为策略；所以 pg_clipfrac 恒 0（π_θ 与 π_old 一致）不能推出“没有离策略偏差”，这个结论必须挂到 TIS 那条上。"
+      },
+      {
+        "ref": "verl-drift",
+        "stance": "support",
+        "note": "该页把“rollout→old（离策略差，用重要性采样修）”与“old→current（参数更新漂移，用 PPO 裁剪管）”拆成两个 drift；本 run 两个 drift 的读数分别是 pg_tis_clipfrac>0 与 pg_clipfrac≡0，正好一一对应。"
+      },
+      {
+        "ref": "self-clip-inert",
+        "stance": "support",
+        "note": "先排除「没上报」：这些点是数值 0 而不是空值。按 clipfrac 的定义，新旧策略比值恒为 1 时它按定义就是 0，这同时说明这一步只做了一轮更新、裁剪区间从未被触发。"
+      }
+    ]
+  },
+  {
+    "id": "actor/ppo_kl",
+    "name": "PPO 策略 KL（新旧策略 KL）",
+    "group": "优化器与策略",
+    "unit": "KL 散度（nats），本 run 恒为 0",
+    "what": "它本该回答「这一步训练用的旧策略和当前策略差了多远」，是 PPO 里判断「一步走了多大」的标准量。和 actor/pg_clipfrac 一样，在本仓库的数据里恒为 0，看板没有给官方说明，也没有解释为什么是 0。",
+    "how": "看板未给官方说明。按名字直译是当前策略与采样时旧策略之间的 KL 散度，通常按训练 batch 的 token 统计。这里不能从 0 反推它的聚合方式。",
+    "why": "策略 KL 是控制更新步长的核心读数。KL 太小说明每步几乎没动、训练效率低；KL 突然放大说明策略漂移过快，容易出现奖励上升但真实能力下降（reward hacking / 退化到模式回复）。工程上它常被用来触发早停或回退这一步的更新。一个恒为 0 的 KL 列意味着这层保护在看板上是盲的。",
+    "read": [
+      "不要用这一列判断策略漂移。要判断漂移，读 train_infer_diff/new_infer/kl——那是推理引擎和训练器在同一批 token 上的 log-prob 差异，是真实变化的（pro 末段 0.004~0.008，flash 末段 0.006~0.010）。",
+      "也不要用它判断训练是否停滞。actor/pg_loss 和 actor/entropy_loss 都在动，说明策略确实在变，与这一列的 0 矛盾，进一步说明这一列不是有效读数。",
+      "恒为 0 是全局现象（两个 run、所有步、所有同名子 tag），不是某一步的瞬态。",
+      "看板上有两处 KL：这里是 actor/ppo_kl，另一处是 train_infer_diff/new_infer/kl，读图和引用时必须说清是哪一个。"
+    ],
+    "observed": "确认恒为 0。与 pg_clipfrac 完全同一模式：pro 25 个含 ppo_kl 的 tag、475 个数值、非 0 的 0 个；flash 25 个 tag、625 个数值、非 0 的 0 个；全部是数字 0 而非 null。与此同时，train_infer_diff/new_infer/kl 在同一份数据里是真实变化的：pro 末四步 0.00415293、0.00441681、0.00679548、0.00768816，flash 末四步 0.00968806、0.00883846、0.0101065、0.00597094，且简报已核实它与 partial/avg_staleness 高度相关（pro 0.930、flash 0.925）。所以策略漂移这件事在数据里是有读数的，只是不在 actor/ppo_kl 这一列。看板上没有说明这个 0 的成因。",
+    "traps": [
+      "把 ppo_kl = 0 读成「策略完全没变」是错的：pg_loss、entropy_loss 和整体成功率都在变。",
+      "把 actor/ppo_kl 和 train_infer_diff/new_infer/kl 当成同一个指标是常见混淆，后者才是本仓库里有效的漂移读数。",
+      "不要因为它是 0 就认为训练有问题——看板没有给解释，只能说这一列没有信息量。",
+      "两个 run 的 0 完全一致，这更像是上报口径问题而不是模型行为问题，但这只是观察到的形态，数据本身不支持进一步结论。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/kl",
+      "actor/pg_clipfrac",
+      "actor/pg_loss",
+      "partial/avg_staleness",
+      "actor/pg_tis_clipfrac"
+    ],
+    "sources": [
+      {
+        "ref": "trpo",
+        "stance": "context",
+        "note": "信任域这套“用距离约束换取单调改进”的思路是 ppo_kl 这条曲线存在的理由；本 run ppo_kl 恒 0 意味着约束从未被激活，所以“信任域不生效”不等于“策略没有更新”，后者要看 pg_loss/entropy_loss。"
+      },
+      {
+        "ref": "decoupled-ppo",
+        "stance": "support",
+        "note": "论文说明 proximal policy 在一批数据的训练期内被冻结，所以“新旧策略距离”在同一步内本来就可以是 0，而离策略那部分差异仍然存在——这解释了 ppo_kl 恒 0 与 TIS 截断非零为何能同时成立。"
+      },
+      {
+        "ref": "iclr-ppo-approxkl",
+        "stance": "support",
+        "note": "这条把 PPO 的 KL 诊断量定义为 (-logratio).mean()（k1 估计量）；ratio 恒为 1 时该式恒为 0，所以本 run ppo_kl 全程为 0 与“新旧策略比值恒为 1”完全自洽，不是上报故障。"
+      },
+      {
+        "ref": "verl-three-policy",
+        "stance": "challenge",
+        "note": "同上：ppo_kl 量为 0 只说明新旧策略一致，rollout 那一段的偏差不在这条曲线上，用 ppo_kl=0 推“训练很 on-policy”是错的。"
+      },
+      {
+        "ref": "schulman-kl",
+        "stance": "context",
+        "note": "该文指出常用的低方差 KL 估计量是有偏的，并给出 k1/k2/k3 三种口径（verl 文档也照此分档）；所以 ppo_kl=0 只能按“所实现的估计量在 ratio≡1 时为 0”来读，跨实现比较这条曲线没有意义。"
+      },
+      {
+        "ref": "self-clip-inert",
+        "stance": "support",
+        "note": "同一个原因：ppo_kl 量的是更新前后策略的差，单轮更新下恒为 0。所以「信任域没有生效」不是异常，而是这套训练流程的必然结果 —— 它不能用来判断策略变化大不大。"
+      }
+    ]
+  },
+  {
+    "id": "actor/clip_high",
+    "name": "PPO ratio 裁剪上界（clip high）",
+    "group": "优化器与策略",
+    "unit": "无量纲比值增量，本 run 恒为 0.27",
+    "what": "这是 PPO 裁剪区间相对 1 的上界，也就是允许新旧策略 log-prob 比值最多比 1 高多少。它不是一个被测量出来的量，而是一个配置常数——读它等于读这一轮训练用的超参。跟它成对的是 actor/clip_low。",
+    "how": "看板未给官方说明，按 tag 名直译是 clip 上界。两个 run、所有步的值都是 0.27，从不变化，符合「超参」而非「统计量」的特征。与它配对的 actor/clip_low 恒为 0.2。两者一起构成 ratio 的裁剪区间，即比值落在 [1-0.2, 1+0.27] = [0.8, 1.27] 之外就截断。",
+    "why": "它决定 PPO 每步最多能改变多少，是 pg_loss 和 pg_clipfrac 的直接前提。区间放大，允许的策略更新更激进，训练推进快但更容易不稳；区间收窄，更新更保守、更稳但更慢。排查「为什么 pg_loss 一直很小」或「为什么策略漂移快」时，第一件要看的就是这两个边界值。这里 0.8~1.27 是一个偏宽的非对称区间（上界比下界松 0.07），说明配置上更允许策略往「提高概率」的方向走。",
+    "read": [
+      "这是常数，不要期待它有趋势。它出现变化只有两种可能：换了超参，或者训练中做了退火——本 run 两个都没发生。",
+      "它是解释 pg_loss 和 pg_clipfrac 的前置条件，单独看没有信息量。",
+      "上界 0.27 大于下界 0.2 的绝对值，区间不对称，读「裁剪了多少」时必须分别看正负两侧（本 run 有 actor/pg_tis_clipfrac_pos_high / _neg_low 这类分侧子指标，但它们统计的是 TIS，不是这里的 ratio clip）。",
+      "不要把它和 actor/pg_clipfrac 混淆：这个是「允许的界」，那个是「实际触界的比例」。"
+    ],
+    "observed": "pro 19 步全部为 0.27，flash 25 步全部为 0.27，无一步例外、无 null。配对指标 actor/clip_low 两个 run、所有步全部为 0.2。所以整个训练期间 ratio 的裁剪区间稳定在 [0.8, 1.27]。看板上没有说明这两个值是怎么选的、也没有给出它们与 pg_clipfrac 的联动关系。",
+    "traps": [
+      "它是配置常数，不要当成监测指标去分析趋势。",
+      "把它和 actor/pg_clipfrac 混为一谈会得出完全错误的结论：一个是界，一个是触发比例。",
+      "区间不对称（0.27 / 0.2）意味着正负方向的容忍度不同，直接说「裁剪范围是 ±0.23」是错的。",
+      "看板未说明取值理由，不要替它解释成某种自适应机制——数据里它就是一条直线。"
+    ],
+    "related": [
+      "actor/clip_low",
+      "actor/pg_loss",
+      "actor/pg_clipfrac",
+      "actor/pg_tis_clipfrac_pos_high"
+    ],
+    "sources": [
+      {
+        "ref": "dapo",
+        "stance": "support",
+        "note": "同上：公开工作里确实存在“上界单独放宽”的裁剪配置，支持我们把 0.27 读成刻意放宽的上行空间，而不是配置笔误。"
+      },
+      {
+        "ref": "dapo-clip-higher",
+        "stance": "support",
+        "note": "官方页面把“提高重要性比值上界”直接当作避免熵坍缩的手段，支持我们把 clip_high(0.27) > clip_low(0.2) 读成“给探索留更大上行空间”。"
+      },
+      {
+        "ref": "dispo",
+        "stance": "support",
+        "note": "公开工作确实在把上下裁剪分开调，支持我们把 clip_high 与 clip_low 当成两个独立可调参数来读，而不是一个对称 ε。"
+      },
+      {
+        "ref": "iclr-ppo-clipfrac",
+        "stance": "context",
+        "note": "同上：上界 0.27 只是配置的边界，不等于实际触发过；把 clip_high 与 pg_clipfrac 混为一谈会得出错误的“裁剪很频繁”结论。"
+      },
+      {
+        "ref": "verl-ppo-config",
+        "stance": "challenge",
+        "note": "同上：0.27 出现在上界，与 verl 的对称默认不同，不能套用“ε=0.2 的对称裁剪区间”这一常见解释。"
+      }
+    ]
+  },
+  {
+    "id": "actor/clip_low",
+    "name": "PPO ratio 裁剪下界（clip low）",
+    "group": "优化器与策略",
+    "unit": "无量纲比值增量，本 run 恒为 0.2",
+    "what": "这是 PPO 裁剪区间相对 1 的下界，即允许新旧策略 log-prob 比值最多比 1 低多少。和 actor/clip_high 一样，它是配置常数而不是测量值，读它等于读这一轮用的超参。",
+    "how": "看板未给官方说明，按 tag 名直译是 clip 下界。两个 run、所有步都是 0.2，从不变化。与 actor/clip_high（恒 0.27）一起构成比值区间 [1-0.2, 1+0.27] = [0.8, 1.27]。",
+    "why": "下界管的是「把某些 token 的概率往下压」这个方向的步长上限，上界管的是相反方向。两侧分别设，一般是因为两个方向的梯度行为不对称：压低概率往往对应负优势，如果不限制，模型容易一步把某个回答彻底打死，造成熵快速塌缩和回答模式化。所以下界比上界更紧，通常是刻意的保守设置。排查熵掉得过快、或回答变得千篇一律时，下界是要看的第一个配置项。",
+    "read": [
+      "常数，不看趋势。它不变说明这轮训练没有调整过裁剪区间。",
+      "和 actor/clip_high 配对使用才有意义，单独引用 0.2 说明不了什么。",
+      "本 run 下界（0.2）比上界（0.27）更紧，即对「压低概率」这一侧更保守。这是一个配置事实，不要引申成策略表现。",
+      "不要和 actor/pg_clipfrac 混淆：这个是界，那个是触发比例，而那个在本 run 恒为 0。"
+    ],
+    "observed": "pro 19 步全部为 0.2，flash 25 步全部为 0.2，无例外、无 null。与 actor/clip_high 恒为 0.27 配对，整个训练期间 ratio 的裁剪区间稳定在 [0.8, 1.27]。值得注意的是同期 actor/entropy_loss 在两个 run 里都是上升的，并不是被下界压塌的方向。看板没有说明这两个边界的取值依据。",
+    "traps": [
+      "配置常数，不要当监测指标分析趋势。",
+      "「下界更紧」不等于「裁剪主要发生在下界」——实际触发比例本 run 无法从看板读出，actor/pg_clipfrac 恒为 0。",
+      "不要和 actor/pg_tis_clipfrac_neg_low 搞混，后者名字里也有 neg_low，但统计的是 TIS 侧的裁剪，且有非零数据。",
+      "看板未给官方说明，不要替它编一个自适应或退火的故事。"
+    ],
+    "related": [
+      "actor/clip_high",
+      "actor/pg_loss",
+      "actor/pg_clipfrac",
+      "actor/pg_tis_clipfrac_neg_low"
+    ],
+    "sources": [
+      {
+        "ref": "dapo",
+        "stance": "support",
+        "note": "DAPO 的算法名本身就是 Decoupled Clip（上下裁剪解耦）；本 run clip_low=0.2 / clip_high=0.27 的不对称设置属于这一路做法，而不是 PPO 原文的对称 ε。"
+      },
+      {
+        "ref": "dapo-clip-higher",
+        "stance": "context",
+        "note": "DAPO 只动上界、下界保持常规值；本 run 下界 0.2 与 verl 默认一致，符合“只放宽上界”的做法。"
+      },
+      {
+        "ref": "dispo",
+        "stance": "challenge",
+        "note": "论文把上/下裁剪解耦并按正负回答拆成四个区域，指出错误回答上的过度裁剪会触发突然崩塌；本 run 的不对称设置没有公开消融依据，“不对称更合理”只能算合理猜测。"
+      },
+      {
+        "ref": "iclr-ppo-clipfrac",
+        "stance": "context",
+        "note": "定义里 clipfrac 量的是“触发”，而 clip_low/high 只是设定边界；所以单看下界 0.2 什么都推不出来，必须配 clipfrac 才有意义——这正是我们那条 read 的依据。"
+      },
+      {
+        "ref": "verl-ppo-config",
+        "stance": "challenge",
+        "note": "verl 只暴露一个对称的 clip_ratio（默认 0.2）；本 run 是 0.2/0.27 的不对称设置，说明它不是 verl 默认语义，我们“下界 0.2 是常规值”的说法只在“下界沿用默认、上界另调”这一读法下成立。"
+      }
+    ]
+  },
+  {
+    "id": "actor/lr",
+    "name": "actor 学习率（learning rate）",
+    "group": "优化器与策略",
+    "unit": "无量纲，本 run 恒为 0.000003（3e-6），看板按科学计数法格式化",
+    "what": "这是 actor 优化器当前使用的学习率，也就是每一步把梯度转成参数更新时的缩放系数。它是一个配置量（或调度器的输出），不是测量值。本 run 两个模型全程都是 3e-6。",
+    "how": "看板未给官方说明这个 tag，但 meta.json 的 formats 里专门为 ^actor/lr$ 配了 sci（科学计数法）格式化规则，所以看板首页和详情页会以科学计数法显示。仓库里存的值是 0.000003，两个 run、每一步都完全相同。看板没有给出学习率调度器（warmup、decay、cosine 等）的任何信息。",
+    "why": "学习率决定「梯度方向对了能走多远」。它偏大时，grad_norm、pg_loss、entropy_loss 会跟着抖，严重时训练发散；偏小时，指标全部平稳但几乎不动，看起来健康实际上是停滞。因为它同时是 grad_norm 的乘数，排查「grad_norm 尖峰有没有造成实际伤害」时必须先确认学习率有没有同步变化——本 run 没有，所以第 19 步 0.0335148 的尖峰没有被学习率放大。",
+    "read": [
+      "这是一条直线，说明这轮训练没有用学习率调度，或者调度器的输出在 3e-6 上被饱和了。看板没有说明是哪一种。",
+      "不要从「学习率不变」推断「训练稳定」：稳定性还要看 grad_norm 和 pg_loss 的波动。",
+      "数值精度只有 1 位有效数字（0.000003），任何小于 5e-7 的调度变化在这个仓库里都看不出来，不要据此断言「调度器完全没工作」。",
+      "要看学习率的实际效果，应结合 grad_norm 一起读，两者相乘才是每步的参数更新幅度。"
+    ],
+    "observed": "pro 19 步、flash 25 步，全部为 0.000003，无一步例外、无 null。也就是说从 2026-09-15 训练开始到 pro 第 19 步 / flash 第 25 步，actor 侧学习率没有发生过任何可见变化，包括 pro 的 9 次重启和 flash 的 4 次重启前后。作为对照，同一步的 actor/grad_norm 是有波动的（pro 0.004808~0.033515），说明这条直线不是「所有优化器状态都冻结」的结果，只是学习率本身没动。看板没有说明这是常量配置还是调度器输出被截断。",
+    "traps": [
+      "两条 run 的学习率完全相同，不要用它解释 pro 和 flash 的表现差异。",
+      "存储精度只有 1 位有效数字，说「学习率精确等于 3e-6」是过度解读，准确说法是「显示为 0.000003」。",
+      "不要因为它是常数就跳过不看：它是 grad_norm 到实际更新量的换算因子，解释尖峰影响时必须引用。",
+      "看板没有给调度器信息，不要推测存在 warmup 或 decay——数据里看不到任何调度痕迹。"
+    ],
+    "related": [
+      "actor/grad_norm",
+      "actor/pg_loss",
+      "actor/entropy_loss"
+    ],
+    "sources": [
+      {
+        "ref": "adamw",
+        "stance": "context",
+        "note": "论文说明在自适应优化器里 weight decay 与学习率并不等价、需要解耦；所以“actor/lr 恒为 3e-6”只能说明学习率配置没改，不能顺带断言有效步长或正则强度也没变。"
+      },
+      {
+        "ref": "muon",
+        "stance": "context",
+        "note": "论文强调换优化器必须重调 per-parameter update scale；同一个 lr 数值在 AdamW 与 Muon 下的有效步长不同，所以我们的 actor/lr=3e-6 离开“用的哪个优化器”就没有解释力。"
+      },
+      {
+        "ref": "adaptive-grad-lr",
+        "stance": "challenge",
+        "note": "论文指出大量关于自适应优化器的结论来自“隐式步长 schedule 没被隔离”；本 run actor/lr 全程恒定虽然排除了 schedule 混淆，但也等于我们没做过任何 lr 敏感性实验，“lr 不变不是问题”只是配置事实，不是结论。"
+      },
+      {
+        "ref": "gradient-stabilizer",
+        "stance": "context",
+        "note": "论文同时指出梯度裁剪“需要调阈值、会无差别截断大更新”，说明 grad_norm 与裁剪阈值（以及有效步长）是耦合的，读 actor/lr 时不能假设步长恒定。"
+      },
+      {
+        "ref": "mismatch-lr-scheduler",
+        "stance": "challenge",
+        "note": "论文主张按 response length 触发动态 lr 衰减来压不匹配；本 run actor/lr 全程恒定，属于“不做动态衰减”的另一条路线，所以“lr 不变本身不是问题”只在 mismatch 没恶化时成立。"
+      },
+      {
+        "ref": "iclr-ppo-gradclip",
+        "stance": "context",
+        "note": "同一机制意味着一旦范数越过阈值，实际更新步长就被阈值截断，与 actor/lr 不再是同一回事；读 lr 时不能假设“lr 恒定 ⇒ 步长恒定”。"
+      }
+    ]
+  },
+  {
+    "id": "actor/pg_tis_clipfrac",
+    "name": "TIS 裁剪比例（truncated importance sampling clip fraction）",
+    "group": "优化器与策略",
+    "unit": "比例 0~1，本 run 实测 0.000021~0.000332",
+    "what": "这是 TIS（truncated importance sampling）那一侧的裁剪比例，也就是在修正「采样时的策略」和「训练时的策略」之间差异时，有多少权重因为超出容许范围被截断掉。它和 actor/pg_clipfrac 完全是两件事：那个统计的是 PPO ratio 的裁剪，这个统计的是重要性采样权重的截断。本 run 里 pg_clipfrac 恒为 0，而这一组有真实的、带趋势的数据。",
+    "how": "看板未给官方说明。按 tag 名直译：pg 指策略梯度，tis 指 truncated importance sampling，clipfrac 是被裁剪的权重占比。报告出来的值在 1e-5~1e-3 量级，远小于 1，说明绝大多数重要性采样权重都落在容许范围内。同族还有四个分侧子指标，把裁剪按方向和边界拆开：pg_tis_clipfrac_pos_high、pg_tis_clipfrac_pos_low、pg_tis_clipfrac_neg_high、pg_tis_clipfrac_neg_low。",
+    "why": "TIS 裁剪比例衡量的是「训练用的策略版本和数据采样时的策略版本差多远」这件事被截掉了多少。它升高说明数据陈旧度或在途更新幅度在变大，此时一部分旧数据被截断、实际参与训练的样本变少，等价于有效 batch 缩小。这是长训练里会被忽略但很实际的一类效率损失，也是判断 partial/avg_staleness 是否开始伤害训练的直接读数。",
+    "read": [
+      "看趋势不看绝对值：本 run 在 1e-4 量级，本身离危险很远，值得说的是它随训练抬升。",
+      "和 partial/avg_staleness 一起读最有信息量。本仓库里它与 staleness 的相关性很高（pro 0.825、flash 0.920），是同一件事的两个侧面。",
+      "四个分侧子指标要分开看方向：pos_low 和 neg_low 明显大于 pos_high 和 neg_high，说明被截掉的权重集中在「低边界」一侧。",
+      "别把它和恒为 0 的 actor/pg_clipfrac 混起来。看板上没有 pg_clipfrac 的时候，这一组是目前唯一能反映「有多少信号被截断」的读数。"
+    ],
+    "observed": "pro：首 0.0000212671（第 1 步，也是全程最小值）→ 末 0.000196341（第 19 步），均值 0.0001742，最大值 0.000332057（第 14 步）。上升主要发生在第 1~6 步（0.0000213 → 0.0002465，十倍以上），之后在第 9~14 步约 0.00024~0.00033 的高位平台上波动，第 15~17 步掉到 0.0000266~0.0000665，末两步回到 0.0002 量级，整体是「先抬升、后高位波动」。flash：首 0.0000451336 → 末 0.000100572，均值 0.0001863，最大值 0.000312428（第 24 步）、最小值 0.0000403914（第 16 步），第 1~11 步从 0.000045 稳步升到 0.000271，之后在 0.00004~0.00031 之间来回，末段没有单向趋势。分侧看，pro 的 pos_low 末值 0.0000962139、neg_low 末值 0.0000796201，而 pos_high 末值 0.0000111908、neg_high 末值 0.00000931605，低边界一侧比高边界一侧高约一个数量级，这个比例关系全程稳定。与 partial/avg_staleness 的相关系数 pro 0.825、flash 0.920，是这组数据里相关性最强的一对；与 entropy_loss 的关系没有这么强（pro 0.23 量级的 pg_loss 相关，staleness 本身与 entropy 几乎不相关，pro -0.112、flash 0.121）。",
+    "traps": [
+      "最常见的误读是把它当成 actor/pg_clipfrac 的别名。两者统计对象不同，且后者恒为 0，不可互相替代。",
+      "值在 1e-4 量级不等于不重要：它衡量的是被丢弃的权重占比，与「有多少 token 参与训练」不是一回事。",
+      "四个分侧子指标名字里的 pos/neg 指权重方向、high/low 指边界，不要读成「正向/负向的裁剪量」；看板未给官方说明，这里所有定义都是从 tag 名直译的。",
+      "它与 staleness 的高相关不等于因果，本 run 里两者都随时间抬升，只有 19/25 个点。"
+    ],
+    "related": [
+      "actor/pg_clipfrac",
+      "partial/avg_staleness",
+      "actor/pg_tis_clipfrac_pos_low",
+      "actor/pg_tis_clipfrac_neg_low",
+      "actor/pg_loss",
+      "train_infer_diff/new_infer/kl"
+    ],
+    "sources": [
+      {
+        "ref": "gspo",
+        "stance": "challenge",
+        "note": "GSPO 明确说 token 级重要性比值方差高、改用序列级比值；所以本 run 这条 token 级截断比例很小，并不能推出“离策略偏差整体安全”，只能说 token 口径下被截断的少。"
+      },
+      {
+        "ref": "psn-rlvr",
+        "stance": "support",
+        "note": "论文把 TIS 明确用于缓解“采样与更新之间的不匹配”，与我们把 pg_tis_clipfrac 读成 rollout 与训练重算概率偏差的截断比例一致。"
+      },
+      {
+        "ref": "gipo",
+        "stance": "challenge",
+        "note": "论文指出现有 TIS 用硬截断会把极端比值的梯度直接置零，并改用高斯信任权重替代；所以本 run 那 1e-4 量级的截断比例虽然小，被截掉的那部分样本是不贡献梯度的，不能只按“比例小所以没事”来读。"
+      },
+      {
+        "ref": "f-tis",
+        "stance": "challenge",
+        "note": "论文重申离策略样本会伤害 GRPO 收敛；本 run 截断比例只有 1e-4 量级，只能说明离策略问题不突出，不能反推“离策略偏差不存在”——这正是我们读这条曲线时的边界。"
+      },
+      {
+        "ref": "dart-gui",
+        "stance": "support",
+        "note": "论文把 TIS 描述为“处理 policy rollout 与 updating 之间策略不匹配”的稳定化手段，与我们对这条 tag 的直译读法（量 rollout 与训练重算概率偏差被截断的比例）逐字对应。"
+      },
+      {
+        "ref": "fp16-mismatch",
+        "stance": "context",
+        "note": "论文把 π_rollout≠π_old 的一个具体来源定位到 BF16 舍入误差；这给出了 TIS 截断比例为什么是非零的最直接物理解释，同时提醒“比例低”只能说明数值一致性尚可，不能说明两套引擎等价。"
+      },
+      {
+        "ref": "tim-diagnosing",
+        "stance": "challenge",
+        "note": "论文指出训练-推理不匹配与离策略漂移、各类稳定化机制纠缠在一起、很难孤立观察；所以不能因为 pg_tis_clipfrac 小就断定“训练推理一致”，这条曲线是小样本检测器而不是等价性证明。"
+      },
+      {
+        "ref": "decoupled-ppo",
+        "stance": "support",
+        "note": "同上：TIS 那条对应 behavior policy 与 proximal policy 之间的差，和 proximal/current 之比（pg_clipfrac 管的那条）是两回事，两条曲线不能互相代替。"
+      },
+      {
+        "ref": "verl-tis-def",
+        "stance": "support",
+        "note": "官方文档把 TIS 定义成对重要性权重做上界截断（clamp(max=threshold)）；本 run pg_tis_clipfrac 就是被这条上界截断的权重占比，与我们“量的是被截断的比例”这句一致。"
+      },
+      {
+        "ref": "verl-three-policy",
+        "stance": "support",
+        "note": "文档把 π_old/π_rollout 的比值修正单列为一路，正对应 pg_tis_clipfrac 这条独立读数，支持我们把它读成“另一路、量的是 rollout 与训练重算的差”。"
+      },
+      {
+        "ref": "verl-drift",
+        "stance": "support",
+        "note": "同上：这条读数属于 Drift 1（数据采集策略与训练参考策略之间的差），与 pg_clipfrac 所属的 Drift 2 是两个独立诊断量，不能互相替代。"
+      },
+      {
+        "ref": "tis-blog",
+        "stance": "support",
+        "note": "我们写「它量的是 rollout 与训练重算概率的偏差被截断的比例」。博客提出的 TIS 就是 min(π_learner/π_sampler, C) 这个截断比值本身，指标名 pg_tis_clipfrac 与这一方法族直接对应，而不是 PPO ratio 的 clip。"
+      },
+      {
+        "ref": "tis-blog-clamp",
+        "stance": "support",
+        "note": "我们写「值在 1e-5~1e-3 量级、远小于 1，说明绝大多数重要性采样权重都落在容许范围内」。TIS 的官方口径就是对一个比值做 clamp(max=C)，所以「被 clamp 的比例」在 1e-4 量级确实等价于「几乎没截断」；同页还给出替代口径（AReaL 直接把超阈样本整条丢弃）说明这个读数是被公开实现过的。"
+      },
+      {
+        "ref": "wsk-token-vs-seq",
+        "stance": "challenge",
+        "note": "我们的 pg_tis_clipfrac 是 token 级口径（还按 pos/neg×high/low 拆四侧）。该文明确说 token 级重要性比值对自回归模型「理论上不成立/有偏」，只有 sequence-level IS 无偏；所以这个读数只能用来回答「有多少权重被截断」，不能作为「off-policy 已被正确修正」的证据。"
+      },
+      {
+        "ref": "fp8-rl",
+        "stance": "support",
+        "note": "我们写「它升高说明数据陈旧度或在途更新幅度在变大，此时一部分旧数据被截断」。该文用的缓解手段就是 importance-sampling-based rollout correction（token-level TIS/MIS variants），说明 TIS 裁剪这一路读数是当前主流的公开工程口径。"
+      },
+      {
+        "ref": "m2po",
+        "stance": "support",
+        "note": "我们写「值在 1e-4 量级不等于不重要……绝大多数重要性采样权重都落在容许范围内」。该文在明确的高陈旧度设定下报告的裁剪比例是 0.06%~1.22%，比本 run 的首值 2.1e-5 高 2~3 个数量级，佐证「本 run 实际被截断的权重极少」这个相对判断。"
+      },
+      {
+        "ref": "missing-old-logits",
+        "stance": "challenge",
+        "note": "我们的 pg_tis_clipfrac 按 pos/neg×high/low 四侧解读裁剪方向。该文指出在缺旧 logits 的异步流水线里 clipping 与 masking 的阈值会互相污染（interact undesirably），所以我们按四侧方向做的解读只在「旧 logits 完整可得」的前提下成立。"
+      },
+      {
+        "ref": "trust-region-masking",
+        "stance": "challenge",
+        "note": "我们写「它量的是有多少权重因为超出容许范围被截断掉」，隐含把它当成信任域是否生效的证据。该文证明所有误差界都依赖最大 token 级散度这个序列级量，而它「无法被 PPO clipping 这类与 token 无关的方法控制」；token 级 TIS 裁剪比例因此不能用来论证信任域有效。"
+      },
+      {
+        "ref": "grpo-offpolicy",
+        "stance": "context",
+        "note": "该文摘要明确「重解了 importance sampling 与 clipping 在 GRPO 里的作用」，并把 Asymmetric REINFORCE 等近期算法统一解释成 REINFORCE 损失的正则化形式。这是公开文献里最接近「非对称」这一支的来源，但它不是按正/负优势或 high/low 边界拆分的四侧 IS 裁剪口径。"
+      },
+      {
+        "ref": "score-centering",
+        "stance": "challenge",
+        "note": "我们写「它升高说明数据陈旧度或在途更新幅度在变大……是判断 partial/avg_staleness 是否开始伤害训练的直接读数」。该文报告在量化下 score centering 单独就能匹敌或超过基于重要性采样的方法，说明 IS/TIS 类修正并非唯一甚至未必最优的修法，pg_tis_clipfrac 只能读成被截断的比例，不能读成修正的有效性。"
+      },
+      {
+        "ref": "beyond-precision",
+        "stance": "challenge",
+        "note": "我们写「本 run 在 1e-4 量级，本身离危险很远，值得说的是它随训练抬升」，隐含把 TIS 裁剪比例持续上行当作值得跟踪的修正信号。该文明确说长期训练中重要性采样这类标准修正可能失效，而本 run 只有 19/25 步，把它外推到长训练要加上这个前提。"
+      }
+    ]
+  },
+  {
+    "id": "actor/agentic/entropy_loss",
+    "name": "agentic 类目策略熵",
+    "group": "优化器与策略",
+    "unit": "nats/token，本 run 实测 0.38~0.465",
+    "what": "这是 agentic 这一路数据（多轮工具调用的轨迹）单独统计的策略熵，口径和全局的 actor/entropy_loss 完全一样，只是样本范围限定在 agentic 类目。它用来回答「工具调用这类长轨迹的探索程度，和整体是不是同一个走向」。",
+    "how": "和全局指标同样的算法（mean per-token entropy of the policy），只是把参与统计的 token 限定为 agentic 类目下、本轮真正参与训练的轨迹。看板把它作为类目聚合单独上报，数据集级还有更细的 actor/agentic/... 拆分。",
+    "why": "agentic 轨迹动辄几万 token、多轮交互，是上下文长度和生成成本的主要来源。它的熵如果和全局分叉，说明这一类数据的训练动态和其余类目不同，需要单独调数据配比或单独压熵。盯类目熵是定位「整体指标为什么动」的第一层下钻。",
+    "read": [
+      "先和全局比方向、再比幅度。方向一致说明是全局现象，方向相反说明是类目特有的问题。",
+      "agentic 的 token 权重很大，它的熵往往主导全局熵，读全局熵时要意识到这一点。",
+      "它是有数据的、也是上升的，不要因为同类的 actor/agentic/pg_clipfrac 恒为 0 就以为这一整块没上报。",
+      "本 run 没有 actor/cyber 和 actor/visual 的类目聚合 tag（只有数据集级的），所以 agentic、chat、code、general 这四个聚合并不是全部类目的完整覆盖。"
+    ],
+    "observed": "pro 19 步：首 0.399239 → 末 0.415528，涨 0.016289（相对 +4.1%），均值 0.3988，最低第 2 步 0.380572，最高第 17 步 0.417924。flash 25 步：首 0.417159 → 末 0.464865，涨 0.047706（相对 +11.4%），均值 0.4338，最低第 5 步 0.4111，最高就是第 25 步。两条 run 全程都高于各自的全局熵（pro 全局首 0.395265、末 0.406269；flash 全局首 0.413307、末 0.456110），也就是说 agentic 是拉高整体熵的那一类。涨跌幅也比全局更大：pro 全局涨 2.8% 而 agentic 涨 4.1%，flash 全局涨 10.4% 而 agentic 涨 11.4%。",
+    "traps": [
+      "不要假设类目聚合可以加权还原成全局：实测按数据集做无权重算术平均对不上全局值（pro 第 1 步四个类目的数据集均值 0.4020/0.4315/0.3278/0.3131，全局是 0.395265），说明它有 token 级权重，简单取平均是错的。",
+      "agentic 高于全局并不表示「多轮任务更难」，数据里只能看到数值高低，看不到原因。",
+      "flash 涨幅约为 pro 的 2.8 倍，但两个 run 步数不同（25 对 19），不宜直接按倍数比较。",
+      "同一类目的 actor/agentic/pg_clipfrac 和 actor/agentic/ppo_kl 恒为 0，不要从熵有数据推断这一类的所有指标都有数据。"
+    ],
+    "related": [
+      "actor/entropy_loss",
+      "actor/agentic/pg_loss",
+      "actor/agentic/pg_tis_clipfrac",
+      "dynsam/agg_turn/mean",
+      "ctx_response_length/mean"
+    ],
+    "sources": [
+      {
+        "ref": "entropy-mechanism",
+        "stance": "challenge",
+        "note": "同上：该文观察的是熵单调下降并伴随性能饱和，本 run 全量与 agentic 分路都上行，不能把这篇的“熵坍缩”叙事直接套到本 run 上。"
+      }
+    ]
+  },
+  {
+    "id": "actor/agentic/pg_loss",
+    "name": "agentic 类目策略梯度目标",
+    "group": "优化器与策略",
+    "unit": "无量纲，本 run 实测 0.0010~0.0208",
+    "what": "agentic 类目单独的 clipped policy-gradient objective，口径同全局 actor/pg_loss，样本限定为 agentic 轨迹。",
+    "how": "与全局 actor/pg_loss 同样的算法和 clip 区间（actor/clip_high 0.27、actor/clip_low 0.2 是全局配置），只统计 agentic 类目的 token。类目内还按数据集细分成 actor/agentic/... 级别的 tag。",
+    "why": "agentic 类的 token 占比大、轨迹长，它对全局 pg_loss 的贡献往往不成比例。类目 pg_loss 突然放大时，第一个要查的是这个类目里有没有出现超长轨迹或异常样本——这也是解释全局 pg_loss 抬升最常见的入口。",
+    "read": [
+      "和全局 pg_loss 比：本 run 两者几乎重合，说明全局的走势就是 agentic 的走势。",
+      "flash 后半段的抬升（后 12 步均值约为前 13 步的 3 倍）比 pro 大得多，这是两条 run 最明显的分野之一。",
+      "同样要结合 actor/agentic/pg_tis_clipfrac 看，本 run 两者的走势并不同步，TIS 裁剪比例在中段就上了平台，而 pg_loss 是在后段才抬起来。",
+      "它全程为正，但不要由此推断其他类目也全为正——chat 和 visual 的数据集级 pg_loss 大量为负。"
+    ],
+    "observed": "pro 19 步：首 0.00412712、末 0.00548707、均值 0.004465，最小 0.00197189（第 2 步）、最大 0.00731328（第 10 步）；与全局 pg_loss 的量级几乎相同（全局均值 0.004061），前期略低、中期略高，形态一致。flash 25 步：首 0.000992718、末 0.0106019、均值 0.007954，最小就是第 1 步、最大 0.0208124（第 19 步），高于（也即抬升快于）全局均值 0.007565。分半看，flash 前 13 步均值约 0.0034、后 12 步约 0.0138，约 4 倍。pro 全程未出现负值，flash 同样。",
+    "traps": [
+      "不要把它当成全局 pg_loss 的同义词：flash 里 agentic 均值高于全局，说明两者并不等价。",
+      "类目级 pg_loss 与全局的相关性高不代表其他类目也如此，chat 和 visual 的行为完全相反。",
+      "同族的 actor/agentic/pg_clipfrac、actor/agentic/ppo_kl 恒为 0，不要以为类目级指标被完整上报了。",
+      "看板未给这个 tag 单独的官方说明，口径是从全局 pg_loss 推的。"
+    ],
+    "related": [
+      "actor/pg_loss",
+      "actor/agentic/entropy_loss",
+      "actor/agentic/pg_tis_clipfrac",
+      "dynsam/avg@n"
+    ]
+  },
+  {
+    "id": "actor/code/entropy_loss",
+    "name": "code 类目策略熵（按数据集细分）",
+    "group": "优化器与策略",
+    "unit": "nats/token，本 run 实测 0.33~0.53",
+    "what": "code 是数据量最大的一类（本 run 下有 10 个数据集级 tag），但看板没有给 actor/code/entropy_loss 这个类目聚合 tag，只有 actor/code/dataset-xxxx/entropy_loss 这种一个数据集一条的形式。所以要看代码类的熵，只能逐数据集看或者自己聚合。",
+    "how": "每个数据集单独按 mean per-token entropy of the policy 统计本轮参与训练的 token。缺少类目级聚合，意味着没有任何一站式的代码类熵读数。",
+    "why": "代码类数据通常既多又长，是策略熵和 pg_loss 的主要贡献者。按数据集拆开看的意义在于：如果只有一两个数据集的熵在异动，那是数据问题；如果全部一起动，那是全局训练动态。这是把「整体指标为什么动」定位到具体数据来源的必要一步。",
+    "read": [
+      "本类目所有数据集都在上升，方向一致，所以代码类不是异动来源。",
+      "数据集之间绝对水平差得很大（约 0.33 到 0.53），跨数据集比绝对值没有意义，只能比各自的趋势。",
+      "因为缺类目聚合，别引用「code 类目熵」这个数——它在看板上不存在。",
+      "同族的 pg_clipfrac、ppo_kl 全为 0，只有 entropy_loss、pg_loss、pg_tis_clipfrac 系列有数据。"
+    ],
+    "observed": "pro 的 10 个 code 数据集全部上升，无一例外：例如 dataset-4onq 0.522647 → 0.5386、dataset-m1dt 0.3520 → 0.3901、dataset-obg8 0.4408 → 0.4652、dataset-ta4j 0.4316 → 0.4727、dataset-zg6q 0.4152 → 0.4575。flash 同样全部上升，例如 dataset-m1dt 0.3378 → 0.4175、dataset-obg8 0.4814 → 0.5253、dataset-ta4j 0.4520 → 0.5025、dataset-x7wh 0.4616 → 0.5053。首末对比的整体幅度大致是 pro 涨 0.01~0.07、flash 涨 0.03~0.09。第 1 步各数据集的熵散布在 pro 0.352~0.5226、flash 0.3378~0.5640，离各自的全局值（0.395265 / 0.413307）都很远，说明数据集级数值不能用简单平均还原全局。",
+    "traps": [
+      "看板没有 actor/code/entropy_loss 这个 tag，写解读时不要虚构一个类目级数字。",
+      "数据集级数值变化范围大（pro 0.352~0.5226），引用单个数据集时要说明是哪个。",
+      "所有数据集同向上升，因此不能用某一两个数据集解释全局熵的上涨，这更像是全局现象。",
+      "同类的 actor/code/dataset-*/pg_clipfrac 恒为 0，不要以为代码类的指标是完整的。"
+    ],
+    "related": [
+      "actor/entropy_loss",
+      "actor/code/dataset-m1dt/entropy_loss",
+      "actor/code/dataset-ta4j/entropy_loss",
+      "actor/pg_tis_clipfrac"
+    ],
+    "sources": [
+      {
+        "ref": "entropy-mechanism",
+        "stance": "context",
+        "note": "该文把熵的变化归因于“动作概率与 logits 变化量的协方差”，并指出该协方差在训练中多为正——本 run code 各数据集的熵却一致上行，说明至少在这批数据上这个正协方差叙事不成立。"
+      }
+    ]
+  },
+  {
+    "id": "actor/general/pg_loss",
+    "name": "general 类目策略梯度目标（按数据集细分）",
+    "group": "优化器与策略",
+    "unit": "无量纲，本 run 实测 -0.011~0.066（不含 dataset-1doa 的单步 0.1642）",
+    "what": "general（通用问答类）下的策略梯度目标，同样只有数据集级 tag（actor/general/dataset-xxxx/pg_loss），没有类目聚合。它是最能看出「均值掩盖了波动」的一类：数据集之间的量级差了一个数量级以上。",
+    "how": "每个数据集单独按 clipped policy-gradient objective 统计，clip 区间用全局的 0.27 / 0.2。",
+    "why": "单个数据集上出现量级跳变是数据质量或任务难度变化的常见信号。这类细分指标的作用不是看趋势，而是当全局 pg_loss 出现异常时，能迅速定位到是哪个数据来源把它拉起来的。本 run flash 的 dataset-1doa 就是一个典型例子。",
+    "read": [
+      "重点看有没有单个数据集跳一个数量级，而不是看整体趋势。",
+      "四个 general 数据集的稳态水平差异很大：dataset-epqd、dataset-5610 的均值在 0.009~0.011，dataset-1doa、dataset-trla 的均值在 0.002~0.033 之间且波动更大。",
+      "本 run 出现了明确的离群点：flash 的 actor/general/dataset-1doa/pg_loss 最大值 0.1642，而它的均值是 0.03344、最小值 -0.01054，量级明显脱群，值得单独查这一步。",
+      "同样存在负值（三个数据集的部分步为负），不要以为 pg_loss 一定是正的。"
+    ],
+    "observed": "四个数据集，pro 19 步 / flash 25 步。pro：dataset-1doa 首 0.008889、末 -0.003855、均值 0.002451、范围 -0.007474~0.01338；dataset-5610 首 0.008850、末 0.009104、均值 0.01122、范围 0.0007542~0.02312；dataset-epqd 首 0.01238、末 0.002755、均值 0.008681、范围 -0.0009120~0.01619；dataset-trla 首 0.004553、末 0.03114、均值 0.009504、范围 -0.002430~0.03114。flash：dataset-1doa 首 -0.004153、末 0.02908、均值 0.03344、范围 -0.01054~0.1642；dataset-5610 首 0.005909、末 0.008499、均值 0.01013、范围 -0.006234~0.03302；dataset-epqd 首 0.01195、末 0.007850、均值 0.01055、范围 -0.001976~0.05985；dataset-trla 首 0.001938、末 0.009389、均值 0.01203、范围 -0.002815~0.06535。负值步数：pro 的 1doa 7/19、epqd 2/19、trla 1/19、5610 0/19；flash 的 1doa 7/25、5610 5/25、epqd 3/25、trla 3/25。离群点集中在 flash 后段（dataset-1doa 单步 0.1642、dataset-trla 0.06535、dataset-epqd 0.05985），与 flash 后半段 pg_loss 整体抬升的时间段一致。",
+    "traps": [
+      "没有 actor/general/pg_loss 这个类目聚合 tag，不要把四个数据集的数揉成一个「general 类目值」。",
+      "负值不是错误。pg_loss 是带 clip 的目标函数值，单步为负在数据集级别上是常见的，尤其在样本少、优势有正有负时。",
+      "flash 的 dataset-1doa 单步 0.1642 是离群点，引用均值 0.03344 时要说明它被这一个点抬高了。",
+      "数据集之间比绝对值没有意义，各自的 prompt 构成和难度都可能不同，看板没有给出任何归一化说明。"
+    ],
+    "related": [
+      "actor/pg_loss",
+      "actor/general/dataset-1doa/pg_loss",
+      "actor/agentic/pg_loss",
+      "actor/general/dataset-1doa/entropy_loss"
+    ]
+  },
+  {
+    "id": "actor/code/dataset-yfch/pg_tis_clipfrac",
+    "name": "TIS 裁剪比例的结构性离群（code 数据集 yfch）",
+    "group": "优化器与策略",
+    "unit": "比例 0~1，本 run 实测 0.0000177~0.002526",
+    "what": "这是数据集级 TIS 裁剪比例里最突出的一个。绝大多数数据集级 pg_tis_clipfrac 在 1e-6~1e-3 量级，而 code 类目下的 dataset-yfch 达到 1.9e-3~2.5e-3，比同类其他数据集高一个数量级，是 e 系列里唯一稳定的高位。它体现的是「这个数据集上的重要性采样权重被截断得比其他数据集多」。",
+    "how": "与全局 actor/pg_tis_clipfrac 同样的口径，样本限定为 code 类目下 dataset-yfch 这个数据集的 token。",
+    "why": "TIS 裁剪比例按数据集拆开，是定位「哪一路数据最陈旧、最不匹配当前策略」的手段。某一数据集明显偏高，通常意味着这一路数据的采样版本和训练版本差距偏大（可能是它更新慢、批次小、或者任务分布变化快），实际参与训练的有效样本被截掉得更多。这是配比调整和新鲜度排查的直接依据。",
+    "read": [
+      "看相对水平而不是绝对值：2e-3 本身仍然很小，值得说的是它和同类其他数据集差一个数量级。",
+      "趋势比水平更有信息量：本 run 它在上升，和其他数据集的方向一致，只是幅度更大。",
+      "它是数据集级指标，不能推导类目整体的 TIS 裁剪水平，因为类目级没有聚合 tag。",
+      "这类数据集级离群是本组唯一值得单独写的结构性差异，其余数据集级数值只体现和全局相同的趋势。"
+    ],
+    "observed": "pro：首 0.00002239（第 1 步，也是最小值）→ 末 0.001855，均值 0.001333，最大值 0.002216；上升非常干脆，末值约为首值的 83 倍。flash：首 0.00001770 → 末 0.0009374，均值 0.001738，最大值 0.002526。作为对照，code 类目下其他数据集多数在 1e-5~4e-4 量级（例如 dataset-4onq 首 1.106e-7、均值 3.824e-7；dataset-dnpn 均值 0.00008472；dataset-m1dt 均值 0.0001222），dataset-yfch 比它们高出约 1 到 3 个数量级。全局 actor/pg_tis_clipfrac 的均值只有 0.0001742（pro）/ 0.0001863（flash），所以这是一个局部现象，被全局均值完全掩盖。",
+    "traps": [
+      "不要把这个 2e-3 当成全局水平，全局均值是 1.7e-4 量级，差了十倍以上。",
+      "这里只能报告它高，看板没有给出数据集级的 staleness、样本量或更新频率，原因无法从数据判断。",
+      "同族还有 actor/code/dataset-yfch/pg_loss 等 tag，但这一条只覆盖 TIS 裁剪比例这个读数。",
+      "看板未给数据集级 tag 的官方说明，口径是从全局同名指标推的。"
+    ],
+    "related": [
+      "actor/pg_tis_clipfrac",
+      "partial/avg_staleness",
+      "actor/code/dataset-dnpn/pg_tis_clipfrac",
+      "actor/code/dataset-m1dt/pg_tis_clipfrac"
+    ],
+    "sources": [
+      {
+        "ref": "gspo",
+        "stance": "challenge",
+        "note": "同理：某个数据集在 token 级上截断比例低，也可能是序列级累积的比值偏差被 token 级平均掩盖了，不能据此断言该数据源的 rollout 与训练版本一致。"
+      },
+      {
+        "ref": "verl-tis-def",
+        "stance": "support",
+        "note": "同一定义在数据集粒度上同样成立；yfch 那条比同项目其他数据集高 1~3 个数量级，按该定义就是“该数据源的 rollout/训练概率比值更容易越过上界”。"
+      }
+    ]
+  },
+  {
+    "id": "actor/cyber/dataset-9aui/pg_loss",
+    "name": "cyber 数据集何时停止上报（结构性观察）",
+    "group": "优化器与策略",
+    "unit": "无量纲，pro 前 14 步 0.0305~0.1029",
+    "what": "这不是一个普通指标解读，而是一条读图时必须知道的结构性事实：cyber 这一类只有一个数据集 dataset-9aui，它的全部 actor 指标（entropy_loss、pg_loss、pg_tis_clipfrac、ppo_kl、pg_clipfrac）在 pro 上都只到第 14 步，第 15 步起是 null。所以 pro 第 15~19 步的任何一个全局聚合值，都是在少了 cyber 的情况下算出来的。",
+    "how": "series.json 里这些 tag 的第 15~19 位是 null 而不是 0。简报已核实这与公告里「从 pro 的下一轮移除 cyber 数据集」对应（同一时间点起 partial/cyber/... 的 n_tokens 也变为 null）。flash 侧 cyber 数据集的 actor 指标全程 25 步都有值，没有中断。",
+    "why": "看这类趋势图时，最后一个数据点的口径和第 10 个数据点的口径可能已经不同。pro 第 15 步之后全局 pg_loss、entropy_loss、pg_tis_clipfrac 的抬升，有一部分只是数据组成变了，而不是模型行为变了。不掌握这一点，很容易把「移除一个类目」误读成「策略熵突然上去了」。",
+    "read": [
+      "读 pro 第 15 步之后的任何全局 actor 指标，都要先确认它已经不包含 cyber 这一类。",
+      "读 flash 时不需要这个修正，flash 的 cyber 数据集 25 步齐全。",
+      "跨 run 对比第 15~19 步的全局值是不可比的：pro 少了 cyber，flash 还在算 cyber。",
+      "cyber 是数值最突出的一类，pro 的 dataset-9aui pg_loss 均值 0.05010、范围最高 0.1029；flash 均值 0.1063、最高 0.2904。把它从全局里去掉，会明显拉低全局均值。"
+    ],
+    "observed": "pro 的 actor/cyber/dataset-9aui/entropy_loss 原始序列是 14 个数值后接 5 个 null（第 15~19 步）；pg_loss 同样 n=14，首 0.03570 → 末 0.1029，均值 0.05010，范围 0.03054~0.1029；pg_tis_clipfrac 同样 n=14，首 0.00002437 → 末 0.0007933，均值 0.0007053。这些值明显高于各自的全类目水平：pg_loss 均值 0.05010 对全局均值 0.004061，pg_tis_clipfrac 均值 0.0007053 对全局均值 0.0001742。flash 侧 actor/cyber/dataset-9aui/entropy_loss 完整 25 步（首 0.507924 → 末 0.53604），pg_loss 首 0.02865 → 末 0.1223、均值 0.1063、最大 0.2904，比 pro 的同一数据集高得多。需要说明的是，同一份数据里 pro 的全局 pg_loss 在第 15~19 步并没有下跌（0.00278152、0.00286514、0.00199298、0.00392328、0.00529222），所以移除 cyber 在总量级上没有留下明显痕迹，这本身也说明 cyber 的 token 占比不大。",
+    "traps": [
+      "null 和 0 是两件事：第 15~19 步的 cyber 是「没有上报」，不是「值为 0」。",
+      "不要用这条数据推断移除 cyber 是好事还是坏事，看板只记录了移除动作，没有给理由以外的影响分析。",
+      "flash 没有这个中断，跨 run 比较 pro 末段与 flash 末段时要记住这一点。",
+      "看板未给数据集级 tag 的官方说明，这里只做结构性描述。"
+    ],
+    "related": [
+      "actor/pg_loss",
+      "actor/entropy_loss",
+      "actor/pg_tis_clipfrac",
+      "actor/agentic/entropy_loss"
+    ]
+  }
+]

@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Local secrets — never commit a real .env
+.env
+.env.local
+
+# Derived, regenerable artifacts
+data/telemetry.sqlite
+data/telemetry.sqlite-shm
+data/telemetry.sqlite-wal
+data/logs/
+data/sync_state.json
+site/data/bundle.js
+
+# Translation caches (regenerable; not part of the repository)
+content/.i18n-*.json
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Scratch
+.tmp/

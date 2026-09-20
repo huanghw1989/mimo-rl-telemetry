@@ -1,0 +1,301 @@
+[
+  {
+    "id": "table/sampler/source",
+    "name": "采样器表格 · source 列（数据源）",
+    "group": "采样器表格",
+    "unit": "数据源路径",
+    "what": "dynamic sampler 面板那张表，每一行是一个数据源，键名形如「类目/dataset-短码」。类目取自站点的 categories（code / general / visual / chat / cyber），短码是站点内部的随机 id，不是数据集名称。",
+    "how": "这一列就是 /live 接口 latest.ds 的键。本站留档的每一份采样器快照里（截至 2026-09-20 共 29 份），行集合是稳定的，没有中途换名的现象；两个 run 的行数不一样：最新一份留档 pro 24 行、flash 25 行，差别只在 pro 没有 cyber 那一行。",
+    "why": "这一列回答「这一步的训练 batch 由谁提供」。只有逐行对上，才看得出配方变化；只看合计会把「谁多谁少」这件事整个抹掉。pro 从第 15 步起不再有 cyber 行，对应官方公告里说的从 pro 的下一轮移除 cyber 数据集。",
+    "read": [
+      "短码是站点内部 id，不能从名字推出数据集内容；要比较就按类目聚合，或直接按同名 id 在两个 run 之间横比。",
+      "行数不等于指标条数：一个数据源在表格里只占一行，在 /series 里对应 num_accepted/step、held、carryover 三个指标名。",
+      "两个 run 的行集合不同，别按行号对齐；pro 没有 cyber，flash 有 cyber/dataset-9aui。"
+    ],
+    "observed": "最新一份留档：pro 24 行（code 11 / general 4 / visual 6 / chat 3），flash 25 行（多一行 cyber/dataset-9aui）。同名数据源在两个 run 上都出现，但量级差别很大，例如 code/dataset-sin0 的 target 是 154，code/dataset-bvg7 只有 52。",
+    "traps": [
+      "不要拿 dataset 短码当数据集名去检索：它是站点生成的，公开材料里查不到对应关系。",
+      "行数（24~25）和 batch 里的题数（1568）不是一个维度，前者是来源个数、后者是题数。"
+    ],
+    "related": [
+      "dynsam/<cat>/dataset-<id>/num_accepted/step",
+      "dynsam/num_target"
+    ],
+    "sources": [
+      {
+        "ref": "self-mimo-rl-ds-tuple",
+        "stance": "support",
+        "note": "这张表的行、列都直接来自原站渲染代码；遥测层没有改这段代码。"
+      }
+    ]
+  },
+  {
+    "id": "table/sampler/accepted-target",
+    "name": "采样器表格 · accepted / target 列（受理量 / 配额）",
+    "group": "采样器表格",
+    "unit": "题数",
+    "what": "accepted 是这个快照时刻从该数据源受理进本轮采样的题数；target 是分配给它的名额，一行一行加起来恒等于这一步的训练 batch 题数（1568）。",
+    "how": "接口 /live 的 latest.ds 四元组的前两位，页面渲染成「accepted / target」，中间那条比例条的上限是 100%。本站用 sampler_report.ts 逐条核验了全部留档（截至 2026-09-20 共 29 份）：Σaccepted 等于面板上的 accept（29/29），Σtarget 等于面板上的 target、也等于 1568（29/29）。站点没给这一层的文字说明；机制上最接近的公开材料是 MiMo-V2-Flash 技术报告的 Data Scheduler：每个数据源有独立的 sample quota，并按通过率和配置比例决定受理量。",
+    "why": "受理量超过配额，说明为了凑够「有梯度的有效样本」多采了；低于配额说明这个源这一步没供满。动态采样会把满分和零分的题滤掉，随着训练推进满分的题越来越多，就必须靠多采把 batch 填满 —— 公开材料把这部分多采出来的量叫 sample waste。",
+    "read": [
+      "先看整体 accept/target：长期明显大于 1，说明这一步大部分来源都在超额供给；长期小于 1 才要担心 batch 填不满。",
+      "逐行看超额的是谁：某一行长期超额、另一行长期不足，通常不是巧合，而是配额和难度分布不匹配。",
+      "accepted 是步内过程量：它随采样推进一路上涨，同一份留档里 0.031 到 1.755 都出现过，不要拿单点当稳定特征。",
+      "target 是配额不是上限，超额是设计的一部分，不是数据错误。"
+    ],
+    "observed": "最新 pro 留档 accept 1840 / target 1568：24 行里 23 行超额、1 行刚好、0 行不足；超额最多的是 code/dataset-sin0（192 / 154）。把 17 份 pro 留档放在一起，accept/target 最低 0.031（刚重启那一步）、最高 1.755。两个 run 的 Σtarget 都是 1568，所以 target 不能拿来比较两个 run 的规模。",
+    "traps": [
+      "accepted 是过程快照，不是这一步最终的训练量：它通常大于序列里同一步的 dynsam/<数据源>/num_accepted/step（例：pro 第 23 步快照 2160，步末序列 1865）。",
+      "把 accepted 当「已判分的题数」是错的：第三个值才是判分那一列，而且只在部分数据源上上报。",
+      "两侧 run 的 target 之和相同（1568），所以「pro 的某个源 target 比 flash 大」不代表 pro 规模更大，只代表配额分配不同。"
+    ],
+    "related": [
+      "dynsam/num_target",
+      "dynsam/<cat>/dataset-<id>/num_accepted/step"
+    ],
+    "sources": [
+      {
+        "ref": "self-mimo-rl-ds-identities",
+        "stance": "support",
+        "note": "Σaccepted 与 Σtarget 两个恒等式在全部留档上全部成立，是这一列读法的数据依据。"
+      },
+      {
+        "ref": "mimo-v2-flash-data-scheduler",
+        "stance": "support",
+        "note": "公开材料确认了「每个数据源有 sample quota、按通过率和比例受理」，与本列的一行一配额一致。"
+      },
+      {
+        "ref": "dapo-dynsam",
+        "stance": "context",
+        "note": "DAPO 讲的是过采样再过滤的机制；这里只能看到受理量超过配额这个结果，看不到过滤阈值。"
+      },
+      {
+        "ref": "mimo-7b-sample-waste",
+        "stance": "context",
+        "note": "多采出来的有效样本占 batch 的比例，是这个面板「受理量超过目标」的量化口径。"
+      },
+      {
+        "ref": "mimo-rl-notices-easy-filter",
+        "stance": "support",
+        "note": "站点公告直接说了「过滤掉对当前模型偏简单的题」，这是受理量会超过配额、需要继续补采的直接原因。"
+      },
+      {
+        "ref": "mimo-rl-thirdparty-note",
+        "stance": "context",
+        "note": "第三方学习笔记把这套行为读成「先超量接受、再按组配比裁剪」；这是外部解读，不是官方说明，本站只把它当旁证。"
+      }
+    ]
+  },
+  {
+    "id": "table/sampler/remaining",
+    "name": "采样器表格 · remaining 列（配额缺口）",
+    "group": "采样器表格",
+    "unit": "题数",
+    "what": "页面现算的一列：remaining = max(0, target − accepted)。它不是接口字段，接口只给 accepted 和 target。",
+    "how": "出处是原站 app.js 里的 Math.max(0, r.tgt - r.acc)，遥测层没有改这段。因为是取 max(0, …)，受理量只要达到或超过配额，这一列就恒为 0，超得再多也不会是负数。",
+    "why": "用来一眼看出这一步还有哪些数据源没供满。它是配额缺口，不是工作量。",
+    "read": [
+      "0 有两种含义：刚好供满、或者已经超额；只有严格大于 0 才是真的没供满。",
+      "某一行长期大于 0，说明这个源的题目不够或太难，动态采样一直在等它。",
+      "不要把它和面板顶部的 remain / remain_partial 混起来：后者是全体数据源在途工作的两个桶（见 in flight 一列），口径完全不同。"
+    ],
+    "observed": "最新 pro 留档 24 行全部达到或超过配额，>0 的行为 0；而在刚重启的那几份留档里大面积大于 0，最低的 accept/target 只有 0.031。也就是说这一列的「有没有值」基本等价于「这一步采样到什么阶段」。",
+    "traps": [
+      "名字和面板顶部的 remain 撞车，但两者不是一个东西：一个算配额缺口，一个是待处理工作量。",
+      "这一列是页面算的，站点改渲染代码它就会变；接口字段只有 accepted 和 target。"
+    ],
+    "related": [
+      "dynsam/num_target"
+    ],
+    "sources": [
+      {
+        "ref": "self-mimo-rl-ds-tuple",
+        "stance": "support",
+        "note": "原站代码里这一列就是 max(0, target − accepted)，是页面派生列而不是接口字段。"
+      }
+    ]
+  },
+  {
+    "id": "table/sampler/judged",
+    "name": "采样器表格 · judged 列（站点标为逐数据源判分数）",
+    "group": "采样器表格",
+    "unit": "题数",
+    "what": "这一列的列名 judged 出自原站自己的渲染代码。它的含义可以被一条恒等式钉死：面板顶部的 judged 恰好等于「上报这一列的 8 个数据源之和 + 其余数据源的 accepted 之和」，在全部 29 份留档上一条不差。也就是说，对不上报这一列的数据源，面板是把 accepted 直接记成已判分的。",
+    "how": "用 sampler_report.ts 核验：Σc(上报源) + Σaccepted(未上报源) == 面板 judged（29/29）；等价地 accept − judged == Σ(accepted − c)，缺口只来自那 8 个上报源。另外 144 + 88 = 232 个非空值全部满足 c ≤ accepted，一步之内 c 随 accepted 单调增长。除此之外，站点没有为这个计数器写任何说明。",
+    "why": "这一列说明判分这一步走到哪了。公开材料里的 Seamless Rollout Engine 是「判完奖励 → 更新有效样本数和通过率统计 → 再按需补开 rollout」；判分跟不上，这一步就开不了训。",
+    "read": [
+      "上报这一列的只有 8 个 code 数据源（bvg7 / v7yx / dnpn / ta4j / sin0 / obg8 / zg6q / x7wh），两个 run 完全相同；其余 17 个数据源一直是空。",
+      "空值不是 0，也不代表没判分：面板在合计里把空值源的 accepted 整个记成已判分。",
+      "各行相加不等于合计行：合计行 = 上报源的 c + 未上报源的 accepted。拿行求和去对合计一定会少。",
+      "把 c 和 accepted 一起看：c 涨得比 accepted 慢，说明这一步的判分在追采样。"
+    ],
+    "observed": "pro 第 15 步的 9 份留档里，上报源的 Σc/Σaccepted 从 0.879 升到 0.965，同期面板整体 judged/accept 从 0.943 升到 0.981。最新 pro 留档：accept 1840、judged 1766，其中 8 个上报源 Σc = 870、其余源 Σaccepted = 896，870 + 896 = 1766，缺口 74 全部来自上报源上尚未判分的那部分。",
+    "traps": [
+      "最容易读错的一处：合计行的 judged 不是这一列的行和，两者差多少取决于未上报源占了多少。",
+      "空值不是 0，别拿空值参与求和或求平均。",
+      "列名是站点起的，恒等式是本站复算的；这个计数器的单位（题还是序列）没有公开说明，别往外推。"
+    ],
+    "related": [],
+    "table": {
+      "caption": "全部留档里出现过 judged 的 8 个数据源（两个 run 相同）",
+      "head": ["数据源", "是否上报", "c ≤ accepted"],
+      "rows": [
+        ["code/dataset-bvg7", "是", "全部成立"],
+        ["code/dataset-dnpn", "是", "全部成立"],
+        ["code/dataset-obg8", "是", "全部成立"],
+        ["code/dataset-sin0", "是", "全部成立"],
+        ["code/dataset-ta4j", "是", "全部成立"],
+        ["code/dataset-v7yx", "是", "全部成立"],
+        ["code/dataset-x7wh", "是", "全部成立"],
+        ["code/dataset-zg6q", "是", "全部成立"],
+        ["其余 17 个数据源", "从未上报", "—"]
+      ]
+    },
+    "sources": [
+      {
+        "ref": "self-mimo-rl-ds-identities",
+        "stance": "support",
+        "note": "覆盖固定、恒不超过 accepted、步内单调，这三条是本站逐条核验出来的。"
+      },
+      {
+        "ref": "self-mimo-rl-coverage-source",
+        "stance": "challenge",
+        "note": "公开材料只写到机制，没有给这个计数器的定义；所以这里只写结构，不写它「应该」怎么解释。"
+      },
+      {
+        "ref": "mimo-7b-continuous-rollout",
+        "stance": "context",
+        "note": "判完奖励后更新有效样本数与通过率统计，是这一列所处流程的公开描述。"
+      },
+      {
+        "ref": "mimo-rl-thirdparty-note",
+        "stance": "context",
+        "note": "第三方学习笔记把 judged 读成采样轨迹的一个状态；这是外部解读，不是官方说明。"
+      },
+      {
+        "ref": "mimo-rl-notices-grader",
+        "stance": "support",
+        "note": "站点公告承认存在一个独立的判分服务，与「这一列是判分进度」的读法一致；但它仍然没有定义这个计数器本身。"
+      },
+      {
+        "ref": "self-mimo-rl-github-search",
+        "stance": "challenge",
+        "note": "GitHub 上的第三方镜像里，rl-observatory 把 judged 当一等字段读出来（和我们的列映射一致），而 mission-control 把这一列（四元组第三位）当成 in flight 渲染，是个需要避开的反例。"
+      }
+    ]
+  },
+  {
+    "id": "table/sampler/inflight",
+    "name": "采样器表格 · in flight 列（在途量）",
+    "group": "采样器表格",
+    "unit": "题数",
+    "what": "列名 in flight 同样出自原站渲染代码，按数据源上报。本站能验证的最强关系是：这一列的分源合计恒等于面板顶部的 remain + remain_partial。",
+    "how": "逐条核验全部留档（截至 2026-09-20 共 29 份）：Σ(in flight) 与面板 remain + remain_partial 的最大差是 2（同步取整级别）。面板 feed 里把待处理工作写成「remaining X +Y partial +Z rewarding」，这一列对应的是前两个桶之和。",
+    "why": "动态采样不是等所有 rollout 做完再判分，而是边判边补；凑够 batch 之后按先进先出终止在途任务。所以在途量是「这一步还要等多久」的直接读数。",
+    "read": [
+      "先看合计在步内的形状：正常是随采样推进先涨后落、步末收干。",
+      "合计长时间不降，说明有长尾任务没回来，通常对应这一步耗时变长。",
+      "它与 accepted 不是互补关系：两者相加没有意义，别拿 target 去减。",
+      "这一列不含 partial rollout 跨步带走的那部分，别把跨步长尾算到本步。"
+    ],
+    "observed": "pro 第 15 步的 9 份留档里 Σ(in flight) = 1066 → 1203 → 1474 → 1530 → 1545 → 1537 → 1326 → 861 → 720，先涨后落；flash 第 20 步的 4 份留档是 2956 → 2073 → 1162 → 640，一路收干。最新 pro 留档 Σ = 1594，同一时刻 remain + remain_partial = 1593。",
+    "traps": [
+      "不要把它等同于面板上单列的 remain：它是 remain + remain_partial 两个桶之和。",
+      "同一列在不同快照之间变化很大，两个相邻快照的差不能直接当趋势。",
+      "计数单位（题还是序列）没有公开说明；这里只给出合计关系与步内形状。"
+    ],
+    "related": [],
+    "sources": [
+      {
+        "ref": "self-mimo-rl-ds-identities",
+        "stance": "support",
+        "note": "Σ(in flight) = remain + remain_partial 在全部留档上最大差 2。"
+      },
+      {
+        "ref": "mimo-7b-early-termination",
+        "stance": "support",
+        "note": "凑够 batch 后按先进先出终止在途任务，解释了这一列在步末收干的行为。"
+      },
+      {
+        "ref": "mimo-7b-continuous-rollout",
+        "stance": "context",
+        "note": "判分与采样重叠进行，所以在途量是一个过程中间量，而不是队列长度。"
+      },
+      {
+        "ref": "self-mimo-rl-coverage-source",
+        "stance": "challenge",
+        "note": "公开材料没有给出这一列的定义，本站只验证了合计关系。"
+      },
+      {
+        "ref": "mimo-rl-qbitai-async",
+        "stance": "context",
+        "note": "公开报道描述了「执行中 / 待判分 / 算奖励 / 新任务进入」并存的异步流水线，是在途量存在的机制背景。"
+      },
+      {
+        "ref": "mimo-rl-thirdparty-note",
+        "stance": "context",
+        "note": "第三方学习笔记把这列读成「样本还在沙箱里跑着」；这是外部解读，不是官方说明。"
+      }
+    ]
+  },
+  {
+    "id": "table/comp/trained",
+    "name": "批组成表 · 按类目拆的训练题数",
+    "group": "采样器表格",
+    "unit": "题数 / 占比",
+    "what": "dynamic sampler 下面 batch composition 的第一张表：每个类目一行，prompts 是这一步真正训进去的题数，share 是占比，Δ share 是与上一步占比之差（单位 pt）。",
+    "how": "表里的数不是接口直接给的，是页面用采样器计数推的：对每个数据源算 held(上一步) + accepted(本步) − held(本步)，再加总到类目；如果这个和与训练 batch 大小差得超过 5%，就判定这一步紧接着重启、池子计数是消费前上报的，退回「结转量 + 按受理量比例分摊新受理」的估算，并在表头标一个 ≈。实现见原站 app.js 的 renderTrainedComposition。",
+    "why": "训练 batch 的类目配比决定这一步在练什么能力；配比是数据配方改出来的，不是模型自己选的，所以它变了要先去看配方和公告。",
+    "read": [
+      "表头出现 ≈ 的那一步是估算值，不是实测，别拿它和别的步严格比。",
+      "prompts 一列之和应当等于这一步的训练 batch（1568），对不上说明这一步命中了估算分支。",
+      "Δ share 看的是占比变化（pt），不是题数变化；总题数没变时占比也会动。",
+      "sources 一列是该类目下的数据源个数，不是题数。"
+    ],
+    "observed": "pro 第 27 步：code 1061 题（67.7%，11 个来源）、visual 270 题（17.2%，6 个来源）、general 190 题（12.1%，4 个来源）、chat 47 题（3.0%，3 个来源）、cyber 0 题（pro 已移除该数据集），合计 1568。",
+    "traps": [
+      "重启后的那一步是估算，不是实测；表头没有 ≈ 才能当精确值用。",
+      "这张表只渲染最新一步，没有历史；要看历史占比得去 #metrics 看 dynsam/<数据源>/num_accepted 那组序列。",
+      "cyber 在 pro 上是 0 行、flash 上不是，跨 run 比类目占比时先确认行集合一致。"
+    ],
+    "related": [
+      "dynsam/<cat>/dataset-<id>/num_accepted/step"
+    ],
+    "sources": [
+      {
+        "ref": "self-mimo-rl-ds-tuple",
+        "stance": "support",
+        "note": "推导公式与重启兜底都写死在原站 app.js（renderTrainedComposition）里，遥测层没改。"
+      }
+    ]
+  },
+  {
+    "id": "table/comp/metric",
+    "name": "批组成表 · 按 harness 拆的 rollout 数",
+    "group": "采样器表格",
+    "unit": "rollouts / 占比",
+    "what": "batch composition 的第二张预设表：按 train/harness/<harness>/training/rollouts 拆每个 agent harness 贡献了多少 rollout，share 与 Δ share 同前。切换「by」下拉里的选项会换成别的组成口径，但表格结构一样。",
+    "how": "直接取该前缀下的序列、取最后一步的值并按大小排序；来源超过 8 个时只画前 7 个，其余合并成一行 other。实现见原站 app.js 的 renderMetricComposition。",
+    "why": "harness 配比决定这一步在哪些 agent 形态上练；某个 harness 突然增多或消失，通常对应训练配置或环境可用性的变化。",
+    "read": [
+      "other 行是多个来源合并的，不是一个真实来源，别把它当单独一类读。",
+      "单位是 rollouts 不是 prompts：一条题可以产生多条 rollout，所以这张表的合计不等于 1568。",
+      "share 只在当前这一步内可比；跨步比要看 Δ share 或去 #metrics 看序列。"
+    ],
+    "observed": "pro 第 27 步共 22 个 harness、合计 21593 条 rollout：harness-C 3597（16.7%）、harness-A 3480（16.1%）、harness-B 3418（15.8%）、harness-D 3389（15.7%）居前，harness-H 2454（11.4%），其余 17 个都在 5% 以下（最小 harness-P 96，0.4%）。",
+    "traps": [
+      "合计是 rollout 条数，不是题数，和 batch 大小 1568 没有直接等式关系。",
+      "表格只列前 7 个来源，剩下的被并进 other，所以看不到长尾 harness 的单独数值。"
+    ],
+    "related": [
+      "train/harness/<harness>/training/rollouts"
+    ],
+    "sources": [
+      {
+        "ref": "self-mimo-rl-ds-tuple",
+        "stance": "support",
+        "note": "排序、截断与 other 合并规则都来自原站 renderMetricComposition。"
+      }
+    ]
+  }
+]

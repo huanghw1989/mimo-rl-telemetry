@@ -1,0 +1,30 @@
+{
+  "note": "原站 notices 的中文翻译。key 是公告 id；en 是写这条翻译时的英文原文，用来检测原文是否被改过（对不上时页面会标出来，但仍按 id 用这份译文）。新增公告如果这里没有，页面回落到英文并标「未翻译」。这份文件由 codes/scripts/mimo_rl_telemetry/translate.ts 自动补全新公告；人工改过的译文不会被覆盖，除非原文变了。",
+  "updated_at": "2026-09-20T02:28:44Z",
+  "items": {
+    "n-6b9c4a": {
+      "en": "we filtered out tasks that are relatively easy for the current pro model.",
+      "zh": "我们过滤掉了对当前 pro 模型来说相对简单的任务。"
+    },
+    "n-4e29eb": {
+      "en": "the pro run restarted at step 17 due to a GPU OOM issue caused by expert load imbalance. we have adjusted the training parallelism strategy.",
+      "zh": "pro 这一轮在第 17 步重启：专家（expert）负载不均衡导致显存溢出（GPU OOM）。我们已经调整了训练的并行策略。"
+    },
+    "n-15ac72": {
+      "en": "there was a network connectivity issue between the pro training cluster and the grader deployment. we have restarted the run. we also removed the cyber dataset from the upcoming pro run, since we observed some bad patterns in the rollout logs.",
+      "zh": "pro 的训练集群和判分（grader）服务之间出现网络连通性故障，我们已经重启了这一轮。同时把 cyber 数据集从后续 pro 的批次里去掉了——在 rollout 日志里观察到了一些异常模式。"
+    },
+    "n-b60f90": {
+      "en": "we restarted the flash run from step 15. reason: a type of infra error on one of datasets was not correctly detected over the past ~3 hours.",
+      "zh": "flash 从第 15 步重启。原因：某个数据集上的一类基础设施报错，在过去约 3 小时里没有被正确识别出来。"
+    },
+    "n-92030c": {
+      "en": "the mimo-v2.6-pro run is restarting due to a vram issue on one node.",
+      "zh": "mimo-v2.6-pro 这一轮正在重启：某个节点出现显存（VRAM）问题。"
+    },
+    "n-5ef2b1": {
+      "en": "we have updated the latest deepswe results for flash step 12 & pro step 8. we will keep posting as the offline evaluation results come out.",
+      "zh": "我们更新了最新的 DeepSWE 成绩：flash 第 12 步、pro 第 8 步。后续离线评测结果出来会继续更新。"
+    }
+  }
+}

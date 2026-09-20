@@ -1,0 +1,722 @@
+[
+  {
+    "id": "timing_s/step",
+    "name": "单步墙钟耗时（timing_s/step）",
+    "group": "系统、性能与成本",
+    "unit": "秒（墙钟）",
+    "what": "训练流水线走完一个 step 实际花掉多久，也就是看板上「每步多长」的那条线。官方口径是 wall-clock of the whole step，但从数据看它只覆盖这一步自己的执行时间，进程崩溃后的重启等待、重新排队、重新加载权重都不计进去。所以它是「有效工作时间」，不是「日历时间」。",
+    "how": "官方说明只有一句 wall-clock of the whole step。把 series 里每步的值和 events.json 里相邻两次 step 完成时间戳的间隔对减，就能看出实际口径：没有重启的步两者几乎相等（差 2 分钟以内），重启过的步会差出好几小时。status.json 里当前步的 since 和 expected 就是同一套计时。",
+    "why": "它是判断训练「一天能推几步」的唯一依据，也是算钱的乘数（成本 = 单步秒数 × $5.71 或 $2.855）。工程上盯它主要看两件事：一是单步时间有没有随训练推进持续变长（上下文变长、训练侧变重都会往上顶），二是有没有突然跳起来的尖峰。但它只统计进程活着的时间，所以单看这条线无法回答「这个 run 到底跑了多久」，必须配上 events.json 里的 restart 事件一起看。",
+    "read": [
+      "看长期趋势而不是单点：pro 从 6850.61s（第 4 步）爬到 12881.6s（第 15 步），flash 从 4898.82s（第 2 步）爬到 10866.8s（第 25 步），两边都在往上走，这是上下文变长的必然结果，不是异常。",
+      "看尖峰归因：单步突然翻倍时先去 events.json 找同期有没有 restart。pro 第 15 步 12881.6s 和第 17 步 12807.7s 是全程最高的两格，两次都在重启之后。",
+      "把这条线和 events.json 的 restart 对减，差额才是真正的停机时间；不看 restart 就会以为训练一直在满负荷跑。",
+      "跨 run 比快慢没有意义：pro 每步均值 9177s、flash 7613s，但模型规模和并行策略不同，pro 还多挨了 5 次重启。"
+    ],
+    "observed": "pro 19 步，单步 6850.61s（1.90h，第 4 步）到 12881.6s（3.58h，第 15 步），均值 9177s（2.55h），首步 9569.79s、末步 11831.2s。flash 25 步，单步 4898.82s（1.36h，第 2 步）到 10866.8s（3.02h，第 25 步），均值 7613s（2.11h），首步 6482.77s、末步 10866.8s。求和得 pro 174356.6s＝48.43h、flash 190330.7s＝52.87h，但墙钟并不是这么长：pro 起始 2026-09-15T10:32:19Z、当前 2026-09-18T10:42:53Z，墙钟 72.18h；flash 起始 2026-09-15T15:16:29Z、当前 2026-09-18T10:42:54Z，墙钟 67.44h。也就是说 pro 有 23.74h（占墙钟 32.9%）完全没有记进这一步，按 $5.71/s 折合约 $488,074；flash 有 14.57h（占 21.6%），按 $2.855/s 折合约 $149,757。我把缺口逐步定位过一遍：pro 的缺口全部落在第 1 步 4.16h、第 2 步 1.83h、第 3 步 3.06h、第 11 步 2.97h、第 15 步 4.73h、第 17 步 5.88h，其余 13 步的差值都在 2 分钟以内，正好对应 9 次 restart 事件；flash 的缺口落在第 1 步 0.04h、第 3 步 1.94h、第 25 步 4.49h，对应 4 次 restart。pro 最大一笔是第 17 步的 5.88h（约 $120,897），夹在 2026-09-17T20:20Z 那次重启和该步完成之间，公告写的原因是 GPU OOM（expert load imbalance）；flash 最大一笔是第 25 步的 4.49h（约 $46,196），对应 2026-09-18 的两次连续重启。补充一处：flash 第 18 步从上次完成到本次完成隔了 9.21h，而上报只有 2.48h，差额 6.73h 比第 25 步那笔还大，但那段时间里同时包含 1 次重启和第 16、17 步的重跑，不能算成单纯的重启等待，所以单论重启等待仍是第 25 步最大。",
+    "traps": [
+      "拿它估训练周期或总花费会明显低估：pro 少报 32.9% 的墙钟，flash 少报 21.6%。这是这条线最容易犯的错。",
+      "重启之后那一步的 timing_s/step 看起来完全正常（pro 第 2、3、11、15、17 步分别是 7225.21s、8494.54s、9422.84s、12881.6s、12807.7s），因为等待被算进了上一步的区间，光看这条线看不出刚重启过。",
+      "官方说得含糊（the whole step），不要默认它是日历时间；它是进程内计时。",
+      "flash 第 16、17 步在 events.json 里出现两次且 redo=true，series 存的是重跑后的值，和第一次完成的时间戳对不上，逐步对账时这两格会出现负的缺口。"
+    ],
+    "related": [
+      "timing_s/outer_gen",
+      "timing_s/trainer_ops",
+      "perf/total_num_tokens",
+      "env/active"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-tr-compute",
+        "stance": "context",
+        "note": "既然后训练以缩放 RL 算力为目标，单步墙钟就是这条缩放曲线的直接读数，支持我们把 timing_s/step 当「一天能推几步」的唯一依据。"
+      },
+      {
+        "ref": "mimo-rl-notices-restart",
+        "stance": "support",
+        "note": "公告确认这轮训练经历了多次 restart，支持我们把 timing_s/step 读成「进程内的有效工作时间」、并提醒用 events.json 的重启事件补齐停机时间（pro 少报 32.9% 墙钟那类缺口）。"
+      },
+      {
+        "ref": "hybridflow",
+        "stance": "context",
+        "note": "该框架说明「一个 step」在工程上就是走完 generation + training 的一条数据流，为我们把 step 墙钟拆成 outer_gen + trainer_ops（外加上去的 2%~3% 零头）提供了系统层面的依据。"
+      },
+      {
+        "ref": "self-time-accounting",
+        "stance": "challenge",
+        "note": "这个字段不是墙钟：重启、排队、环境搭建等待都不在内。直接把 Σtiming_s/step 当训练总时长会低估三成，pro 的缺口比 flash 大（32.9% vs 21.6%）正是因为 pro 重启更多。"
+      }
+    ]
+  },
+  {
+    "id": "timing_s/outer_gen",
+    "name": "生成（rollout）阶段耗时（timing_s/outer_gen）",
+    "group": "系统、性能与成本",
+    "unit": "秒（墙钟）",
+    "what": "一个 step 里花在 rollout 生成上的墙钟时间，也就是让策略模型（含各种 agent harness）把 1568 个 prompt 各采样 16 条轨迹的这段时间。它是 step 时间里最大的两块之一，和 trainer_ops 加起来占了 97% 以上。",
+    "how": "官方说明是 wall-clock of rollout generation，看板没有说它是否包含评测、打分和沙箱调度。实测它满足 outer_gen + trainer_ops ≤ timing_s/step（44 个 step 无一例外）。status.json 里的 gen_frac 就是 outer_gen 除以 timing_s/step：pro 第 19 步 4266.6/11831.2 = 0.3606、flash 第 25 步 6487.44/10866.8 = 0.5970，和看板给出的 0.360623、0.596996 完全一致，可以拿它当口径校验。",
+    "why": "这条线决定「生成是不是瓶颈」。生成占比高说明吞吐卡在推理侧，该动的地方是推理并发、沙箱供给、序列长度上限；生成占比低而训练占比高说明卡在训练侧，该动的是并行策略和 batch 组织。它也是加机器的直接依据：生成的墙钟基本随并发和单条轨迹的 token 数走。",
+    "read": [
+      "看占比而不是绝对值：pro 占 step 的 52.8%（36.1%~69.1%），flash 占 49.7%（40.6%~68.5%），两边大体是「生成一半、训练一半」。",
+      "看占比的走向：两边第 1 步生成都占约 68%，到后面一路降到 pro 的 36.1%（第 19 步）和 flash 的 59.7%（第 25 步），说明训练侧随上下文变长越来越吃时间。",
+      "它和 ctx_response_length/mean 不成正比（pro 相关系数只有 0.074、flash 0.309），说明生成墙钟还受并发调度和长尾轨迹影响，不能只按平均长度推算。",
+      "重启后第一步的生成耗时会偏高（pro 第 1 步 6513.95s、第 15 步 8900.15s），因为那一步混着环境重新预热。"
+    ],
+    "observed": "pro 单步 3132.2s（0.87h，第 6 步）到 8900.15s（2.47h，第 15 步），均值 4854s，19 步合计 25.62h，占 Σtiming_s/step 的 52.9%。flash 单步 2442.04s（0.68h，第 5 步）到 6916.98s（1.92h，第 16 步），均值 3811s，25 步合计 26.47h，占 50.1%。有意思的是 flash 跑了 25 步而 pro 只跑了 19 步，生成的绝对总时长却差不多（26.47h vs 25.62h），说明 flash 单步生成比 pro 快（均值 3811s vs 4854s），尽管 flash 的上下文更长。",
+    "traps": [
+      "它是墙钟不是算力：并发开得大，同样的 token 数墙钟就能压短，所以不能拿它当「推理成本」的度量。",
+      "不能把 outer_gen 和 trainer_ops 相加当 step 时间，两者之间有 2% 左右的空隙（pro 平均 197s、flash 平均 219s）。",
+      "序列被长度截断会让生成提前结束，outer_gen 反而好看，这时候要去看 ctx_total_length/clip_ratio，别以为生成效率提高了。"
+    ],
+    "related": [
+      "timing_s/step",
+      "timing_s/trainer_ops",
+      "ctx_response_length/mean",
+      "env/active"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-tr",
+        "stance": "support",
+        "note": "官方报告（§2.3.1 Accelerating RL Training）明说 rollout 阶段是 RL 训练的主导瓶颈、成本来自推理与解码，支持我们把 outer_gen 当 step 时间里最该先动的一块，而不是把它当成算力度量。"
+      },
+      {
+        "ref": "mimo-v2-flash-readme-sched",
+        "stance": "support",
+        "note": "官方明说生成阶段会因 long-tail stragglers 出现 GPU 空转，并用细粒度调度 + partial rollout 去治。这支持我们把 outer_gen 读成「被长尾和并发调度主导」的墙钟，而不是按平均生成长度就能推算的量。"
+      },
+      {
+        "ref": "mimo-v2-flash-readme-mtp",
+        "stance": "context",
+        "note": "官方为了 RL rollout 专门上 MTP 把生成速度提到 3 倍，说明 outer_gen 是可被工程手段压缩的墙钟（并发/解码优化），支持我们那句「它是墙钟不是算力，不能当推理成本」的读法。"
+      },
+      {
+        "ref": "dapo-longtail-generation",
+        "stance": "support",
+        "note": "公开系统论文直接给出机制：同步且不做流水线时，生成长度墙钟由长尾样本主导。这支持我们「响应长度与生成墙钟相关系数只有 0.074/0.309，光看平均长度推不出时间」的读法，并解释了 outer_gen 为什么随长尾而不是随均值波动。"
+      },
+      {
+        "ref": "hybridflow",
+        "stance": "context",
+        "note": "HybridFlow/verl 把 RL 数据流显式切成 generation 与 training 两个阶段（并为两者之间的 actor 重分片设计了 3D-HybridEngine），支持我们把 outer_gen 与 trainer_ops 当作这套系统的两个主要时间块来分别读。"
+      }
+    ]
+  },
+  {
+    "id": "timing_s/trainer_ops",
+    "name": "训练器耗时（timing_s/trainer_ops）",
+    "group": "系统、性能与成本",
+    "unit": "秒（墙钟）",
+    "what": "一个 step 里花在 trainer 上的墙钟时间，也就是把这一步采到的轨迹喂进去做前向、反向和参数更新的那一段。它是 step 时间的另一大块，和生成加起来占 97% 以上。",
+    "how": "官方说明是 wall-clock of the trainer，没有细分前向、反向、通信、优化器各占多少。它是 timing_s/step 减去 outer_gen 之后的主要部分（剩余约 2% 是别的东西）。status.json 里 phase 会在这条线上的 training 和 rollout 之间切换，可以用来判断当前正处在哪一段。",
+    "why": "它是「训练吞吐」的直接读数。上下文变长、batch 里 token 变多、并行策略换掉（比如 pro 因为 expert load imbalance 调过训练并行）都会直接反映在这条线上。它持续爬升说明每步要算的 token 越来越多，optimizer 环节成了新的瓶颈；它突然掉下来则要先怀疑是不是数据被截断或者 batch 变小了。",
+    "read": [
+      "和 perf/total_num_tokens 对照看：flash 两者相关系数 0.983，几乎完全同步，说明 flash 的训练时间就是被 token 数决定的；pro 只有 0.725，说明 pro 的训练时间还受并行策略等别的因素影响，第 15~19 步的抬升尤其明显。",
+      "看长期爬升速度：pro 从第 1 步 2889.26s 涨到第 19 步 7332.5s（+154%），flash 从 1884.41s 涨到 4118.92s（+119%），两边都在翻倍级别地变重。",
+      "算 gen/train 比值判断瓶颈迁移：pro 从第 1 步的 2.25 降到第 19 步的 0.58，flash 从 2.36 降到 1.58，训练侧正在变成主要耗时。"
+    ],
+    "observed": "pro 单步 2889.26s（0.80h，第 1 步）到 7332.5s（2.04h，第 19 步），均值 4125s，19 步合计 21.77h，占 Σtiming_s/step 的 45.0%（单步占比 29.3%~62.0%）。flash 单步 1884.41s 到 4954.26s（第 20 步），均值 3583s，25 步合计 24.88h，占 47.1%（单步占比 29.1%~56.4%）。全程复核 outer_gen + trainer_ops ≤ timing_s/step，44 个 step 全部成立，外加上去的占比均值 pro 97.8%、flash 97.1%，剩下的 2%~3%（pro 平均 197s、flash 平均 219s）看板没有标注是什么，量级上像是数据准备、权重同步、评测一类没有单列的零头。",
+    "traps": [
+      "它和 outer_gen 不是互斥的切分：两者相加不等于 step 时间，差 2% 左右，别拿它反推生成耗时。",
+      "它变大不等于「训练变慢了」：这一轮里训练时间变长主要是上下文变长、每步 token 变多，属于预期内的负载增长。",
+      "看板上没有说明它是否包含 optimizer 之外的通信/检查点开销，所以不要拿它去算训练的 FLOPs 利用率。"
+    ],
+    "related": [
+      "timing_s/step",
+      "timing_s/outer_gen",
+      "perf/total_num_tokens",
+      "training/actor_optimizer_steps"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-tr",
+        "stance": "context",
+        "note": "同一段把 RL 训练明确切成 rollout 与 training 两个阶段，支持我们把 outer_gen 与 trainer_ops 当作「生成一半、训练一半」的两块来读，而不是互相换算。"
+      },
+      {
+        "ref": "hybridflow",
+        "stance": "context",
+        "note": "同上：训练阶段在公开系统里是一个可被单独度量的阶段，支持我们把 trainer_ops 当训练吞吐的直接读数（该论文报告的 1.53x~20.57x 吞吐提升也是在这两阶段之间做文章）。"
+      },
+      {
+        "ref": "verl-perf-tuning",
+        "stance": "support",
+        "note": "官方文档明说长序列训练必须压低单卡 batch/token 上限以避免 OOM，也就是说上下文越长、训练侧越吃时间与显存；支持我们把 trainer_ops 的持续爬升归因于每步 token 变多，而不是训练变慢。"
+      },
+      {
+        "ref": "self-time-accounting",
+        "stance": "challenge",
+        "note": "同理，训练器耗时占比（pro 一度到 62%）是用「已上报的步」做分母算的。分母本身漏了重启等待，占比会被系统性放大，不要拿它和生成占比做严格的工时对比。"
+      }
+    ]
+  },
+  {
+    "id": "perf/total_num_tokens",
+    "name": "本步训练 token 数（perf/total_num_tokens）",
+    "group": "系统、性能与成本",
+    "unit": "token 数",
+    "what": "这一步真正参与训练的 token 总量，等于这一步采到的所有轨迹的上下文长度之和。它决定了 trainer 要算多少前向反向，因此也基本决定了这一步的训练耗时和算力账单。",
+    "how": "官方说明是 tokens trained on this step。看板没有说它是否包含被截断的部分，也没有给明细公式；但 timeline.jsonl 给了 prompts_per_step = 1568 和 trained_step = 25088（两个 run 全程不变），25088 = 1568 × 16，也就是每步 1568 个 prompt 各采样 16 条轨迹。用它乘 ctx_total_length/mean 就能复现这个数。",
+    "why": "它是成本模型里的那个「量」。token 数涨，训练时间涨、算力账单涨，这就是长上下文最直接的代价。同时它也是校验别的指标的尺子：如果它没涨而训练时间大涨，问题就在系统侧不在负载侧；如果它涨了而奖励没涨，那多出来的 token 是白烧的。",
+    "read": [
+      "看它和 ctx_total_length/mean 是否同步，两者几乎是一回事（batch 里的轨迹条数被固定成 25088），不同步说明截断或数据源变化在起作用。",
+      "看增长斜率：pro 从 1.80B 到 2.52B、flash 从 1.79B 到 3.22B，都是接近翻倍，这是训练耗时上升的主因。",
+      "低于预期时要看 ctx_total_length/clip_ratio，被截断的轨迹会少贡献 token。"
+    ],
+    "observed": "pro 19 步范围 1.73064B（第 2 步）~2.64995B（第 14 步），均值 2.220B，首步 1.80052B、末步 2.52233B。flash 25 步范围 1.78967B（第 1 步）~3.21691B（第 20 步），均值 2.594B，末步 2.95026B；flash 每步均值比 pro 高 16.8%，和两个 run 的上下文长度差（17.2%）几乎一样。公式复核：预测值 = 1568 × 16 × ctx_total_length/mean，pro 19 步的偏差在 -0.18% ~ -1.19%（平均绝对偏差 0.46%），flash 在 -0.29% ~ -2.69%（平均 0.76%，偏差最大的三格正好是第 16、17、18 步）。预测值系统地略高于实际值 0.5%~0.8%，方向一致；看板没有说明这点差距来自哪里。",
+    "traps": [
+      "它不等于「生成了多少 token」：生成的总量还得算上没被采用的轨迹和被重试的轨迹，这条线只是进训练的那部分。",
+      "别把它当成吞吐指标：token 多不代表训练好，它更多是被上下文长度推着走的。",
+      "flash 第 16~18 步的公式偏差明显大于其他步（-2.01% ~ -2.69%），这三步正好覆盖 redo 区间，逐格对账时要单独看。"
+    ],
+    "related": [
+      "ctx_total_length/mean",
+      "timing_s/trainer_ops",
+      "timing_s/step",
+      "ctx_total_length/clip_ratio"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-tr-compute",
+        "stance": "context",
+        "note": "官方把「efficiently scaling RL compute」写成后训练的核心目标，说明 perf/total_num_tokens 这类算力量在 MiMo 体系里是被主动做预算与缩放的对象，支持我们把它当成本模型里那个「量」来读。"
+      },
+      {
+        "ref": "mimo-vl-tr",
+        "stance": "context",
+        "note": "官方 MiMo 系列报告都用「万亿 token 级预训练 + 混合奖励 RL」这种算力叙述，说明 token 规模在 MiMo 的公开口径里就是要报的核心预算量，支持我们把 perf/total_num_tokens 当成本模型里的「量」。"
+      },
+      {
+        "ref": "self-per-token-throughput",
+        "stance": "support",
+        "note": "这个恒等式说明训练 token 数完全由「prompt 数 × 采样数 × 上下文长度」决定，没有额外的重复训练。上下文长度一变，token 数同比例变，两者不能互相当作独立证据。"
+      },
+      {
+        "ref": "self-cost-basis",
+        "stance": "support",
+        "note": "成本随墙钟走，而墙钟里有三成是重启等待。按 token 折算时，重启多的 run 会被显著抬高单价 —— pro 的 3.3 倍差距里有一部分不是算力效率差异，而是等待时间。"
+      }
+    ]
+  },
+  {
+    "id": "env/active",
+    "name": "在飞沙箱数（env/active）",
+    "group": "系统、性能与成本",
+    "unit": "个（沙箱）",
+    "what": "这一时刻处于活跃状态的隔离沙箱数量，粗略说就是「同时开着多少个执行环境在跑 rollout」。它是 rollout 并发度的水位线，不是累计值。",
+    "how": "官方说明是 sandbox environments in flight。我核对了 env/ 下的子 tag：env/active 正好等于 env/code/shared/active、env/code/dataset-m1dt/active、env/general/dataset-*/active、env/visual/dataset-*/active、env/cyber/dataset-9aui/active 这些子池的和，pro 的 19 步和 flash 的 25 步全部逐个对上（误差小于 1.5）。也就是说它是一个按数据集拆分的实时汇总值。",
+    "why": "并发水位是生成阶段能不能跑满的前提。数字掉下去意味着沙箱供给跟不上、或者单条轨迹跑得太久占着位子，生成会因此变慢；数字长期贴着某个天花板不动，说明并发已经开到上限，再想加快生成只能加机器或缩短轨迹。要和 env/total_error、env/total_setup 一起看：active 是水位，total_setup 是流量，total_error 是漏水。",
+    "read": [
+      "看平稳度：pro 除第 1 步的 31135 外，其余 18 步都在 22352~23848 之间，波动不到 7%；flash 全程 37257~39296，波动只有 5%。这种平稳说明调度器把并发控制在水位上，是健康形状。",
+      "看台阶式跳变：water level 突然整体抬升或整体下落，通常是数据集组成变了（比如 pro 从第 15 步移除 cyber）。",
+      "和 env/total_setup 一起算翻台次数，但要知道 total_setup 是**自上次重启以来的累计启动数**（每到重启的那一步就掉回与 active 同量级再往上加，pro 第 11/15/17/23 步、flash 第 16/25/28 步都能看到这个归零）。所以 pro 第 10 步 330720/23180 ≈ 14.3 的意思是「这一段里每个沙箱位子平均服务过约 14 条轨迹」，**不是「每步翻台 14 次」**；除以段内步数才是每步约 2 次。两个 run 的这个量级接近。",
+      "掉水位时先去 env/total_error 看是不是环境错误把沙箱打挂了。"
+    ],
+    "observed": "pro 19 步范围 22352~31135，均值 23486；第 1 步的 31135 是唯一一次超过 2.5 万，之后一直稳在 2.2 万~2.4 万，末步 23168。flash 25 步范围 37257~39296，均值 38069，全程平稳，末步 38368，比 pro 高约 62%。两个 run 里最大的一坨都是 env/code/shared/active，pro 占 env/active 的 74.4%（末步 81.8%），flash 占 69.6%（末步 74.5%）。pro 第 15 步起 cyber 子池不再上报，env/active 的求和里也就少了它，但整体水位没有明显掉，说明其余数据源补上了。",
+    "traps": [
+      "它是瞬时水位不是累计吞吐，别拿它当「这一步跑了多少沙箱」用，那是 env/total_setup。",
+      "pro 第 1 步的 31135 是个异常高点（当时刚经历连续两次重启），别拿它当基线。",
+      "pro 和 flash 的绝对水位不能直接比：两边数据集配比、并发上限、模型大小都不一样，flash 高 62% 不代表它在做更多有效工作。"
+    ],
+    "related": [
+      "env/total_setup",
+      "env/total_error",
+      "env/possible_leak",
+      "timing_s/outer_gen"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-readme-env",
+        "stance": "support",
+        "note": "官方给的并发量级是「1 万以上 concurrent pods」，说明 env/active 这类并发水位在真实 agentic RL 里就是万级规模的核心运维指标，支持我们把它读成「同时开着多少环境」的水位线而不是累计吞吐。"
+      },
+      {
+        "ref": "swebench",
+        "stance": "context",
+        "note": "论文强调这类任务必须让模型与执行环境交互，为「沙箱并发水位」这类系统指标为什么是这类训练的前提提供了背景。"
+      }
+    ]
+  },
+  {
+    "id": "env/total_error",
+    "name": "沙箱错误数（env/total_error）",
+    "group": "系统、性能与成本",
+    "unit": "个（错误次数）",
+    "what": "沙箱侧出错的次数。从数据形状看它统计的是「自进程上次重启以来」的累计错误数，不是单步增量：同一个进程生命周期里它会一格一格加上去，重启后归零。",
+    "how": "官方没有给这条的说明。判断口径的依据是它的复位点：pro 在第 1、2、3、11、15、17 步为 0，恰好是 9 次 restart 之后的各步；flash 在第 1、3、16、25 步为 0 或极小（第 16 步 14），也恰好对应 4 次 restart。同一段里的中间步则是单调递增的。",
+    "why": "沙箱错误直接等于样本损失：出错的那条轨迹要么被重试（烧双份算力），要么变成 infra error 被丢掉（污染 dynsam 的统计）。这条线持续高位说明环境不稳，训练数据的有效产出会打折。它对上能解释 dynsam/infra_error/seq_rate，对下能解释 env/active 掉水位。",
+    "read": [
+      "先按重启切段再看：不要看绝对值，要看「这一段内错误涨得多快」。pro 第 4~10 步从 52 涨到 158（7 步 +106），flash 第 17~24 步从 162 涨到 215。",
+      "换算成错误率：除以同一步的 env/total_setup 得百万分之几，pro 是 264~732 ppm，flash 是 200~1126 ppm，两边都在千分之一以下。",
+      "重启后归零不等于错误被修好了，只说明计数器重新开始，要看接下来几步的斜率有没有变化。",
+      "和第 15 步之后的 pro 对照：pro 移除 cyber 数据集之后，第 17~19 步的错误增量是 24、43。"
+    ],
+    "observed": "pro 19 步范围 0~158（第 10 步最高），末步 43；值为 0 的步是第 1、2、3、11、15、17 步，全部紧跟在 restart 之后，所以这是重启清零的累计量而不是单步错误数。flash 25 步范围 0~215（第 24 步最高），末步 0（第 25 步前刚重启两次）。换算成错误/setup 的比例，pro 是 264~732 ppm（第 16 步最高 731.5），flash 是 200~1126 ppm（第 17 步最高 1126）。pro 第 1、2、3 步都是 0，说明连续三次重启之后错误没有马上出现。",
+    "traps": [
+      "它是累计值不是单步值，别按「这一步错了 158 次」去读；实际是这段进程生命周期内的总数。",
+      "两条 run 的绝对值不能直接比，因为进程存活时长不同（pro 最多连续跑到 330720 次 setup 才重启，flash 到 538096）。",
+      "重启后归零会被误读成「错误消失了」，其实只是计数器重置。",
+      "看板没有给出这条的官方定义，以上口径是从复位点和单调性反推的。"
+    ],
+    "related": [
+      "env/total_setup",
+      "env/active",
+      "env/possible_leak",
+      "dynsam/infra_error/seq_rate"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-readme-env",
+        "stance": "challenge",
+        "note": "同上：官方承认 30% 量级的环境建立失败，而我们这条线算出来低到 ppm，直接挑战我们「两边都在千分之一以下」的读法——它更可能只是沙箱进程内的某种错误计数，而不是环境建立失败率。"
+      },
+      {
+        "ref": "mimo-rl-notices-restart",
+        "stance": "context",
+        "note": "官方把一次重跑归因于「某类 infra error 在过去约 3 小时里没被正确检测到」，说明环境/基础设施类错误确实存在检测盲区，支持我们把 env/total_error 只当作一个不完整的沙箱侧计数来看。"
+      },
+      {
+        "ref": "scaling-beyond-human-supervision",
+        "stance": "context",
+        "note": "综述把 environment errors 与 reward hacking 并列为自主化训练的两大公认风险，说明我们盯 env/total_error 这类环境侧计数是有公开问题意识的；但综述没有给出该指标的分母/口径定义。"
+      }
+    ]
+  },
+  {
+    "id": "env/total_setup",
+    "name": "沙箱创建总数（env/total_setup）",
+    "group": "系统、性能与成本",
+    "unit": "个（沙箱创建次数）",
+    "what": "这一步之内累计创建了多少个沙箱，同样是「自上次重启以来」的累计量而不是单步增量。它衡量的是环境侧的吞吐量：为了跑完这些 rollout，一共起了多少个隔离环境。",
+    "how": "官方没有说明。我核对了 timeline.jsonl：每个同步点里的 totals.sandboxes_step 和 series 里同一步的 env/total_setup 完全相等（pro 第 14 步 178352、第 19 步 147904，flash 第 25 步 38368），所以它就是看板自己的 sandboxes_step 字段。复位规律和 env/total_error 一样：重启后的第一步等于当时的 env/active，之后逐步累加。",
+    "why": "拿它除以 env/active 就是沙箱翻台次数，也就是平均一个沙箱位子上先后跑过多少条轨迹。翻台率低说明沙箱被长轨迹长期占着（生成被长尾拖住）；翻台率高说明沙箱频繁创建销毁，环境启动开销占比上升。它也是估算沙箱编排系统压力的直接读数：flash 到第 15 步已经累计起了 538096 个沙箱。",
+    "read": [
+      "和 env/active 配对比值：pro 稳定在每步 14 倍左右，flash 也在 14 倍左右，两个 run 的沙箱周转节奏接近。",
+      "看重启：重启会把累计计数打回 env/active 的水位（pro 第 15 步 22415 = 当步 env/active 22415），所以序列会出现锯齿，别把锯齿当成吞吐骤降。",
+      "单段内的增量才是真吞吐：pro 第 4~10 步从 90400 涨到 330720，每步新增约 3.8~4.4 万个。"
+    ],
+    "observed": "pro 19 步范围 22352~330720，最大值出现在第 10 步（重启前），随后第 11 步归到 22629。flash 25 步范围 38272~538096，最大值出现在第 15 步。因为它是累计量，两个 run 的峰值不可比（pro 第 10 步之前连续跑了 10 步才重启，flash 第 15 步之前连续跑了 15 步）。把每一段内的单步增量算出来，pro 约 3.8 万~4.4 万/步，flash 约 3.9 万~4.2 万/步，量级一致。与 env/active 的比值两个 run 都在 14 倍上下，说明沙箱寿命与轨迹长度匹配得比较稳定。",
+    "traps": [
+      "它和 env/active 一起看才有意义：单看这个数会以为 flash 的环境压力比 pro 大得多，其实只是 flash 跑得更久、重启更少。",
+      "重启造成的回退不是吞吐下降；它是计数器语义造成的锯齿。",
+      "看板没有给出定义，累计口径是从复位点反推的。"
+    ],
+    "related": [
+      "env/active",
+      "env/total_error",
+      "timing_s/outer_gen",
+      "env/possible_leak"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-readme-env",
+        "stance": "challenge",
+        "note": "官方口径的环境建立成功率只有 70%，而我们用 env/total_error ÷ env/total_setup 算出的是百万分之几百（千分之一以下）。两者差三个数量级，说明 env/total_setup 不是「环境建立尝试数」、env/total_error 也不是「建立失败数」，我们那句「错误率在千分之一以下」的口径不能当官方成功率用。"
+      }
+    ]
+  },
+  {
+    "id": "env/possible_leak",
+    "name": "疑似沙箱泄漏（env/possible_leak）",
+    "group": "系统、性能与成本",
+    "unit": "个（疑似泄漏的沙箱）",
+    "what": "疑似没有被正常回收、还留在系统里的沙箱数量。看板没有给出官方定义，按 tag 名直译就是「可能泄漏」。它和 env/active 的区别是：active 是被正常管理的在飞环境，这条指的是脱离管理的残留。",
+    "how": "看板没有说明它是怎么判定出来的，也没有说明统计窗口。从数据看它是一个几乎恒为 0 的告警型指标，只在异常时才跳成非 0。",
+    "why": "沙箱泄漏是长跑训练里最容易慢慢积累的问题：每个未回收的沙箱都占着一份资源，泄漏多了会让 env/active 的水位逐渐达不到目标、生成变慢，最后表现为「明明加了机器但吞吐不涨」。这条非 0 就是该去查沙箱回收逻辑的信号。它平时太安静，容易被忽略。",
+    "read": [
+      "只要非 0 就值得查：这是一个被设计成恒 0 的健康指标，不是连续量。",
+      "结合 env/active 看：如果 possible_leak 涨而 active 稳，说明泄漏被限制在很小的量级；如果两者一起涨，说明回收链路真的坏了。",
+      "注意它可能是瞬时值而不是累计值，所以看单点即可，不用看斜率。"
+    ],
+    "observed": "pro 19 步里有 18 步是 0，只有第 19 步（最后一步）出现 1，这是两个 run 全程唯一一次非 0。flash 25 步全部为 0。相对当步的 env/active（pro 第 19 步 23168 个在飞沙箱），1 个的量级完全可以忽略，但它出现在 pro 最后一步、且 pro 刚经历过 9 次重启（含一次 expert load imbalance 导致的 OOM），值得作为一次偶发事件记下来；看板没有给出原因说明。",
+    "traps": [
+      "不要把 1 读成「泄漏了一个沙箱资源」这么精确；看板没有给定义，它更可能是一个布尔式告警被设成计数形式。",
+      "flash 全程为 0 不能反推 flash 的沙箱管理更好，两个 run 的重启次数和运行时长都不同。",
+      "它出现在 pro 最后一步，也可能只是因为该步数据还没跑完。"
+    ],
+    "related": [
+      "env/active",
+      "env/total_setup",
+      "env/total_error"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-rl-notices-cyber",
+        "stance": "context",
+        "note": "公告给出的移除理由是「在 rollout 日志里看到一些坏形态（bad patterns）」，说明官方自己也会用 rollout 日志里的异常行为做下线决策——与我们盯 env/possible_leak 这类告警型指标的动机一致，但看板并没有把「坏形态」映射到某个具体字段。"
+      },
+      {
+        "ref": "judge-not-oracle",
+        "stance": "support",
+        "note": "论文里作弊的具体形态就是「从环境里读到不该读到的答案」，这支持我们把 env/possible_leak（疑似沙箱泄漏）当作同一类风险来对待：非 0 就值得查，而不是当成噪声。"
+      },
+      {
+        "ref": "scaling-beyond-human-supervision",
+        "stance": "context",
+        "note": "综述给出的评估对象之一是 experience quality（环境/经验质量），与我们用 env/possible_leak 这类告警去查环境是否失控的方向一致，但同样没有定义级支撑。"
+      },
+      {
+        "ref": "self-grad-spike-isolated",
+        "stance": "context",
+        "note": "同一段记录里只有这一步的 env/possible_leak 为 1。两者同时出现不构成因果，但值得并列记录，因为异常样本正是尖峰的常见来源之一。"
+      }
+    ]
+  },
+  {
+    "id": "ctx_total_length/mean",
+    "name": "轨迹平均上下文长度（ctx_total_length/mean）",
+    "group": "系统、性能与成本",
+    "unit": "token 数",
+    "what": "每条轨迹的平均上下文长度，等于 prompt 加模型生成的全部内容。它是长上下文训练最直观的那条曲线，也是这一步 token 开销和耗时的源头。",
+    "how": "官方说明是 total context length per trajectory (prompt + response), in tokens。看板没有说它是按轨迹还是按序列加权，也没有说是否包含被截断的轨迹。可以自查：它减去 ctx_prompt_length/mean 基本等于 ctx_response_length/mean（pro 偏差在 1 个 token 以内），说明两者一致。",
+    "why": "上下文长度是这一组里所有成本指标的共同驱动项。它一涨，perf/total_num_tokens 跟着涨、trainer_ops 跟着涨、timing_s/step 跟着涨，被长度上限截断的轨迹也跟着多。所以它既是要盯的负载指标，也是解释「为什么这步变慢了」的第一顺位候选。",
+    "read": [
+      "看增长斜率有没有超出预期：两边都在稳步上行（pro 19 步 +40%，flash 25 步 +65%），这是 agentic RL 的正常形态，因为模型学会用更多轮工具调用。",
+      "flash 明显高于 pro：全程均值 104203 vs 88878（高 17.2%），且差距是逐步拉开的——第 1 步还基本一样（71634 vs 72178），到第 19 步已经是 123899 vs 101040（高 22859）。",
+      "拆开看是 response 还是 prompt 在推：两边都是 response 占 95% 以上，prompt 稳定在 4 千 token 左右，所以推高上下文的是模型自己的生成，不是输入。"
+    ],
+    "observed": "pro 19 步范围 69231.9（第 2 步）~106203（第 14 步），均值 88878，首步 72177.6、末步 101040，全程涨 40%。flash 25 步范围 71633.5（第 1 步）~129392（第 20 步），均值 104203，首步 71633.5、末步 118576，全程涨 65%。flash 均值比 pro 高 17.2%。逐格对比差异并不是一直为正：第 1 步 flash 反而比 pro 少 544、第 9 步少 203，但从第 11 步起 flash 稳定高出 1 万以上，第 19 步高出 22859。拆开看，response 占总长度的 95.3%（pro）和 95.9%（flash），prompt 的均值全程稳定在 3964~4464（pro）和 3995~4589（flash）之间。长度上限附近也提供了旁证：pro 有 8/19 步、flash 有 13/25 步的最大长度正好顶到 1048570。",
+    "traps": [
+      "均值不能代表分布：pro 的最小长度只有 184~788 token，最长顶到 1048570，均值是在一个极宽的分布上取的。",
+      "均值上涨不等于「模型变啰嗦」，也可能是任务本身变难、工具调用轮次变多，要看 dynsam/agg_turn/mean 一起判断。",
+      "flash 的上下文更长，但它的单步墙钟反而比 pro 短（7613s vs 9177s），所以不能直接把上下文长度等同于耗时。"
+    ],
+    "related": [
+      "ctx_response_length/mean",
+      "ctx_prompt_length/mean",
+      "perf/total_num_tokens",
+      "timing_s/trainer_ops",
+      "ctx_total_length/clip_ratio"
+    ],
+    "sources": [
+      {
+        "ref": "swebench",
+        "stance": "support",
+        "note": "论文把「process extremely long contexts」列为 SWE 任务的固有难度来源，支持我们把上下文稳步上行读成任务形态的正常结果，而不是模型变啰嗦的异常。"
+      },
+      {
+        "ref": "dapo-length-quality",
+        "stance": "challenge",
+        "note": "同上：这条平均上下文 +40%/+65% 的增长不能默认读成「任务更难、轮次更多」，公开材料给出了另一种同样被观测到的解释（低质长样本堆出来的膨胀）。"
+      },
+      {
+        "ref": "dr-grpo-length-bias",
+        "stance": "challenge",
+        "note": "同上，支持我们把上下文长度的持续上行至少部分视为算法偏置的产物，而不是纯粹的任务/行为变化。"
+      },
+      {
+        "ref": "verl-perf-tuning",
+        "stance": "support",
+        "note": "同一条文档约束把「上下文长度」与「训练侧资源/时间」直接绑在一起，支持我们那句「上下文长度是这一组里所有成本指标的共同驱动项」。"
+      }
+    ]
+  },
+  {
+    "id": "ctx_response_length/mean",
+    "name": "轨迹平均生成长度（ctx_response_length/mean）",
+    "group": "系统、性能与成本",
+    "unit": "token 数",
+    "what": "每条轨迹里模型自己生成的平均 token 数，官方口径是 tokens generated per trajectory。它占了整条上下文长度的 95% 以上，所以上下文变长基本就是它在变长。",
+    "how": "官方说明是 tokens generated per trajectory。看板没有说它是否包含 tool 调用返回的内容（这些内容在多数 agent 框架里算进后续 prompt，不算生成），也没说是否算上被截断的轨迹。可以确认的是 ctx_total_length/mean 与 ctx_prompt_length/mean 之差就在这个值附近。",
+    "why": "生成出来的 token 就是要付推理算力的 token，所以它直接决定 rollout 阶段的成本。它也是判断「模型是不是在靠变长取胜」的关键：奖励涨而生成长度同时大涨，说明有一部分收益是拿 token 换的。它往上涨会连锁推高 outer_gen、total_num_tokens 和截断比例。",
+    "read": [
+      "看它和 ctx_total_length/mean 的比值：稳定在 95% 左右，说明 prompt 侧没有异常膨胀。",
+      "看增长速度：pro 从 68078.1 涨到 96974.5（+42%），flash 从 67462.9 涨到 114444（+70%），flash 的生成膨胀更快。",
+      "别把它直接换算成 outer_gen：pro 的响应长度与生成墙钟相关系数只有 0.074、flash 0.309，说明生成时间还受并发和长尾影响，光看平均长度推不出时间。"
+    ],
+    "observed": "pro 19 步范围 65098.9（第 2 步）~101993（第 14 步），均值 84731，首步 68078.1、末步 96974.5。flash 25 步范围 67462.9（第 1 步）~124824（第 20 步），均值 99947，首步 67462.9、末步 114444。flash 均值比 pro 高 18.0%。全程占 ctx_total_length/mean 的 95.3%（pro）和 95.9%（flash）。pro 的单步生成峰值出现在第 14 步（101993），之后第 15 步回落到 87494，和第 14/15 步之间的两次重启重合，但看板没有说明两者是否相关。",
+    "traps": [
+      "它是平均值，两头都被拉平：单步最短轨迹只有 109~788 token，最长顶到 1046420。",
+      "生成变长不一定是坏事（工具调用多轮本来就长），要配合 dynsam/agg_turn/mean 和奖励一起读。",
+      "被截断的轨迹在这里会被算成「生成到上限」，所以这条均值在有截断的步上会略微偏高，不能当成纯效益指标。"
+    ],
+    "related": [
+      "ctx_total_length/mean",
+      "ctx_response_length/agentic/mean",
+      "ctx_prompt_length/mean",
+      "timing_s/outer_gen"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-length-quality",
+        "stance": "challenge",
+        "note": "直接挑战我们「生成变长不一定是坏事（工具调用多轮本来就长），要配合 agg_turn 和奖励一起读」里偏乐观的一半：DAPO 观察到超长样本经常是乱码/重复的低质形态，且样本级损失无法惩罚它们，会导致熵和响应长度的「不健康上升」。所以 pro +42%/flash +70% 的长度膨胀必须先排除低质膨胀。"
+      },
+      {
+        "ref": "dr-grpo-length-bias",
+        "stance": "challenge",
+        "note": "这条给出与「模型学会更多轮工具调用」完全不同的归因：GRPO 本身有使响应长度被人为抬高的优化偏置（尤其是错误输出）。我们「看增长斜率有没有超出预期……这是 agentic RL 的正常形态」的说法因此需要保留这条替代解释。"
+      },
+      {
+        "ref": "self-cost-basis",
+        "stance": "context",
+        "note": "单 token 成本差异的另一半来自上下文长度：flash 平均 104,203 token 比 pro 的 88,878 高 17%，但单价仍低得多，说明差异主要不在序列长度上。"
+      }
+    ]
+  },
+  {
+    "id": "ctx_prompt_length/mean",
+    "name": "轨迹平均 prompt 长度（ctx_prompt_length/mean）",
+    "group": "系统、性能与成本",
+    "unit": "token 数",
+    "what": "每条轨迹初始输入（prompt）的平均 token 数。它是上下文长度里那个稳定的底座，占比只有 4%~5%。",
+    "how": "看板没有给这条单独的官方说明，按 tag 名直译是 prompt 的平均长度；它与 ctx_total_length/mean、ctx_response_length/mean 构成减法关系（total 减 response 约等于 prompt，pro 各步偏差在 1 个 token 以内）。",
+    "why": "它稳定的意义在于：上下文变长如果主要是它在涨，那就是任务输入或工具返回在膨胀，属于数据侧问题；如果它稳而 response 涨，那是模型行为变化。分清楚这两者才知道该去改数据还是改训练。它偶尔的极端值（单条 prompt 到 56 万 token）也会解释为什么个别轨迹一上来就接近长度上限。",
+    "read": [
+      "看稳定性：pro 全程 3963.9~4464.4、flash 3995.4~4588.9，波动都在 ±7% 以内，这是健康形状。",
+      "看和 response 的分工：它只占 4%~5%，所以上下文长度的任何显著变化都不该归因于 prompt。",
+      "看 max 的跳动：均值很稳但单步最大值能到几十万 token，说明分布有极端长尾，排障时不能只看均值。"
+    ],
+    "observed": "pro 19 步范围 3963.92（第 15 步）~4464.42（第 4 步），均值 4147。flash 25 步范围 3995.4（第 10 步）~4588.87（第 19 步），均值 4256，两个 run 只差 2.6%。占 ctx_total_length/mean 的比例 pro 为 4.7%、flash 为 4.1%。最大值的跳动要大得多：pro 单步最长 prompt 从 71054 到 566065（第 10 步），flash 从 83058 到 710514（第 15 步）；也就是说平均只有 4 千 token，但每一步里都混着几十万 token 的极端长 prompt。",
+    "traps": [
+      "它稳不代表数据没问题：均值稳而最大值剧烈跳动，说明长尾一直存在，只是被平均掉了。",
+      "这条线占比太小，别把它当成上下文增长的解释项。",
+      "看板没有为这条给单独的官方说明，以上是按 tag 名和与 total/response 的减法关系读出来的。"
+    ],
+    "related": [
+      "ctx_total_length/mean",
+      "ctx_response_length/mean",
+      "ctx_total_length/max"
+    ]
+  },
+  {
+    "id": "ctx_total_length/max",
+    "name": "轨迹最大上下文长度（ctx_total_length/max）",
+    "group": "系统、性能与成本",
+    "unit": "token 数",
+    "what": "这一步里最长的那条轨迹的上下文长度。它是一条「长尾探测器」：均值告诉你平均多长，它告诉你最长的顶到了哪里。",
+    "how": "看板没有给这条单独的官方说明。从数据可以观察到一个很硬的规律：两个 run 的这条线在绝大多数步上都精确落在 1048570，而 1048570 非常接近 1024 × 1024 = 1048576，几乎可以确定这是一个上下文长度上限。看板没有写出这个上限值，所以这是从数据反推的。",
+    "why": "它是判断「有没有轨迹被截断」的第一道信号：只要 max 顶到上限，这一步就至少有轨迹被砍掉了。配合 ctx_total_length/clip_ratio 就知道是「个别一条顶格」还是「一批被砍」。它也是排障入口：如果 max 突然远超上限或者远低于上限，说明分桶或打分逻辑可能出了问题。",
+    "read": [
+      "看它是不是稳定贴着 1048570：pro 有 8/19 步、flash 有 13/25 步正好等于这个值，说明多数步至少有一条轨迹顶到上限。",
+      "看它明显低于上限的步：pro 第 3 步 525095、第 15 步 562406，这些步里没有轨迹撞到上限，是相对干净的一步。",
+      "看有没有异常越界：flash 第 14 步的 2236430 是上限的 2.13 倍，也是两个 run 全程唯一一次越过上限，看板没有给出解释。",
+      "别拿它当「这一步的上下文就是这么长」用，它是单条极值，不是代表性长度。"
+    ],
+    "observed": "pro 19 步里 8 步的最大长度精确等于 1048570（第 6、7、8、9、10、13、14、19 步），其余步在 525095（第 3 步）到 985685（第 1 步）之间。flash 25 步里有 13 步等于 1048570（第 6、7、9、12、13、15、18、19、20、21、22、23、24 步），第 1、2 步是 1049640 和 1048610，其余是 659032（第 4 步）到 940676（第 11 步）之间。唯一一次异常是 flash 第 14 步的 2236430，约为上限的 2.13 倍。flash 撞上限的步数占比（13/25 = 52%）仍高于 pro（8/19 = 42%），和 flash 上下文更长、截断比例更高是同一件事。",
+    "traps": [
+      "别把它当作长度分布的上界来用：flash 第 14 步是 2236430，说明这条线可以越过 1048570。",
+      "1048570 是上限这件事是我从数据反复出现的常数值反推的，看板正文没有写这个数字。",
+      "max 顶格不代表大多数轨迹被截断，要看 ctx_total_length/clip_ratio 的量级：pro 平均只有万分之一点二。"
+    ],
+    "related": [
+      "ctx_total_length/clip_ratio",
+      "ctx_total_length/mean",
+      "ctx_response_length/max"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-overlong",
+        "stance": "context",
+        "note": "既然超长样本要被专门整形，max 顶到 1048570 这类「至少有轨迹撞上限」的观察就有了公开动机背景：它是判断该不该触发长度治理的第一道信号。"
+      }
+    ]
+  },
+  {
+    "id": "ctx_total_length/clip_ratio",
+    "name": "上下文被截断比例（ctx_total_length/clip_ratio）",
+    "group": "系统、性能与成本",
+    "unit": "比例（0~1）",
+    "what": "这一步里因为撞到长度上限而被截断的轨迹占比。看板没有给官方说明，按 tag 名直译就是「被 clip 的比例」。被截断的轨迹相当于回答被硬切开，往往拿不到正确奖励，属于既烧了算力又污染训练信号的样本。",
+    "how": "看板没有说明分子分母。从数据能看出最小非零值约为 4.0e-5，也就是约 1/25000，和每步 25088 条训练轨迹（1568 prompts × 16）的量级吻合，所以它大致是「被截断轨迹数 / 本步轨迹数」。但精确分母没法从看板确认，下面一律用「每万条轨迹多少条」来表达。",
+    "why": "被截断的轨迹是隐性的数据损失。截断比例升高意味着两件事同时发生：训练信号里混进了更多「没说完就被砍」的样本，同时那部分算力没有换来有效梯度。它和 ctx_total_length/mean 是一对因果：上下文变长会把分布推向长度上限，截断自然变多。",
+    "read": [
+      "看量级不看绝对值：pro 全程每万条约 0.4~2.4 条，flash 是 0.4~31.0 条，两边都还在很小的量级，暂时不构成主要问题。",
+      "看趋势：flash 前 5 步均值每万条 1.68 条，后 5 步均值 13.25 条，涨了近 8 倍；这条线是随上下文变长而恶化的，不是随机的。",
+      "flash 全程 25 步都非零，pro 有 2 步（第 2、11 步）正好为 0，说明 pro 的截断更偶发。",
+      "这条一涨就要连同 ctx_total_length/max 一起看，确认是长尾变多还是上限被改了。"
+    ],
+    "observed": "pro 19 步范围 0（第 2、11 步）~2.40462e-4（第 14 步），均值 1.180e-4，换算成每万条轨迹是 0~2.40 条，平均 1.18 条；非零的 17 步里取值基本是 1 条轨迹的整数倍量级。flash 25 步范围 4.00256e-5~3.09922e-3（第 19 步），均值 7.286e-4，即每万条 0.40~30.99 条，平均 7.29 条；25 步全部非零。flash 的均值是 pro 的 6.2 倍，且明显在恶化：前 5 步均值 1.682e-4、后 5 步均值 1.325e-3。pro 为 0 的两步（第 2、11 步）都在重启之后，重启会让 rollout 重新预热，长尾还没来得及堆起来。",
+    "traps": [
+      "数值小不等于没事：这是比例，flash 峰值已经是每万条里 31 条，而且是单调恶化的。",
+      "截断比例高不代表奖励一定差，得看被截断的轨迹是否被丢弃；看板没有说明截断样本的下场。",
+      "别用 ctx_total_length/max 反推它：max 顶格只说明「至少有 1 条」，数量级还得看这条线。",
+      "看板没有给出分子分母，以上换算基于约 1/25000 的最小粒度，属于推断。"
+    ],
+    "related": [
+      "ctx_total_length/max",
+      "ctx_total_length/mean",
+      "perf/total_num_tokens",
+      "critic/rewards/mean"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-overlong",
+        "stance": "support",
+        "note": "DAPO 把 Overlong Reward Shaping 列为大规模 RL 的四大关键技术之一，说明「撞长度上限的轨迹」必须被专门处理（否则带来奖励噪声、训练不稳），支持我们「被截断的轨迹会污染训练信号」的读法。"
+      }
+    ]
+  },
+  {
+    "id": "ctx_response_length/agentic/mean",
+    "name": "agentic 轨迹平均生成长度（ctx_response_length/agentic/mean）",
+    "group": "系统、性能与成本",
+    "unit": "token 数",
+    "what": "在 agentic 这一类轨迹上，模型平均生成多少 token。它是 ctx_response_length/mean 的一个子集口径，专门看需要多轮工具调用的那一类任务。",
+    "how": "看板没有为这条给单独的官方说明，按命名规则它是 ctx_response_length 在 agentic 这个子集上的均值；同族的还有 ctx_total_length/agentic/mean、ctx_prompt_length/agentic/mean，以及按 code/general/visual/chat 拆分的同名子集。",
+    "why": "把 agentic 单独拎出来，是为了区分「整体生成变长」到底是所有任务都变长，还是只是多轮工具调用的那部分变长。agentic 轨迹长是正常的（每轮工具调用都会往上下文里加东西），所以判断上下文膨胀是否健康，要看它相对总体涨得更快还是更慢。",
+    "read": [
+      "和 ctx_response_length/mean 比：pro 的 agentic 均值 92071 比总体均值 84731 高 8.7%，flash 的 107950 比 99947 高 8.0%，两者幅度接近，说明拉长上下文的主力确实是 agentic 那批轨迹。",
+      "看增长速度：pro 从 73116.9 涨到 107156（+47%），flash 从 72305.1 涨到 123620（+71%），比各自的总体生成长度涨得更快一点。",
+      "如果有一天 agentic 均值掉到总体以下，要先怀疑 agentic 的调用轮次被截断或者工具返回被丢掉了。"
+    ],
+    "observed": "pro 19 步范围 69746.7（第 2 步）~110672（第 14 步），均值 92071，首步 73116.9、末步 107156。flash 25 步范围 72305.1（第 1 步）~135043（第 20 步），均值 107950，首步 72305.1、末步 123620。两个 run 第 1 步的 agentic 均值几乎一样（73117 vs 72305），之后 flash 一路拉开，到第 19 步分别是 107156 和 123620。pro 的 agentic 均值与总体生成的比值全程在 1.05~1.09 之间，比例稳定。",
+    "traps": [
+      "页面上没有给这条的官方定义，agentic 具体覆盖哪些 harness 只能从命名和 train/harness/* 的分组去猜。",
+      "它的分母是 agentic 子集的轨迹数，与总体均值不可直接相减。",
+      "数值比总体高是正常的（多轮调用本来就长），不要当成异常信号。"
+    ],
+    "related": [
+      "ctx_response_length/mean",
+      "ctx_total_length/mean",
+      "dynsam/agg_turn/mean",
+      "train/harness/harness-A/training/rollouts"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-readme-sched",
+        "stance": "context",
+        "note": "长尾样本正是 agentic 多轮轨迹那一批；官方把它当作要专门调度的对象，支持我们把 agentic 子集的生成长度单独拎出来看，而不是只看总体均值。"
+      },
+      {
+        "ref": "dapo-longtail-generation",
+        "stance": "context",
+        "note": "长尾样本主要来自多轮工具调用的 agentic 轨迹，支持我们把 agentic 子集的长度和增长速度单独盯，用来定位 outer_gen 的长尾来源。"
+      }
+    ]
+  },
+  {
+    "id": "training/actor_optimizer_steps",
+    "name": "每步优化器更新次数（training/actor_optimizer_steps）",
+    "group": "系统、性能与成本",
+    "unit": "次",
+    "what": "一个 global step 里 actor 的优化器被调用了几次，也就是参数更新了几轮。它定义了「一个 step」在算法上的粒度：这个值等于 1 时，一步就是一轮更新。",
+    "how": "看板没有给出这条的官方说明。数据上它是 series 里的一个常量序列：pro 19 步全是 1，flash 25 步全是 1。可以拿同样来自 timeline 的 trained_step = 25088 佐证——每一步训练的轨迹数也是固定的，说明这一步没有被切成多个 mini-batch 分多次更新。",
+    "why": "它决定了所有以「步」为单位上报的指标该怎么读。如果它是 1，那 actor/entropy_loss、actor/pg_loss、critic/rewards/mean 就是「一次更新对应的一批数据」的统计；如果它大于 1，同一个 global step 内会有多次更新，那些「每步」指标的物理含义就变了，横轴也不再等价。排查训练异常时它是第一个该确认的口径项。",
+    "read": [
+      "恒为 1 说明一步一次更新，看板上所有逐步指标可以直接按步对齐比较。",
+      "一旦出现大于 1 的步，要先确认是梯度累积改了还是数据被切块，然后再去解释奖励和 loss 的变化。",
+      "它和 training/global_step 是一对：global_step 数的是步，它数的是更新次数。"
+    ],
+    "observed": "pro 19 步、flash 25 步全部为 1，没有任何一格不同。配合 timeline.jsonl 里全程不变的 prompts_per_step = 1568 和 trained_step = 25088，可以确认两个 run 都是「一个 step = 一批 25088 条轨迹 = 一次参数更新」的稳定节奏，没有出现梯度累积或一个 step 内多次更新。",
+    "traps": [
+      "不要以为它一定等于 1：这不是恒定物理量，只是这一轮恰好是 1。",
+      "它不等于总更新次数，总更新次数要用它乘以 training/global_step。",
+      "看板没有给出这条的定义，以上是从常量取值和 trained_step 反推的。"
+    ],
+    "related": [
+      "training/global_step",
+      "perf/total_num_tokens",
+      "actor/pg_loss"
+    ],
+    "sources": [
+      {
+        "ref": "ppo",
+        "stance": "support",
+        "note": "我们把 actor_optimizer_steps 恒为 1 读成“一个 global step 只做一次参数更新”；论文正是拿“一个样本一次更新”与“多轮更新”对立来立论，可作为该读法的背景。"
+      },
+      {
+        "ref": "verl-ppo-epochs",
+        "stance": "support",
+        "note": "官方文档把 ppo_epochs 定义为“对同一批采到的轨迹做几轮更新”；本 run 该值为 1，与我们“一个 global step 只做一次参数更新”的读法一致。"
+      }
+    ]
+  },
+  {
+    "id": "training/global_step",
+    "name": "全局步号（training/global_step）",
+    "group": "系统、性能与成本",
+    "unit": "步",
+    "what": "训练已经推进到第几步，是看板上所有曲线的横轴。它也是判断 run 有没有卡住、有没有跳步或重跑的锚点。",
+    "how": "看板没有给出这条的官方说明；数据上它就是从 1 开始逐一递增的整数，pro 到 19、flash 到 25。series.json 里所有指标数组的下标就是它减一，所以它同时充当索引表。",
+    "why": "所有逐步指标都要靠它对齐时间。工程上最需要它的时候是排障：如果某个指标的数组长度和它不一致、或者步号出现重复，就说明中间发生过重跑或者数据回填异常。flash 就正好出现过这种情况——events.json 里第 16、17 步各出现了两次并且第二次标了 redo，而 global_step 里只有 25 个值，两边的数量对不上。",
+    "read": [
+      "先看它和 events.json 里 step 事件的条数是否一致：不一致就说明有 redo 或跳步。",
+      "看推进速度有没有变慢：pro 到第 19 步用了 72.18h 墙钟、flash 到第 25 步用了 67.44h，折算下来 flash 推得更快。",
+      "和 benchmarks.json 一起看能看出评测滞后：离线评测 pro 只出到第 15 步、flash 只出到第 21 步，都落后于当前步号。"
+    ],
+    "observed": "pro 的 global_step 是 1~19（19 个值），flash 是 1~25（25 个值），都是连续无跳号。但 flash 的 events.json 里有 27 个 step 事件：第 16 步在 1789597499 和 1789621327 各出现一次、第 17 步在 1789605123 和 1789629325 各出现一次，第二次都标了 redo=true——这是官方公告里说的「we restarted the flash run from step 15」造成的重跑，所以 flash 实际计算过 27 步、只有 25 步进入 global_step。pro 的事件里没有任何 redo。",
+    "traps": [
+      "步号连续不代表没有重跑过，要去 events.json 看 redo 标记。",
+      "它的值等于 series 数组下标加一，读数组时别差一位。",
+      "两个 run 的步号不可直接横比：步的定义里模型规模、batch 大小都不同，flash 跑到 25 步不代表它比 pro 做得更多。"
+    ],
+    "related": [
+      "training/actor_optimizer_steps",
+      "timing_s/step",
+      "dynsam/avg@n"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-rl-notices-restart",
+        "stance": "support",
+        "note": "官方公告逐字说明 flash 从第 15 步重跑，正好对上我们「events.json 里第 16、17 步各出现两次且第二次 redo=true、而 global_step 只有 25 个值」的推断：步号连续不代表没重跑过。"
+      }
+    ]
+  },
+  {
+    "id": "env/code/shared/active",
+    "name": "code 共享池在飞沙箱数（env/code/shared/active）",
+    "group": "系统、性能与成本",
+    "unit": "个（沙箱）",
+    "what": "code 类任务共用的那个沙箱池里，当前活跃的沙箱数。它是两个 run 里最大的单个沙箱池，占了全部在飞沙箱的七成以上。",
+    "how": "看板没有给出这条的说明，也没有解释 shared 具体指什么（它不是 dataset-xxxx 形式的某个数据集 id，从命名看是一个跨 code 数据集共用的池子）。它是 env/active 的构成项之一：env/active 等于所有 env/<类目>/<数据集>/active 与这条的和，pro 19 步、flash 25 步都逐个核对上了。",
+    "why": "它是环境侧压力的主要来源，也是水位波动最直接的观察窗口。code 任务的沙箱要跑编译、测试，起停成本比普通对话高，所以这个池子的水位一旦掉了，生成侧会最先感到卡顿。另外它和 code 数据集的拆分明细（env/code/dataset-m1dt/active 等）一起看，能判断是共享池不够用还是某个数据集把池子占满了。",
+    "read": [
+      "看占比：pro 平均占 env/active 的 74.4%（末步 81.8%），flash 占 69.6%（末步 74.5%），两个 run 都由这个池子主导。",
+      "看波动：pro 在 15317~22143 之间摆，其中第 1 步 22143 是最高点；flash 在 24891~28720 之间，波动只有 15% 左右，比 pro 稳定。",
+      "它在 pro 第 4 步掉到 15317（当步 env/active 23266），同时 code/dataset-m1dt 涨到 1176，说明池子内部在往单数据集倾斜。"
+    ],
+    "observed": "pro 19 步范围 15317（第 4 步）~22143（第 1 步），均值 17479；除第 1 步外都在 15317~19752 之间。flash 25 步范围 24891（第 4 步）~28720（第 16 步），均值 26492，全程平稳。flash 的池子比 pro 大 51.6%（均值 26492 vs 17479），但 flash 的 env/active 只比 pro 大 62%，说明 pro 把更多权重放在别的类目上。pro 在移除 cyber 数据集后（第 15 步起）这条线没有明显变化，说明 code 池不受那次调整影响。",
+    "traps": [
+      "shared 的具体含义看板没有说明，不要默认它就是「所有 code 数据集的并集」，也可能是跨类目共享的资源池。",
+      "它和 env/active 高度同步，单独看它容易把整体水位变化误判成 code 侧的问题。",
+      "pro 第 1 步的 22143 出现在连续两次重启之后，不适合当基线。"
+    ],
+    "related": [
+      "env/active",
+      "env/code/dataset-m1dt/active",
+      "env/total_setup"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-v2-flash-readme-env",
+        "stance": "context",
+        "note": "官方这 1 万+ pod 说的是 code agent 那套 GitHub issue 环境，与我们把 env/code/shared/active 认成最大单个池子、占全局七成以上的观察方向一致，但官方用的是 pod 而看板是 sandbox，两个单位不能直接换算。"
+      }
+    ]
+  },
+  {
+    "id": "env/cyber/dataset-9aui/active",
+    "name": "cyber 数据集在飞沙箱数（env/cyber/dataset-9aui/active）",
+    "group": "系统、性能与成本",
+    "unit": "个（沙箱）",
+    "what": "cyber 类目下 dataset-9aui 这个数据集当前有多少沙箱在跑。它是 env/ 前缀里按「类目 / 数据集」拆到底的一层，粒度最细。",
+    "how": "看板没有给这条单独的说明；它是 env/active 的构成项之一。这条最有价值的地方是它展示了一种「指标消失」的形态：pro 从第 15 步起这条线变成 null 而不是 0。",
+    "why": "按数据集拆分的沙箱数，是用来判断「哪个数据源在吃资源」的。它也是验证配置变更是否生效的窗口：某个数据集被下线，它的沙箱数应该先归零、再变成 null，而不是慢慢降。这条线在 pro 上正好记录了一次这样的变更。",
+    "read": [
+      "先分清 null 和 0：null 表示这一步这个数据源已经不在数据集里了，0 表示它在但没起沙箱，两者含义完全不同。",
+      "看下线是否干净：pro 从第 15 步起直接变 null，前一步（第 14 步）还有 1222 个，没有出现拖尾。",
+      "看常态水位：flash 全程有值，范围 1140~5536，第 1 步 5536 是峰值，之后基本在 2300~3100 之间。"
+    ],
+    "observed": "pro 只有第 1~14 步有值，范围 1222（第 14 步）~4496（第 1 步），均值 2278；第 15~19 步全部为 null。这与官方公告对得上：notices.json 里 2026-09-17T11:00Z 那条写着 we also removed the cyber dataset from the upcoming pro run, since we observed some bad patterns in the rollout logs，同一时段还有一条网络连通性问题的重启公告。flash 这条线全程 25 步都有值，范围 1140~5536，均值 2650，说明 cyber 只是从 pro 移除、flash 保留。",
+    "traps": [
+      "把 null 当成 0 会得出错误结论（以为是「cyber 沙箱掉到 0 了」），实际上是数据源被移除。",
+      "pro 和 flash 不能对比这条：一边有 cyber、一边没有，这是产品决策的差异不是性能差异。",
+      "它在 pro 上的消失时间点比公告略晚（公告在 2026-09-17T11:00Z，第 15 步完成于其后），排时间线时要注意这一点。"
+    ],
+    "related": [
+      "env/active",
+      "env/code/shared/active",
+      "env/total_setup"
+    ],
+    "sources": [
+      {
+        "ref": "mimo-rl-notices-cyber",
+        "stance": "support",
+        "note": "官方公告逐字确认把 cyber 数据集从 pro run 移除，正好解释这条线在 pro 第 15 步起变成 null 而不是降到 0；我们「null 表示数据源已不在数据集里」的读法有官方出处。"
+      }
+    ]
+  }
+]

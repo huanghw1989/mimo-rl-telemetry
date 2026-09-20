@@ -1,0 +1,53 @@
+{
+  "name": "mimo-rl-telemetry",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Enhanced telemetry for Xiaomi MiMo's $2M+ live RL run: interactive metric explainers, cross-curve correlation analysis, and step-by-step historical replay.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://github.com/huanghw1989/mimo-rl-telemetry",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/huanghw1989/mimo-rl-telemetry.git"
+  },
+  "keywords": [
+    "reinforcement-learning",
+    "telemetry",
+    "observability",
+    "llm-training",
+    "data-visualization",
+    "mimo",
+    "xiaomi"
+  ],
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "scripts": {
+    "sync": "bun src/sync.ts",
+    "bootstrap": "bun src/sync.ts --bootstrap",
+    "reindex": "bun src/sync.ts --reindex",
+    "server": "bun src/server.ts",
+    "export": "bun src/export.ts",
+    "check": "bun src/check.ts",
+    "check:i18n": "bun src/check_i18n.ts",
+    "analyze": "bun src/analyze.ts",
+    "content": "bun src/build_content.ts",
+    "translate": "bun src/translate.ts",
+    "translate:content": "bun src/translate_content.ts",
+    "translate:docs": "bun src/translate_docs.ts",
+    "translate:site": "bun src/translate_site.ts",
+    "registry": "bun src/build_registry.ts",
+    "apply-sources": "bun src/apply_sources.ts",
+    "verify-sources": "bun src/verify_sources.ts",
+    "insights": "bun src/merge_insights.ts",
+    "report:length": "bun src/length_report.ts",
+    "report:correlate": "bun src/correlate_report.ts",
+    "report:factor": "bun src/factor_report.ts",
+    "report:dataset": "bun src/dataset_report.ts",
+    "report:reward": "bun src/reward_report.ts",
+    "report:pipeline": "bun src/pipeline_report.ts",
+    "report:bench": "bun src/bench_report.ts",
+    "report:audit": "bun src/audit_report.ts",
+    "report:sampler": "bun src/sampler_report.ts"
+  }
+}

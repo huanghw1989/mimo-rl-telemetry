@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>看懂 mimo-v2.6 RL 训练看板</title>
+<style>
+:root {
+  --ink:#1b1b1b; --ink2:#4a4a4a; --ink3:#7a7a7a;
+  --bg:#fbfaf8; --panel:#fff; --line:#e2ded7; --accent:#c2542a; --accent2:#2a6fb0;
+}
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;
+  font-size:16px; line-height:1.85;
+}
+header.top {
+  background:linear-gradient(160deg,#2a2724,#3d3733); color:#f5f1ea;
+  padding:44px 24px 34px;
+}
+header.top .wrap { max-width:960px; margin:0 auto; }
+header.top h1 { font-size:1.9rem; margin:0 0 10px; letter-spacing:.5px; }
+header.top p { margin:.3em 0; color:#cfc7bc; font-size:.95rem; }
+header.top .meta { display:flex; gap:26px; flex-wrap:wrap; margin-top:20px; font-size:.86rem; color:#b9b0a3; }
+header.top .meta b { color:#f0e9df; font-weight:600; }
+main { max-width:960px; margin:0 auto; padding:0 24px 90px; }
+nav.toc {
+  background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  padding:18px 22px; margin:26px 0 34px;
+}
+nav.toc h2 { font-size:.9rem; margin:0 0 10px; color:var(--ink3); font-weight:600; letter-spacing:1px; border:0; padding:0; }
+nav.toc ol { margin:0; padding-left:1.3em; columns:2; column-gap:34px; font-size:.92rem; }
+nav.toc a { color:var(--ink2); text-decoration:none; }
+nav.toc a:hover { color:var(--accent); }
+section { margin:0 0 46px; }
+h2 { font-size:1.32rem; margin:0 0 6px; padding-top:14px; border-top:2px solid var(--ink); }
+h2 .num { color:var(--accent); font-size:.85rem; display:block; letter-spacing:2px; font-weight:600; margin-bottom:4px; }
+h3 { font-size:1.06rem; margin:26px 0 8px; }
+h4 { font-size:.97rem; margin:18px 0 6px; color:var(--ink2); }
+p { margin:.75em 0; }
+a { color:var(--accent2); }
+.lead { font-size:1.06rem; color:var(--ink2); }
+.hint { background:#fff7ed; border-left:3px solid var(--accent); padding:10px 16px; font-size:.92rem; color:#6b4a33; }
+code { background:#f1eee9; padding:1px 5px; border-radius:3px; font-size:.88em;
+        font-family:"SFMono-Regular",Consolas,monospace; }
+table { border-collapse:collapse; width:100%; font-size:.9rem; background:var(--panel); }
+th,td { border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top; }
+thead th { background:#f4f1ec; font-weight:600; }
+table.kv th { width:14%; background:#f8f6f2; font-weight:500; color:var(--ink2); }
+table.steps td, table.steps th { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+table.steps th.rowh { text-align:left; background:#f8f6f2; font-weight:500; position:sticky; left:0; }
+.scroll { overflow-x:auto; margin:14px 0; border:1px solid var(--line); border-radius:6px; }
+figure.chart { margin:22px 0; background:var(--panel); border:1px solid var(--line);
+                border-radius:8px; padding:14px 16px 8px; }
+figure.chart figcaption { font-size:.94rem; font-weight:600; margin-bottom:6px; }
+figure.chart svg { width:100%; height:auto; display:block; }
+figure.chart .note { font-size:.83rem; color:var(--ink3); margin:6px 0 4px; line-height:1.6; }
+figure.chart .legend { margin:8px 0 2px; font-size:.84rem; color:var(--ink2); display:flex; flex-wrap:wrap; gap:16px; }
+figure.chart .legend .lg { display:inline-flex; align-items:center; gap:6px; }
+figure.chart .legend i { width:14px; height:3px; border-radius:2px; display:inline-block; }
+figure.chart .legend b { font-variant-numeric:tabular-nums; }
+.plot { fill:#fdfcfb; stroke:#eeebe5; }
+.grid { stroke:#eeebe5; stroke-width:1; }
+.tick { stroke:#ccc7bf; }
+.line { fill:none; stroke-width:2; }
+.ylab,.xlab,.axis { font-size:11px; fill:#8b857c; }
+.axis { font-size:12px; fill:#5a544c; }
+.endval { font-size:11.5px; }
+.bar { fill:#c2542a; opacity:.82; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 18px 14px; margin:16px 0; }
+.card h3 { margin:14px 0 6px; }
+ul.notices { list-style:none; padding:0; }
+ul.notices li { border-left:3px solid var(--line); padding:8px 0 8px 14px; margin:10px 0; font-size:.93rem; }
+ul.notices time { display:block; color:var(--ink3); font-size:.82rem; }
+.flag { background:var(--accent); color:#fff; font-size:.72rem; padding:1px 7px; border-radius:10px; margin-left:6px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media (max-width:720px) {
+  nav.toc ol { columns:1; }
+  .grid2 { grid-template-columns:1fr; }
+  header.top h1 { font-size:1.4rem; }
+}
+.callout { background:#f4f7fa; border-left:3px solid var(--accent2); padding:10px 16px; margin:14px 0; font-size:.94rem; }
+.warn { background:#fdf3f0; border-left:3px solid var(--accent); padding:10px 16px; margin:14px 0; font-size:.94rem; }
+dl.plain dt { font-weight:600; margin-top:14px; }
+dl.plain dd { margin:2px 0 0 0; color:var(--ink2); }
+footer { border-top:1px solid var(--line); margin-top:50px; padding-top:20px; font-size:.85rem; color:var(--ink3); }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <h1>看懂 mimo-v2.6 RL 训练看板</h1>
+  <p>一个实时公开的大模型强化学习训练看板，逐块数据的讲解</p>
+  <div class="meta">
+    <span>看板地址 <b>https://mimo.xiaomi.com/rl/</b></span>
+    <span>本页数据截止 <b>09-18 11:03 UTC</b>，即北京时间 <b>09-18 19:03</b></span>
+    <span>已采集 <b>15</b> 次</span>
+  </div>
+</div></header>
+
+<main>
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s0">三分钟版本</a></li>
+    <li><a href="#s1">这个页面到底是什么</a></li>
+    <li><a href="#s2">页面上有哪些栏目</a></li>
+    <li><a href="#s3">十八个常驻指标，逐个说</a></li>
+    <li><a href="#s4">两块最容易被忽略的面板</a></li>
+    <li><a href="#s5">另外两千个指标：哪些能信</a></li>
+    <li><a href="#s6">观察期间实际发生了什么</a></li>
+    <li><a href="#s7">深入看：六条判断</a></li>
+    <li><a href="#s8">我不确定的地方</a></li>
+    <li><a href="#s9">数据来源与怎么自己核</a></li>
+  </ol>
+</nav>
+
+
+<p class="lead">
+小米的 MiMo 团队做了一件不太常见的事：把自己两次强化学习（RL）大训练的过程，
+做成了一个公开的实时看板，挂在 <a href="https://mimo.xiaomi.com/rl/">mimo.xiaomi.com/rl</a>，任何人都能看。
+训练的两个模型分别叫 mimo-v2.6-pro 和 mimo-v2.6-flash。
+</p>
+<p>
+这件事的价值不在于"看别人的模型有多强"，而在于它把平时只在内部周报里出现的东西摊开了：
+钱是怎么烧的、算力花在哪一段、模型是真在变强还是只是把简单题刷熟了、
+机器故障吃掉了多少时间。
+</p>
+<p>
+本页面的目标只有一个：让一个没接触过 RL 训练的人，也能看懂这个看板上的每一块数据，
+并且知道哪些数字可以直接信、哪些必须绕着看。
+</p>
+<p class="hint">
+阅读顺序建议：先看"三分钟版本"，再看"页面上一共有哪些栏目"，
+然后挑感兴趣的部分往下读。所有结论后面都附了数据来源，可以自己核对。
+</p>
+
+
+<section id="s0">
+<h2><span class="num">第 0 章</span>三分钟版本</h2>
+<p>如果只记几句话：</p>
+<ol>
+  <li>这是一个<strong>开卷的 RL 训练直播间</strong>。它展示的不是模型有多强，而是"训练这件事本身是怎么进行的"。</li>
+  <li>看板上最核心的一个数字是 <code>dynsam/avg@n</code>：模型每道题做 16 次，平均做对的比例。pro 从 0.565 涨到 0.633，flash 从 0.514 涨到 0.638。</li>
+  <li>这两次训练很贵：pro 每秒烧 5.71 美元，flash 每秒烧 2.855 美元，加起来每小时约 3.1 万美元。</li>
+  <li>模型变强的方式，主要是<strong>把"做对一半"的题变成"次次做对"</strong>。pro 的 avg@n 涨了 6.9 个百分点，其中"全对率"贡献 8.4 个点，而"一次都没做对"的比例只降了 1.1 个点。也就是说，那批从头到尾做不对的题基本没被啃动。</li>
+  <li>看板上最容易被误读的一条曲线是"训练器和推理引擎的分歧"。它看起来涨了 3 倍，但拆开看，<strong>新鲜数据上的分歧只涨了两成</strong>，涨的主要是"数据越来越旧"带来的加权效应。</li>
+  <li>还有个不看不知道的账：运行卡片上的"本步已用时"<strong>不含重启等待</strong>。pro 因此少报了 23.7 小时，占真实墙钟的三分之一，折合约 48.8 万美元。这是这份看板上最容易低估的一项成本。</li>
+</ol>
+<div class="callout">
+<strong>想自己翻数据，用隔壁的本地遥测。</strong>
+本页是讲清楚"这个看板在说什么"，只覆盖到写这份文档的那一刻。
+如果要按时间切面回看任意一个历史时刻、或者点开某条曲线看它的用途解读，
+用 <code></code>：起一个本地服务就能看，那里除了原始看板还多了
+<strong>回放</strong>（原站只能看"现在"）和 <strong>指标解读</strong>（一百多条，点任意图表就能看到）。
+离线也能用：<code>bun run mimo:export</code> 之后双击 <code>site/offline.html</code>。
+</div>
+</section>
+
+<section id="s1">
+<h2><span class="num">第 1 章</span>这个页面到底是什么</h2>
+<p>
+大模型的强化学习训练，本质上是让模型自己反复做题、按结果好坏调整自己。
+它和"预训练"最大的区别是：预训练是看海量文本学规律，RL 是拿一个已经会说话的模型，
+让它在具体任务上反复试，试对了加强、试错了削弱。
+</p>
+<p>
+这件事的麻烦在于：它一次要跑几十天、烧掉几百上千万元，而且<strong>中途没有标准答案</strong>。
+你只能靠一堆曲线判断"现在是在往好的方向走，还是已经在烂掉"。
+所以一个 RL 训练看板，本质上是一套仪表盘。
+</p>
+<p>
+小米这个看板把两次训练同时直播出来：
+</p>
+<div class="grid2">
+
+        <div class="card">
+          <h3 style="color:#c2542a">mimo-v2.6-pro</h3>
+          <table class="kv">
+            <tr><th>当前 step</th><td>19</td><th>阶段</th><td>training（本步 41%）</td></tr>
+            <tr><th>累计成本</th><td>$1,490,669</td><th>每秒成本</th><td>$5.710</td></tr>
+            <tr><th>累计训练 token</th><td>42.2B</td><th>累计轨迹</th><td>477k</td></tr>
+            <tr><th>平均通过率</th><td>0.6334</td><th>相对第 1 步</th><td>+0.0688</td></tr>
+            <tr><th>每步配置</th><td colspan="3">1,568 道题 × 16 次尝试 = 25,088 条轨迹</td></tr>
+            <tr><th>重启次数</th><td>9</td><th>沙箱并发</th><td>23,168</td></tr>
+            <tr><th>采样器实时</th><td colspan="3">已收 2184/1568 道 · 已判 2103 · 通过率 0.570 · 预热沙箱 346</td></tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3 style="color:#2a6fb0">mimo-v2.6-flash</h3>
+          <table class="kv">
+            <tr><th>当前 step</th><td>26</td><th>阶段</th><td>rollout（本步 6%）</td></tr>
+            <tr><th>累计成本</th><td>$696,658</td><th>每秒成本</th><td>$2.855</td></tr>
+            <tr><th>累计训练 token</th><td>68.0B</td><th>累计轨迹</th><td>652k</td></tr>
+            <tr><th>平均通过率</th><td>0.6380</td><th>相对第 1 步</th><td>+0.1243</td></tr>
+            <tr><th>每步配置</th><td colspan="3">1,568 道题 × 16 次尝试 = 25,088 条轨迹</td></tr>
+            <tr><th>重启次数</th><td>4</td><th>沙箱并发</th><td>39,013</td></tr>
+            <tr><th>采样器实时</th><td colspan="3">已收 869/1568 道 · 已判 863 · 通过率 0.545 · 预热沙箱 512</td></tr>
+          </table>
+        </div>
+</div>
+<p>
+两次训练都从 2026 年 9 月 15 日开始，看板从 9 月 16 日 04:00 UTC 开始对外直播。
+下面的所有数据都来自这个看板背后的公开接口，不是转述，也不是截图识别。
+</p>
+</section>
+
+<section id="s2">
+<h2><span class="num">第 2 章</span>页面上有哪些栏目</h2>
+<p>页面打开后是"概览"视图，从上到下依次是这些内容。</p>
+
+<h3>顶栏：总花费和四个城市的钟</h3>
+<p>
+总花费是两次训练加起来，写这份文档时是 <strong>2,187,327 美元</strong>，
+每秒都在跳。旁边的北京、洛杉矶、纽约、伦敦四个钟看起来像装饰，
+实际用途是排查故障时对时间——训练日志用 UTC 记，团队分散在不同时区，
+"这个报错是北京下午三点还是洛杉矶半夜三点"直接决定去找哪班人。
+</p>
+<p>
+这个钱怎么算出来的？接口里给每次训练一个"每秒成本"：pro 5.71 美元/秒，
+flash 2.855 美元/秒。这个数字和"用了多少张卡"直接挂钩。
+注意它是按开机时间算的，机器只要开着就在烧钱，包括重启、排队、等数据的时间。
+</p>
+
+<h3>公告（notices）</h3>
+<p>这一段是人工写的，信息量最大。目前共 5 条：</p>
+<ul class="notices"><li><time>09-18 03:49</time>the pro run restarted at step 17 due to a GPU OOM issue caused by expert load imbalance. we have adjusted the training parallelism strategy.</li><li><time>09-17 12:20</time>there was a network connectivity issue between the pro training cluster and the grader deployment. we have restarted the run. we also removed the cyber dataset from the upcoming pro run, since we observed some bad patterns in the rollout logs.</li><li><time>09-17 02:27</time>we restarted the flash run from step 15. reason: a type of infra error on one of datasets was not correctly detected over the past ~3 hours.</li><li><time>09-16 20:08</time>the mimo-v2.6-pro run is restarting due to a vram issue on one node.</li><li><time>09-16 17:58</time>we have updated the latest deepswe results for flash step 12 &amp; pro step 8. we will keep posting as the offline evaluation results come out.</li></ul>
+<p>
+这五条全是稳定性通报，没有一条在讲训练效果——公告栏的定位是故障日志，不是进展汇报。
+它们分别说明几类典型的麻烦：<strong>错了但没报错</strong>（某类 infra 错误三小时没被检出，只能退回去从第 15 步重跑）、
+<strong>硬件故障</strong>（节点显存出问题、专家负载不均导致 GPU OOM）、
+<strong>集群与判分服务之间网络不通</strong>、以及<strong>离线评测比训练慢得多</strong>（成绩要陆续补发）。
+最后一条还附带了一个数据集调整：因为 rollout 日志里看到不好的模式，决定从 pro 的下一轮移除 cyber 数据集——
+这件事在数据里能直接看到，pro 的 cyber 相关计数从第 15 步起就没有了。
+</p>
+
+<h3>运行卡片</h3>
+<p>每张卡片上的字段：</p>
+<dl class="plain">
+  <dt>step</dt><dd>已经完成的训练步数。RL 里"一步"包含三个大阶段：让模型去解题（采样）、给解打分、用打分结果更新参数。</dd>
+  <dt>阶段提示</dt><dd>例如 <code>step 19: training · 2,616/1,568 accepted · 1h 04m in</code>，意思是"第 19 步已经进入训练阶段，采样收了 2616 道合格题（目标 1568 道），这一步跑了 1 小时 4 分"。</dd>
+  <dt>已运行时长 / 开始时间</dt><dd>这次训练从启动到现在的总时长。</dd>
+  <dt>dynsam/avg@n</dt><dd>平均通过率，全看板最重要的一个数。</dd>
+  <dt>cost so far</dt><dd>这次训练自己花了多少钱。</dd>
+  <dt>tokens · step / total</dt><dd>这一步训练了多少 token / 累计多少。</dd>
+  <dt>samples trained</dt><dd>累计训练了多少条轨迹。除以步数就是每步的条数。</dd>
+  <dt>train batch size × n</dt><dd>配置：1,568 道题，每道做 16 次。相乘正好等于每步的轨迹数。</dd>
+</dl>
+<div class="callout">
+这就是 RL 和预训练最大的不同：<strong>预训练一个样本只学一次，RL 一个样本要做 16 次再互相比较</strong>。
+为什么要这样，下一章讲 avg@n 的时候说。
+</div>
+
+<h3>基准（benchmarks）</h3>
+<p>
+前面所有栏目都是训练过程中的实时数据，只有这一栏是<strong>训练出来的模型在标准考卷上的分数</strong>。
+<p><strong>DeepSWE v1.1</strong>（mini-swe-agent, avg@3）</p><div class="scroll"><table class="steps"><thead><tr><th></th><th>flash</th><th>pro</th></tr></thead><tbody><tr><th class='rowh'>step 1</th><td>48.67</td><td>58.41</td></tr><tr><th class='rowh'>step 2</th><td>53.1</td><td>56.25</td></tr><tr><th class='rowh'>step 3</th><td>56.78</td><td>58.41</td></tr><tr><th class='rowh'>step 4</th><td>54.03</td><td>60.47</td></tr><tr><th class='rowh'>step 5</th><td>57.23</td><td>59.59</td></tr><tr><th class='rowh'>step 6</th><td>54.57</td><td>58.55</td></tr><tr><th class='rowh'>step 7</th><td>—</td><td>57.44</td></tr><tr><th class='rowh'>step 8</th><td>57.08</td><td>62.24</td></tr><tr><th class='rowh'>step 10</th><td>60.18</td><td>63.72</td></tr><tr><th class='rowh'>step 11</th><td>54.13</td><td>65.78</td></tr><tr><th class='rowh'>step 12</th><td>60.77</td><td>65.97</td></tr><tr><th class='rowh'>step 13</th><td>57.52</td><td>63.27</td></tr><tr><th class='rowh'>step 14</th><td>59.59</td><td>64.6</td></tr><tr><th class='rowh'>step 15</th><td>60.77</td><td>63.42</td></tr><tr><th class='rowh'>step 16</th><td>63.86</td><td>—</td></tr><tr><th class='rowh'>step 17</th><td>58.11</td><td>—</td></tr><tr><th class='rowh'>step 18</th><td>64.01</td><td>—</td></tr><tr><th class='rowh'>step 19</th><td>61.65</td><td>—</td></tr><tr><th class='rowh'>step 20</th><td>63.72</td><td>—</td></tr><tr><th class='rowh'>step 21</th><td>59.59</td><td>—</td></tr></tbody></table></div><p><strong>In-house Coding Bench</strong>（avg@3）</p><div class="scroll"><table class="steps"><thead><tr><th></th><th>flash</th><th>pro</th></tr></thead><tbody><tr><th class='rowh'>step 1</th><td>53.83</td><td>57.54</td></tr><tr><th class='rowh'>step 2</th><td>54.69</td><td>57.2</td></tr><tr><th class='rowh'>step 3</th><td>55.02</td><td>57.26</td></tr><tr><th class='rowh'>step 4</th><td>55.34</td><td>58.9</td></tr><tr><th class='rowh'>step 5</th><td>56.41</td><td>58.74</td></tr><tr><th class='rowh'>step 6</th><td>56.5</td><td>59.13</td></tr><tr><th class='rowh'>step 7</th><td>—</td><td>59.23</td></tr><tr><th class='rowh'>step 8</th><td>57.47</td><td>59.25</td></tr><tr><th class='rowh'>step 9</th><td>—</td><td>60.73</td></tr><tr><th class='rowh'>step 10</th><td>58.23</td><td>61.38</td></tr><tr><th class='rowh'>step 11</th><td>57.45</td><td>61.58</td></tr><tr><th class='rowh'>step 12</th><td>59.22</td><td>61.64</td></tr><tr><th class='rowh'>step 13</th><td>58.81</td><td>62.54</td></tr><tr><th class='rowh'>step 14</th><td>59.19</td><td>62.54</td></tr><tr><th class='rowh'>step 15</th><td>58.96</td><td>62.26</td></tr><tr><th class='rowh'>step 16</th><td>60.34</td><td>—</td></tr><tr><th class='rowh'>step 17</th><td>59.96</td><td>—</td></tr><tr><th class='rowh'>step 18</th><td>60.92</td><td>—</td></tr><tr><th class='rowh'>step 19</th><td>61.09</td><td>—</td></tr><tr><th class='rowh'>step 20</th><td>61.28</td><td>—</td></tr><tr><th class='rowh'>step 21</th><td>61.33</td><td>—</td></tr></tbody></table></div><p><strong>AutomationBench v1.0.6</strong>（avg@3）</p><div class="scroll"><table class="steps"><thead><tr><th></th><th>flash</th><th>pro</th></tr></thead><tbody><tr><th class='rowh'>step 1</th><td>43.3</td><td>46.2</td></tr><tr><th class='rowh'>step 2</th><td>43.8</td><td>45.4</td></tr><tr><th class='rowh'>step 3</th><td>45.3</td><td>46.7</td></tr><tr><th class='rowh'>step 4</th><td>45</td><td>47</td></tr><tr><th class='rowh'>step 5</th><td>44.2</td><td>47</td></tr><tr><th class='rowh'>step 6</th><td>44</td><td>47.5</td></tr><tr><th class='rowh'>step 7</th><td>47</td><td>45.4</td></tr><tr><th class='rowh'>step 8</th><td>45.7</td><td>46.7</td></tr><tr><th class='rowh'>step 9</th><td>47</td><td>46.7</td></tr><tr><th class='rowh'>step 10</th><td>46.5</td><td>47.5</td></tr><tr><th class='rowh'>step 11</th><td>48.8</td><td>48.8</td></tr><tr><th class='rowh'>step 12</th><td>49.8</td><td>48.7</td></tr><tr><th class='rowh'>step 13</th><td>47.5</td><td>49.1</td></tr><tr><th class='rowh'>step 14</th><td>47.7</td><td>49.8</td></tr><tr><th class='rowh'>step 15</th><td>51.2</td><td>50.7</td></tr><tr><th class='rowh'>step 16</th><td>49.3</td><td>—</td></tr><tr><th class='rowh'>step 17</th><td>50.1</td><td>—</td></tr><tr><th class='rowh'>step 18</th><td>50.4</td><td>—</td></tr><tr><th class='rowh'>step 19</th><td>50.8</td><td>—</td></tr><tr><th class='rowh'>step 20</th><td>50.2</td><td>—</td></tr><tr><th class='rowh'>step 21</th><td>49.9</td><td>—</td></tr></tbody></table></div>
+</p>
+<p>
+这张表最该看的是它的噪声有多大。flash 从第 10 步的 60.18 掉到第 11 步的 54.13，再回到第 12 步的 60.77——
+一步 6 个点的波动，在只有几十道题的评测集上属于正常抖动。
+所以这一栏的正确用法是看两三次评测连成的方向，而不是看最新那条。
+</p>
+
+<h3>主图表区</h3>
+<p>
+页面把 18 个指标钉在首页，横轴可以切 step / time，纵轴可以切 linear / log，还有一个平滑滑块。
+本章剩下的部分和下一章都围绕这块展开。
+</p>
+
+<h3>动态采样器（dynamic sampler）</h3>
+<p>
+左边是滚动日志，大约 30 秒一条；右边是当前这一步按数据源拆开的进度表。
+这一块信息密度最高，也最少人看得懂，第 4 章单独讲。
+</p>
+
+<h3>批次构成（batch composition）</h3>
+<p>
+回答"这一步真正拿去训练的那些题，是按什么比例拼出来的"。同样第 4 章讲。
+</p>
+
+<h3>指标浏览器（metrics 视图）</h3>
+<p>
+点顶部的 metrics，左边会出现一棵树，右上角写着这个看板一共暴露了多少个指标名——
+实测 pro 是 2,019 个、flash 是 2,062 个，
+首页那 18 个只是被钉在最上面的。
+</p>
+<p>
+这里要说清楚一件事：<strong>站点只给其中 22 个指标写了文字说明</strong>。
+剩下两千多个只有名字，没有解释。第 5 章会把这件事讲清楚：哪些能信、哪些只能存疑。
+</p>
+</section>
+
+<section id="s3">
+<h2><span class="num">第 3 章</span>十八个常驻指标，逐个说</h2>
+<p>
+每个指标先给一句大白话，再给专业一点的说明，最后附上这次的实测值。
+实测值都是我从接口原始数据算出来的。
+</p>
+
+<h3>1. dynsam/avg@n —— 平均通过率</h3>
+<p><strong>大白话：</strong>模型这次考试的平均得分率。0.615 就是平均每道题做对 61.5%。</p>
+<p><strong>专业：</strong>官方定义是"对这一步采样的每道题，n 次尝试中成功的比例，再对所有题取平均"。
+这里的 n 是 16。做 16 次而不是 1 次，一是为了降低单次采样的随机性，
+二是这 16 次之间的差异本身就是学习信号——全对或全错的题产生不了学习信号。</p>
+<p><strong>本次实测：</strong>pro 0.565 → 0.633；flash 0.514 → 0.638。
+两边都在涨，pro 每步约 +0.005，flash 约 +0.006。</p>
+<figure class="chart"><figcaption>图 1　平均通过率随训练步的变化（这是全看板的第一指标）</figcaption><svg viewBox="0 0 720 300" role="img" aria-label="图 1　平均通过率随训练步的变化（这是全看板的第一指标）"><rect x="66" y="40" width="636" height="220" class="plot"/><line x1="66" y1="260.0" x2="702" y2="260.0" class="grid"/><text x="58" y="264.0" class="ylab">0.479</text><line x1="66" y1="205.0" x2="702" y2="205.0" class="grid"/><text x="58" y="209.0" class="ylab">0.524</text><line x1="66" y1="150.0" x2="702" y2="150.0" class="grid"/><text x="58" y="154.0" class="ylab">0.570</text><line x1="66" y1="95.0" x2="702" y2="95.0" class="grid"/><text x="58" y="99.0" class="ylab">0.616</text><line x1="66" y1="40.0" x2="702" y2="40.0" class="grid"/><text x="58" y="44.0" class="ylab">0.661</text><line x1="66.0" y1="260" x2="66.0" y2="264" class="tick"/><text x="66.0" y="278" class="xlab">1</text><line x1="145.5" y1="260" x2="145.5" y2="264" class="tick"/><text x="145.5" y="278" class="xlab">4</text><line x1="225.0" y1="260" x2="225.0" y2="264" class="tick"/><text x="225.0" y="278" class="xlab">7</text><line x1="304.5" y1="260" x2="304.5" y2="264" class="tick"/><text x="304.5" y="278" class="xlab">10</text><line x1="384.0" y1="260" x2="384.0" y2="264" class="tick"/><text x="384.0" y="278" class="xlab">14</text><line x1="463.5" y1="260" x2="463.5" y2="264" class="tick"/><text x="463.5" y="278" class="xlab">17</text><line x1="543.0" y1="260" x2="543.0" y2="264" class="tick"/><text x="543.0" y="278" class="xlab">20</text><line x1="622.5" y1="260" x2="622.5" y2="264" class="tick"/><text x="622.5" y="278" class="xlab">23</text><line x1="702.0" y1="260" x2="702.0" y2="264" class="tick"/><text x="702.0" y="278" class="xlab">26</text><text x="66" y="22" class="axis">avg@n（每题 16 次尝试的平均通过率）</text><text x="702" y="294" class="xlab" text-anchor="end">训练步 (step)</text><path d="M 66.0 156.5 L 91.4 167.7 L 116.9 153.7 L 142.3 143.2 L 167.8 150.1 L 193.2 130.7 L 218.6 127.9 L 244.1 110.5 L 269.5 109.1 L 295.0 125.4 L 320.4 96.7 L 345.8 103.2 L 371.3 85.0 L 396.7 95.4 L 422.2 93.0 L 447.6 70.9 L 473.0 78.4 L 498.5 92.8 L 523.9 73.4" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="156.5" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="167.7" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="153.7" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="143.2" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="150.1" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="130.7" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="127.9" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="110.5" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="109.1" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="125.4" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="96.7" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="103.2" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="85.0" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="95.4" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="93.0" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="70.9" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="78.4" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="92.8" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="73.4" r="2.6" style="fill:#c2542a"/><path d="M 66.0 218.1 L 91.4 239.0 L 116.9 183.1 L 142.3 222.5 L 167.8 177.5 L 193.2 188.4 L 218.6 185.6 L 244.1 161.2 L 269.5 146.6 L 295.0 150.9 L 320.4 164.0 L 345.8 141.6 L 371.3 142.8 L 396.7 133.1 L 422.2 118.3 L 447.6 119.9 L 473.0 112.3 L 498.5 111.0 L 523.9 82.2 L 549.4 105.2 L 574.8 77.6 L 600.2 88.2 L 625.7 71.7 L 651.1 95.1 L 676.6 64.4 L 702.0 67.9" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="218.1" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="239.0" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="183.1" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="222.5" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="177.5" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="188.4" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="185.6" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="161.2" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="146.6" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="150.9" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="164.0" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="141.6" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="142.8" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="133.1" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="118.3" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="119.9" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="112.3" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="111.0" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="82.2" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="105.2" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="77.6" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="88.2" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="71.7" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="95.1" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="64.4" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="67.9" r="2.6" style="fill:#2a6fb0"/></svg><p class="legend"><span class="lg"><i style="background:#c2542a"></i>mimo-v2.6-pro <b>0.633</b></span><span class="lg"><i style="background:#2a6fb0"></i>mimo-v2.6-flash <b>0.638</b></span></p></figure>
+
+<h3>2. critic/rewards/mean —— 平均奖励</h3>
+<p><strong>大白话：</strong>模型这次拿到的平均分。它和通过率看着像，但不是一回事。</p>
+<p><strong>专业：</strong>通过率只关心"对没对"，奖励还包含过程的加分扣分。
+在让模型自己调工具、自己跑代码的任务里，答案对了但过程一塌糊涂会被扣分。
+接口里 <code>critic/score/mean</code> 和它逐 step 完全相同，所以在这套系统里 score 和 reward 是同一个东西。</p>
+<p><strong>本次实测：</strong>pro 0.552 → 0.595（涨 0.035），
+flash 0.517 → 0.589（涨 0.060）。
+两边的涨幅都只有通过率涨幅的七成左右，说明有一部分"新做对的题"在过程分上被扣掉了。</p>
+
+<h3>3. actor/entropy_loss —— 策略熵</h3>
+<p><strong>大白话：</strong>模型输出有多犹豫。熵高说明它在多个选项之间摇摆，熵低说明它非常确信该输出什么。</p>
+<p><strong>专业：</strong>熵掉到很低俗称"熵坍塌"，是 RL 的经典失败模式：模型过早认定"只有这一种解法"，
+一旦这条路走不通就彻底卡死。所以熵是判断"模型还有没有探索能力"的核心指标。只看趋势，不看绝对值。</p>
+<p><strong>本次实测：</strong>两次训练的熵都在<strong>缓慢上升</strong>，pro 0.395 → 0.406，
+flash 0.413 → 0.455。
+熵涨的同时通过率也在涨，这是好事：模型是学会了更多解法，而不是把某一种压到极致后失去探索能力。</p>
+
+<h3>4. actor/pg_loss —— 策略梯度损失</h3>
+<p><strong>大白话：</strong>这一步"需要改多少"的信号强度。这个数本身没有好坏，只有量级和趋势。</p>
+<p><strong>专业：</strong>它依赖 advantage 的尺度和归一化方式，所以<strong>跨训练比较没有意义</strong>——
+pro 的 0.0058 和 flash 的 0.0128 不代表 flash 学得更猛。要看的是它有没有突然放大几十倍，
+那通常意味着参数被推离原位，后面几步就会看到熵掉、通过率掉。</p>
+<p><strong>本次实测：</strong>pro 在 0.0021~0.0074 之间来回；flash 从 0.0008 涨到 0.0092，
+涨得很多，但同期 flash 的熵也在涨，没有恶化迹象。</p>
+
+<h3>5. actor/grad_norm —— 梯度范数</h3>
+<p><strong>大白话：</strong>这次要往参数上推的力有多大。</p>
+<p><strong>专业：</strong>突然变大多是异常前兆。接口里还给了 <code>actor/clip_low = 0.2</code>、
+<code>actor/clip_high = 0.27</code>，这是概率比允许被裁剪的上下界，也就是"力再大也只允许推这么多"。</p>
+<p><strong>本次实测：</strong>pro 在 0.00481 到 0.03351 之间，
+flash 在 0.00493 到 0.00905 之间，都非常平稳。</p>
+
+<h3>6. train_infer_diff/new_infer/kl —— 训练器与推理引擎的分歧</h3>
+<p><strong>大白话：</strong>同一句话，负责"生成"的程序和负责"训练"的程序，算出来的概率一样吗？</p>
+<p><strong>专业：</strong>生成用推理引擎（追求吞吐，会做近似），训练用训练框架（追求精确）。
+两边算出的概率不可能完全一样，原因是 MoE 的专家路由、算子实现、浮点精度、批大小等等。
+它衡量的是<strong>工程实现误差</strong>，不是"策略跑偏了多少"——这两件事的数值量级差两个数量级，很容易看串。</p>
+<p><strong>本次实测：</strong>全局值 pro 0.0022 → 0.0077，
+flash 0.0029 → 0.0063。
+但<strong>这个数不能直接读</strong>，原因见第 7 章第 2 条。
+<figure class="chart"><figcaption>图 5　训练器与推理引擎分歧的两种口径</figcaption><svg viewBox="0 0 720 300" role="img" aria-label="图 5　训练器与推理引擎分歧的两种口径"><rect x="66" y="40" width="636" height="220" class="plot"/><line x1="66" y1="260.0" x2="702" y2="260.0" class="grid"/><text x="58" y="264.0" class="ylab">0.0000</text><line x1="66" y1="205.0" x2="702" y2="205.0" class="grid"/><text x="58" y="209.0" class="ylab">0.0029</text><line x1="66" y1="150.0" x2="702" y2="150.0" class="grid"/><text x="58" y="154.0" class="ylab">0.0058</text><line x1="66" y1="95.0" x2="702" y2="95.0" class="grid"/><text x="58" y="99.0" class="ylab">0.0086</text><line x1="66" y1="40.0" x2="702" y2="40.0" class="grid"/><text x="58" y="44.0" class="ylab">0.0115</text><line x1="66.0" y1="260" x2="66.0" y2="264" class="tick"/><text x="66.0" y="278" class="xlab">1</text><line x1="145.5" y1="260" x2="145.5" y2="264" class="tick"/><text x="145.5" y="278" class="xlab">4</text><line x1="225.0" y1="260" x2="225.0" y2="264" class="tick"/><text x="225.0" y="278" class="xlab">7</text><line x1="304.5" y1="260" x2="304.5" y2="264" class="tick"/><text x="304.5" y="278" class="xlab">10</text><line x1="384.0" y1="260" x2="384.0" y2="264" class="tick"/><text x="384.0" y="278" class="xlab">14</text><line x1="463.5" y1="260" x2="463.5" y2="264" class="tick"/><text x="463.5" y="278" class="xlab">17</text><line x1="543.0" y1="260" x2="543.0" y2="264" class="tick"/><text x="543.0" y="278" class="xlab">20</text><line x1="622.5" y1="260" x2="622.5" y2="264" class="tick"/><text x="622.5" y="278" class="xlab">23</text><line x1="702.0" y1="260" x2="702.0" y2="264" class="tick"/><text x="702.0" y="278" class="xlab">26</text><text x="66" y="22" class="axis">KL 散度</text><text x="702" y="294" class="xlab" text-anchor="end">训练步 (step)</text><path d="M 66.0 218.2 L 91.4 200.4 L 116.9 201.2 L 142.3 165.4 L 167.8 108.9 L 193.2 88.4 L 218.6 74.8 L 244.1 76.9 L 269.5 72.9 L 295.0 92.0 L 320.4 158.8 L 345.8 134.8 L 371.3 97.3 L 396.7 81.2 L 422.2 210.8 L 447.6 180.7 L 473.0 175.7 L 498.5 130.2 L 523.9 113.2" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="218.2" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="200.4" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="201.2" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="165.4" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="108.9" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="88.4" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="74.8" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="76.9" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="72.9" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="92.0" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="158.8" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="134.8" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="97.3" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="81.2" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="210.8" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="180.7" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="175.7" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="130.2" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="113.2" r="2.6" style="fill:#c2542a"/><path d="M 66.0 205.2 L 91.4 181.2 L 116.9 172.0 L 142.3 158.9 L 167.8 118.5 L 193.2 91.8 L 218.6 85.5 L 244.1 81.6 L 269.5 83.1 L 295.0 77.9 L 320.4 72.4 L 345.8 86.1 L 371.3 91.2 L 396.7 85.1 L 422.2 101.0 L 447.6 197.6 L 473.0 165.4 L 498.5 100.7 L 523.9 83.9 L 549.4 73.1 L 574.8 82.4 L 600.2 75.0 L 625.7 91.2 L 651.1 67.0 L 676.6 146.0 L 702.0 140.4" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="205.2" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="181.2" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="172.0" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="158.9" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="118.5" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="91.8" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="85.5" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="81.6" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="83.1" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="77.9" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="72.4" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="86.1" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="91.2" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="85.1" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="101.0" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="197.6" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="165.4" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="100.7" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="83.9" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="73.1" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="82.4" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="75.0" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="91.2" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="67.0" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="146.0" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="140.4" r="2.6" style="fill:#2a6fb0"/><path d="M 66.0 218.1 L 91.4 218.6 L 116.9 216.6 L 142.3 216.4 L 167.8 217.7 L 193.2 217.2 L 218.6 216.3 L 244.1 216.0 L 269.5 215.6 L 295.0 215.6 L 320.4 212.1 L 345.8 212.9 L 371.3 212.3 L 396.7 212.6 L 422.2 210.7 L 447.6 212.5 L 473.0 209.5 L 498.5 209.2 L 523.9 209.6" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="218.1" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="218.6" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="216.6" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="216.4" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="217.7" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="217.2" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="216.3" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="216.0" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="215.6" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="215.6" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="212.1" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="212.9" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="212.3" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="212.6" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="210.7" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="212.5" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="209.5" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="209.2" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="209.6" r="2.6" style="fill:#c2542a"/><path d="M 66.0 205.2 L 91.4 211.4 L 116.9 205.8 L 142.3 203.9 L 167.8 207.2 L 193.2 206.9 L 218.6 203.3 L 244.1 201.8 L 269.5 202.4 L 295.0 203.4 L 320.4 202.9 L 345.8 201.0 L 371.3 201.5 L 396.7 203.7 L 422.2 199.3 L 447.6 197.5 L 473.0 198.1 L 498.5 196.3 L 523.9 197.3 L 549.4 194.3 L 574.8 194.6 L 600.2 194.4 L 625.7 193.0 L 651.1 194.9 L 676.6 192.2 L 702.0 195.1" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="205.2" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="211.4" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="205.8" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="203.9" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="207.2" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="206.9" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="203.3" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="201.8" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="202.4" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="203.4" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="202.9" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="201.0" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="201.5" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="203.7" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="199.3" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="197.5" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="198.1" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="196.3" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="197.3" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="194.3" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="194.6" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="194.4" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="193.0" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="194.9" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="192.2" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="195.1" r="2.6" style="fill:#2a6fb0"/></svg><p class="legend"><span class="lg"><i style="background:#c2542a"></i>pro 全局 <b>0.0077</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 全局 <b>0.0063</b></span><span class="lg"><i style="background:#c2542a"></i>pro 新鲜数据 <b>0.0026</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 新鲜数据 <b>0.0034</b></span></p><p class="note">下面两条（新鲜数据）几乎是一条水平线。上面两条（全局）的上涨，主要来自数据越来越旧，而不是两个引擎越差越远。</p></figure>
+</section>
+
+<section id="s4">
+<h2><span class="num">第 4 章</span>两块最容易被忽略的面板</h2>
+
+<h3>动态采样器</h3>
+<p>左边每条日志长这样：</p>
+<pre class="scroll" style="padding:12px 16px;font-size:.86rem">accepted 2,616/1,568 · judged 2,458 · pass 0.601 (n=12,189) · remaining 89 +1,057 partial +396 rewarding · prewarm 292</pre>
+<dl class="plain">
+  <dt>accepted 2,616/1,568</dt><dd>已经收到 2616 道合格的题，目标是 1568 道——超了 67%。</dd>
+  <dt>judged 2,458</dt><dd>其中 2458 道已经被打了分。</dd>
+  <dt>pass 0.601 (n=12,189)</dt><dd>目前所有已判定的尝试里通过率 60.1%，一共 12189 次尝试。</dd>
+  <dt>remaining 89 + 1,057 partial + 396 rewarding</dt><dd>还没开始的 89 道、做了一半的 1057 道、已经有分数的 396 道。</dd>
+  <dt>prewarm 292</dt><dd>提前把环境起好、等着用的沙箱数量。</dd>
+</dl>
+<p>
+右边那张按数据源拆开的表更值钱。它回答的是"配比对不对"：总目标 1568 道题不是随机撒的，
+而是按大类配额分的——code 类 11 个数据集、general 4 个、cyber 1 个、visual 6 个、chat 3 个，共 25 个数据源。
+</p>
+<p>
+数据源名字被脱敏成 <code>dataset-obg8</code> 这样，看不出具体内容，但能看出配比和进度。
+比如某个 source 写上 335/55，意味着它收进来 335 道而目标只有 55 道，超了 6 倍——
+说明这个数据源出的题大多"不合格"（通过率落在全对或全错两端），采样器只能不停换。
+<strong>这一列的比值，其实是每个数据源的有效率</strong>，是这块面板真正值钱的地方。
+</p>
+
+<h3>批次构成</h3>
+<p>回答"这一步真正拿去训练的那 1568 道题，是按什么比例组成的"。</p>
+<p>
+按 harness 看更有意思。Harness 指的是模型外面那层"脚手架"——同一个模型，套不同的提示词和工具集，
+表现会完全不同。接口里一共有 23 个 harness（代号 harness-A 到 harness-U，其中几个带 -pw 后缀），
+每个都记录了这一步跑了多少条轨迹、有多少条真的进了训练批次、正负 advantage 的比例等。
+</p>
+<p>
+这告诉外界：两次训练不是"一个模型一个提示词"，而是几十种任务形态混在一起训。
+页面上因此专门给了"按 harness"的切换。
+</p>
+</section>
+
+<section id="s5">
+<h2><span class="num">第 5 章</span>另外两千个指标：哪些能信</h2>
+<p>
+metrics 视图里一共有两千多个指标名，但<strong>站点只给其中 22 个写了文字说明</strong>。
+剩下两千多个只有名字。这一章说清楚每一族大概是干什么的，同时标明哪些是能确认的、哪些是不确定的。
+</p>
+<table>
+<thead><tr><th>命名空间</th><th>指标数</th><th>是什么</th><th>可信度</th></tr></thead>
+<tbody>
+<tr><td><code>penalty/</code></td><td>535</td><td>代码题的奖励校验流水线内部计数：判定池、两趟判定、分组、分级、疑似作弊检测</td><td>官方无说明，字段名可读但定义不可知</td></tr>
+<tr><td><code>partial/</code></td><td>377</td><td>数据"过期"程度。含 8 个分箱的占比、每个桶的 token 数、每个桶自己的 KL 和熵</td><td>本项目已验证其内部恒等式</td></tr>
+<tr><td><code>critic/</code></td><td>324</td><td>打分侧：奖励、advantage、return 的均值/最大/最小</td><td>官方有说明</td></tr>
+<tr><td><code>actor/</code></td><td>257</td><td>模型本身：损失、熵、梯度、学习率、各种裁剪比例</td><td>部分官方有说明</td></tr>
+<tr><td><code>train/</code></td><td>191</td><td>训练批次的构成、轨迹的去向、23 个 harness 各自的表现</td><td>部分官方有说明</td></tr>
+<tr><td><code>ctx_*_length/</code></td><td>270</td><td>上下文长度，分 prompt / response / total 三套，每套又有全局和按数据源细分</td><td>官方有说明</td></tr>
+<tr><td><code>dynsam/</code></td><td>83</td><td>动态采样器：通过率、全对全错比例、基础设施错误率、轮数</td><td>官方有说明</td></tr>
+<tr><td><code>env/</code></td><td>15</td><td>沙箱环境：在跑的数量、累计启动、累计错误、是否可能泄漏</td><td>部分官方有说明</td></tr>
+<tr><td><code>train_infer_diff/</code></td><td>11</td><td>推理引擎和训练器的数值分歧</td><td>官方有说明</td></tr>
+<tr><td><code>timing_s/</code> <code>perf/</code> <code>training/</code></td><td>6</td><td>三段耗时、单步 token 数、全局步号</td><td>官方有说明</td></tr>
+</tbody>
+</table>
+
+<h3>几个值得单独说的</h3>
+<h4>critic/advantages —— 优势值</h4>
+<p>
+这是真正驱动学习的量：它回答"这次尝试比平均水平好多少"。
+同一道题的 16 次尝试会各自减掉它们自己的平均分，所以均值几乎为 0（pro 在 −0.014 到 −0.001 之间），
+最大值 1.1~1.3，最小值 −0.9~−1.6。均值接近 0 是正常的，不是"没学到东西"。
+</p>
+
+<h4>actor/pg_tis_clipfrac —— 重要性采样裁剪比例</h4>
+<p>
+异步训练会让数据"过期"，过期数据不能直接拿来算梯度，要先按新旧策略的概率比做加权修正
+（这个做法叫重要性采样修正，truncated importance sampling，常用缩写 TIS），
+并把权重限制在范围内，防止个别样本权重失控。这个指标就是"被限制住的样本比例"。
+本次实测 pro 是万分之几，flash 也是万分之几，<strong>说明过期带来的偏差目前还压得住</strong>。
+</p>
+
+<h4>actor/pg_clipfrac 和 actor/ppo_kl 恒等于 0</h4>
+<div class="warn">
+这两个指标在两次训练的所有 step 里都精确等于 0。按常规理解，PPO 的裁剪比例应该是个大于 0 的小数。
+可能是这套训练用的机制和标准 PPO 不同（所以计数器没被赋值），也可能是配置里关掉了。
+<strong>站点没有说明，所以我不做解读。</strong>
+只记一个操作结论：不要用这两个指标判断这套训练的健康度。
+</div>
+
+<h4>env/total_setup 和 env/total_error 是累计值</h4>
+<p>
+它们不是"这一步的量"，而是"自训练器启动以来的累计量"——实测在重启时会归零。
+所以要用必须自己差分。
+</p>
+
+<h4>penalty/ 这一大族：量得多，改得少</h4>
+<p>
+535 个字段看着像"惩罚在主导训练"。但数据里有两个硬事实：
+<code>train/adv_pos_sum_pre_penalty</code> 与 <code>train/adv_pos_sum_post_penalty</code> 逐 step 完全相同，
+<code>penalty/action/adv_reduction_total</code> 恒等于 0。
+也就是说<strong>这套机制在该 run 里没有实质改写优势值</strong>。
+它保护性的上限计数器（<code>keep_mass_capped</code>、<code>rollouts_masked</code>、<code>select_r3_gold_fails</code> 等）也全部恒为 0。
+</p>
+</section>
+
+<section id="s6">
+<h2><span class="num">第 6 章</span>观察期间实际发生了什么</h2>
+<p>
+本页数据来自对看板的连续采集。最早那一段是每 20 分钟一次，之后接上了本地遥测仓库的增量同步，
+所以现在覆盖的是<strong>从训练开始到 pro 第 19 步 / flash 第 26 步</strong>的完整过程。
+下面是采集到的时间线（只列最后若干条）。
+"重启"标记表示两次采集之间这次训练重启过。
+</p>
+<div class="scroll"><table class="steps">
+<thead><tr><th>采集时间(UTC)</th><th>训练</th><th>step</th><th>阶段</th><th>进度</th><th>avg@n</th><th>平均上下文</th><th>训练耗时(s)</th><th>累计重启</th><th></th></tr></thead>
+<tbody><tr><td>09-17 10:49</td><td>mimo-v2.6-pro</td><td>14</td><td>rollout</td><td>51%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>6</td><td></td></tr><tr><td>09-17 10:50</td><td>mimo-v2.6-flash</td><td>18</td><td>rollout</td><td>44%</td><td>0.602</td><td>115,604</td><td>4,123</td><td>2</td><td></td></tr><tr><td>09-17 10:50</td><td>mimo-v2.6-pro</td><td>14</td><td>rollout</td><td>52%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>6</td><td></td></tr><tr><td>09-17 10:50</td><td>mimo-v2.6-flash</td><td>18</td><td>rollout</td><td>44%</td><td>0.602</td><td>115,604</td><td>4,123</td><td>2</td><td></td></tr><tr><td>09-17 11:10</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>64%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>6</td><td></td></tr><tr><td>09-17 11:10</td><td>mimo-v2.6-flash</td><td>18</td><td>training</td><td>58%</td><td>0.602</td><td>115,604</td><td>4,123</td><td>2</td><td></td></tr><tr><td>09-17 11:30</td><td>mimo-v2.6-pro</td><td>14</td><td>rollout</td><td>6%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td><span class="flag">重启</span></td></tr><tr><td>09-17 11:30</td><td>mimo-v2.6-flash</td><td>18</td><td>training</td><td>71%</td><td>0.602</td><td>115,604</td><td>4,123</td><td>2</td><td></td></tr><tr><td>09-17 11:50</td><td>mimo-v2.6-pro</td><td>14</td><td>rollout</td><td>18%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 11:50</td><td>mimo-v2.6-flash</td><td>18</td><td>training</td><td>85%</td><td>0.602</td><td>115,604</td><td>4,123</td><td>2</td><td></td></tr><tr><td>09-17 12:10</td><td>mimo-v2.6-pro</td><td>14</td><td>rollout</td><td>31%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 12:10</td><td>mimo-v2.6-flash</td><td>19</td><td>rollout</td><td>0%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 12:30</td><td>mimo-v2.6-pro</td><td>14</td><td>rollout</td><td>44%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 12:30</td><td>mimo-v2.6-flash</td><td>19</td><td>rollout</td><td>14%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 12:50</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>57%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 12:50</td><td>mimo-v2.6-flash</td><td>19</td><td>rollout</td><td>28%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 13:10</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>70%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 13:10</td><td>mimo-v2.6-flash</td><td>19</td><td>rollout</td><td>41%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 13:30</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>82%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 13:30</td><td>mimo-v2.6-flash</td><td>19</td><td>training</td><td>55%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 13:51</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>95%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 13:50</td><td>mimo-v2.6-flash</td><td>19</td><td>training</td><td>68%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 14:11</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>100%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 14:11</td><td>mimo-v2.6-flash</td><td>19</td><td>training</td><td>83%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 14:31</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>100%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 14:31</td><td>mimo-v2.6-flash</td><td>19</td><td>training</td><td>96%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 14:51</td><td>mimo-v2.6-pro</td><td>14</td><td>training</td><td>100%</td><td>0.615</td><td>106,203</td><td>4,814</td><td>7</td><td></td></tr><tr><td>09-17 14:51</td><td>mimo-v2.6-flash</td><td>19</td><td>training</td><td>100%</td><td>0.626</td><td>123,899</td><td>4,889</td><td>2</td><td></td></tr><tr><td>09-17 15:11</td><td>mimo-v2.6-pro</td><td>15</td><td>rollout</td><td>1%</td><td>0.617</td><td>91,458</td><td>3,778</td><td>7</td><td></td></tr><tr><td>09-17 15:11</td><td>mimo-v2.6-flash</td><td>20</td><td>rollout</td><td>8%</td><td>0.607</td><td>129,392</td><td>4,954</td><td>2</td><td></td></tr></tbody></table></div>
+<p class="note">注意 pro 那一行进度从 64% 掉回 6%、累计重启从 6 变成 7 的那次——那是一次真实发生的重启。</p>
+
+<h3>数据长到 25 步之后，有三件事可以定论了</h3>
+<p>
+连续监测的价值在于能验证判断，而不只是堆数据。观察窗口从 15 步延长到 25 步之后，三个原本"看着像"的判断变成了实数：
+</p>
+<ul>
+  <li><strong>那条 KL 曲线确实是加权平均，而且涨幅几乎全来自权重。</strong>
+  最早只有 pro 第 15 步这一次"全新数据"的机会，能看出全局值等于桶 0 值。
+  现在 flash 第 25 步又给了一次，而且更干净：重启后数据全新，
+  平均过期程度从 2.18 掉到 0.32，全局 KL 同步从 0.0101 掉到 0.0060（降 41%），
+  而桶 0 的 KL 只从 0.0034 变到 0.0035。见判断二。</li>
+  <li><strong>"15% 的墙"没有松动。</strong>最早 flash 第 19 步全错比例掉到 0.1356，看着像要突破，
+  第 20 步就弹回 0.1576。现在一共 25 步看下来，pro 的全错率从 14.6% 到 13.5%，
+  flash 从 16.0% 到 14.7%——两个 run 各自只降了一个多百分点。见判断三。</li>
+  <li><strong>重启的成本第一次算清楚了。</strong>pro 一共重启 9 次、flash 4 次。
+  把每一步上报的耗时加起来，pro 只有 48.4 小时，而墙钟是 72.2 小时——
+  差的 23.7 小时几乎全是重启等待，占真实墙钟的 32.9%，折合约 48.8 万美元。
+  见判断六。</li>
+</ul>
+</section>
+
+<section id="s7">
+<h2><span class="num">第 7 章</span>深入看：六条判断</h2>
+
+<h3>判断一：瓶颈已经从"生成"转移到"训练"</h3>
+<p>
+pro 的一步耗时从 9,570 秒涨到 11,831 秒。
+但拆开看完全不是均匀上涨：
+</p>
+<ul>
+  <li>生成阶段：6,514 → 4,267 秒（<strong>降了</strong>）</li>
+  <li>训练阶段：2,889 → 7,332 秒（涨了约 154%）</li>
+</ul>
+<p>
+同期训练 token 量涨了约 47%。生成本来就是并行铺开的——pro 有大约 23,168 个沙箱同时跑，
+生成要多久取决于"最长的那条轨迹跑了多久"，跟总 token 量关系不大，所以 token 涨了它反而能降。
+训练则相反，是把所有 token 一个个喂进模型算梯度，时间几乎正比于 token 量。
+我把上下文长度和训练耗时做相关，系数是 0.968，几乎是直线关系。
+</p>
+<p>
+一步里的时间，生成 + 训练之外只占 2%~3%，说明没有浪费在调度上。
+那么整步时间的走向就完全由这两个阶段角力决定。按现在的斜率，训练耗时迟早会超过生成，
+那时候生成端会出现大量空闲算力。
+</p>
+<div class="warn">
+<p><strong>这里有一个必须知道的前提：<code>timing_s/step</code> 不包含重启等待的时间。</strong></p>
+<p>
+拿每个 step 的绝对时间戳逐一核对可以发现：没有重启的 step，这个数跟真实墙钟差在 10 秒以内；
+有重启的 step，差几小时。pro 因为重启多，15 个 step 上报的总时长是 35.9 小时，
+真实墙钟是 52.6 小时，中间 <strong>16.8 小时（32%）没有被计入</strong>，折合 34.4 万美元。
+</p>
+<p>
+所以看这条曲线要多个心眼：<strong>它平不代表这一步跑得快，可能只是重启的那段没被算进来</strong>。
+要判断真实耗时，看运行卡片上"上一步完成到现在"的间隔。
+</p>
+</div>
+<figure class="chart"><figcaption>图 3　一步里的时间花在哪：生成（浅色系）与训练（深色系）</figcaption><svg viewBox="0 0 720 300" role="img" aria-label="图 3　一步里的时间花在哪：生成（浅色系）与训练（深色系）"><rect x="66" y="40" width="636" height="220" class="plot"/><line x1="66" y1="260.0" x2="702" y2="260.0" class="grid"/><text x="58" y="264.0" class="ylab">0</text><line x1="66" y1="205.0" x2="702" y2="205.0" class="grid"/><text x="58" y="209.0" class="ylab">2537</text><line x1="66" y1="150.0" x2="702" y2="150.0" class="grid"/><text x="58" y="154.0" class="ylab">5073</text><line x1="66" y1="95.0" x2="702" y2="95.0" class="grid"/><text x="58" y="99.0" class="ylab">7610</text><line x1="66" y1="40.0" x2="702" y2="40.0" class="grid"/><text x="58" y="44.0" class="ylab">10146</text><line x1="66.0" y1="260" x2="66.0" y2="264" class="tick"/><text x="66.0" y="278" class="xlab">1</text><line x1="145.5" y1="260" x2="145.5" y2="264" class="tick"/><text x="145.5" y="278" class="xlab">4</text><line x1="225.0" y1="260" x2="225.0" y2="264" class="tick"/><text x="225.0" y="278" class="xlab">7</text><line x1="304.5" y1="260" x2="304.5" y2="264" class="tick"/><text x="304.5" y="278" class="xlab">10</text><line x1="384.0" y1="260" x2="384.0" y2="264" class="tick"/><text x="384.0" y="278" class="xlab">14</text><line x1="463.5" y1="260" x2="463.5" y2="264" class="tick"/><text x="463.5" y="278" class="xlab">17</text><line x1="543.0" y1="260" x2="543.0" y2="264" class="tick"/><text x="543.0" y="278" class="xlab">20</text><line x1="622.5" y1="260" x2="622.5" y2="264" class="tick"/><text x="622.5" y="278" class="xlab">23</text><line x1="702.0" y1="260" x2="702.0" y2="264" class="tick"/><text x="702.0" y="278" class="xlab">26</text><text x="66" y="22" class="axis">耗时（秒）</text><text x="702" y="294" class="xlab" text-anchor="end">训练步 (step)</text><path d="M 66.0 118.8 L 91.4 163.9 L 116.9 139.5 L 142.3 182.1 L 167.8 184.2 L 193.2 192.1 L 218.6 180.8 L 244.1 184.7 L 269.5 165.1 L 295.0 184.1 L 320.4 139.5 L 345.8 146.1 L 371.3 152.4 L 396.7 141.8 L 422.2 67.0 L 447.6 173.8 L 473.0 125.2 L 498.5 131.7 L 523.9 167.5" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="118.8" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="163.9" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="139.5" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="182.1" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="184.2" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="192.1" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="180.8" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="184.7" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="165.1" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="184.1" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="139.5" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="146.1" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="152.4" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="141.8" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="67.0" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="173.8" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="125.2" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="131.7" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="167.5" r="2.6" style="fill:#c2542a"/><path d="M 66.0 163.7 L 91.4 205.9 L 116.9 164.0 L 142.3 178.3 L 167.8 207.0 L 193.2 206.3 L 218.6 199.2 L 244.1 204.0 L 269.5 199.6 L 295.0 197.5 L 320.4 185.7 L 345.8 187.8 L 371.3 187.8 L 396.7 171.4 L 422.2 183.9 L 447.6 110.0 L 473.0 166.8 L 498.5 160.6 L 523.9 181.2 L 549.4 153.1 L 574.8 185.6 L 600.2 168.7 L 625.7 184.7 L 651.1 162.1 L 676.6 119.3 L 702.0 147.6" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="163.7" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="205.9" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="164.0" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="178.3" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="207.0" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="206.3" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="199.2" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="204.0" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="199.6" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="197.5" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="185.7" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="187.8" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="187.8" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="171.4" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="183.9" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="110.0" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="166.8" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="160.6" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="181.2" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="153.1" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="185.6" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="168.7" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="184.7" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="162.1" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="119.3" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="147.6" r="2.6" style="fill:#2a6fb0"/><path d="M 66.0 197.4 L 91.4 203.1 L 116.9 200.1 L 142.3 193.1 L 167.8 188.7 L 193.2 181.4 L 218.6 173.8 L 244.1 171.5 L 269.5 171.4 L 295.0 175.5 L 320.4 180.8 L 345.8 181.4 L 371.3 168.0 L 396.7 155.6 L 422.2 178.1 L 447.6 177.1 L 473.0 122.2 L 498.5 120.3 L 523.9 101.0" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="197.4" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="203.1" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="200.1" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="193.1" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="188.7" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="181.4" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="173.8" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="171.5" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="171.4" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="175.5" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="180.8" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="181.4" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="168.0" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="155.6" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="178.1" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="177.1" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="122.2" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="120.3" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="101.0" r="2.6" style="fill:#c2542a"/><path d="M 66.0 219.1 L 91.4 211.2 L 116.9 209.8 L 142.3 199.7 L 167.8 197.3 L 193.2 185.3 L 218.6 187.2 L 244.1 193.8 L 269.5 190.5 L 295.0 192.0 L 320.4 186.4 L 345.8 184.7 L 371.3 182.6 L 396.7 176.4 L 422.2 177.2 L 447.6 193.0 L 473.0 184.6 L 498.5 170.6 L 523.9 154.0 L 549.4 152.6 L 574.8 161.8 L 600.2 158.8 L 625.7 159.2 L 651.1 159.2 L 676.6 170.7 L 702.0 172.5" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="219.1" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="211.2" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="209.8" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="199.7" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="197.3" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="185.3" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="187.2" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="193.8" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="190.5" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="192.0" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="186.4" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="184.7" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="182.6" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="176.4" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="177.2" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="193.0" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="184.6" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="170.6" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="154.0" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="152.6" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="161.8" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="158.8" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="159.2" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="159.2" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="170.7" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="172.5" r="2.6" style="fill:#2a6fb0"/></svg><p class="legend"><span class="lg"><i style="background:#c2542a"></i>pro 生成 <b>4267</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 生成 <b>5185</b></span><span class="lg"><i style="background:#c2542a"></i>pro 训练 <b>7332</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 训练 <b>4036</b></span></p><p class="note">同色的两条是同一阶段的不同训练。可以看出生成时间基本持平甚至下降，训练时间一路上涨。pro 的最后一点（生成 8900 秒）是重启后的那一步，不受重启影响的 step 通常在 3000~6500 秒之间。</p></figure>
+
+<h3>判断二：那条涨了 3 倍的"分歧"曲线，大部分是假象</h3>
+<p>
+看板首页有一条 <code>train_infer_diff/new_infer/kl</code>，衡量训练器和推理引擎对同一段文字算出的概率差多少。
+它从 0.0022 涨到 0.0077，涨了三倍多，看起来像在恶化。
+</p>
+<p>
+但这条曲线是个<strong>混合物</strong>。看板在 <code>partial/</code> 命名空间下把同一组指标按数据的新鲜度分成了 8 个桶：
+<code>partial/0/…</code> 是新鲜数据，<code>partial/1/…</code> 是过期一代的，以此类推。
+我把各桶占比和各桶自己的 KL 乘起来加总，和首页那个全局值逐 step 对比，误差都在 2% 以内——
+这个等式是成立的。
+</p>
+<p>拆开以后结论完全不同：</p>
+<table>
+<thead><tr><th></th><th>新鲜数据（第 0 桶）</th><th>全局</th></tr></thead>
+<tbody>
+<tr><th>pro 的 KL，首步 → 末步</th><td>0.00219 → 0.00264（+20%）</td><td>0.00219 → 0.00769（+251%）</td></tr>
+<tr><th>flash 的 KL，首步 → 末步</th><td>0.00287 → 0.00340（+18%）</td><td>0.00287 → 0.00627（+118%）</td></tr>
+</tbody>
+</table>
+<p>
+再看相关性：全局 KL 和"平均过期代数"的相关系数是 <strong>+0.93</strong>（pro）和 <strong>+0.93</strong>（flash），
+而"新鲜数据自己的 KL"和过期代数只有 -0.19 / +0.16，基本无关。
+</p>
+<p>
+<strong>结论：这条曲线涨，绝大部分不是两个引擎越走越远，而是数据变得越来越旧。</strong>
+真正衡量"引擎本身差多少"的量——新鲜数据上的 KL——几乎是一条水平线，
+两个 run 分别在 0.0022~0.0036 之间，属于"同一个策略、两个不同实现算出来的概率能差多少"的数值地板量级。
+</p>
+<p>
+还可以把这件事做成一个更硬的说法。把"桶的配比"和"桶自己的 KL"分开动：
+只用真实配比、桶 KL 全按平均值代入，能还原出多少全局曲线？
+pro 的可决系数是 0.79、flash 是 0.90。反过来，固定配比、只用真实的桶 KL，相关系数只有 0.53 / 0.55，
+误差还大两三倍。<strong>也就是说这条曲线的形状主要由配比决定，不是由 KL 决定。</strong>
+</p>
+<p>
+这条判断的实用价值：只要盯新鲜数据桶的 KL 有没有突破 0.004，就能把"引擎坏了"和"数据旧了"分开。
+这比看首页那条曲线可靠得多。
+</p>
+<p>
+观察期里等到了两次天然实验。第一次是 pro 第 15 步，因为中间重启过，采样从头来过，
+这一步用的是百分之百新鲜的数据——<strong>全局 KL 直接掉回 0.00258，和第 0 桶的值完全相等</strong>。
+第二次更干净，是 flash 第 25 步：重启后数据全新，平均过期程度从 2.18 掉到 0.32，
+全局 KL 同步从 0.0101 掉到 0.0060（降 41%），而桶 0 的 KL 只从 0.0034 变到 0.0035，几乎没动。
+两次都是同一个结论：数据全新鲜时，全局就等于新鲜值。
+</p>
+<figure class="chart"><figcaption>图 6　同一件事的另一个角度：两边对数概率差的绝对值平均</figcaption><svg viewBox="0 0 720 300" role="img" aria-label="图 6　同一件事的另一个角度：两边对数概率差的绝对值平均"><rect x="66" y="40" width="636" height="220" class="plot"/><line x1="66" y1="260.0" x2="702" y2="260.0" class="grid"/><text x="58" y="264.0" class="ylab">0.0000</text><line x1="66" y1="205.0" x2="702" y2="205.0" class="grid"/><text x="58" y="209.0" class="ylab">0.0143</text><line x1="66" y1="150.0" x2="702" y2="150.0" class="grid"/><text x="58" y="154.0" class="ylab">0.0285</text><line x1="66" y1="95.0" x2="702" y2="95.0" class="grid"/><text x="58" y="99.0" class="ylab">0.0428</text><line x1="66" y1="40.0" x2="702" y2="40.0" class="grid"/><text x="58" y="44.0" class="ylab">0.0571</text><line x1="66.0" y1="260" x2="66.0" y2="264" class="tick"/><text x="66.0" y="278" class="xlab">1</text><line x1="145.5" y1="260" x2="145.5" y2="264" class="tick"/><text x="145.5" y="278" class="xlab">4</text><line x1="225.0" y1="260" x2="225.0" y2="264" class="tick"/><text x="225.0" y="278" class="xlab">7</text><line x1="304.5" y1="260" x2="304.5" y2="264" class="tick"/><text x="304.5" y="278" class="xlab">10</text><line x1="384.0" y1="260" x2="384.0" y2="264" class="tick"/><text x="384.0" y="278" class="xlab">14</text><line x1="463.5" y1="260" x2="463.5" y2="264" class="tick"/><text x="463.5" y="278" class="xlab">17</text><line x1="543.0" y1="260" x2="543.0" y2="264" class="tick"/><text x="543.0" y="278" class="xlab">20</text><line x1="622.5" y1="260" x2="622.5" y2="264" class="tick"/><text x="622.5" y="278" class="xlab">23</text><line x1="702.0" y1="260" x2="702.0" y2="264" class="tick"/><text x="702.0" y="278" class="xlab">26</text><text x="66" y="22" class="axis">平均绝对差（nat）</text><text x="702" y="294" class="xlab" text-anchor="end">训练步 (step)</text><path d="M 66.0 168.4 L 91.4 158.4 L 116.9 158.7 L 142.3 133.3 L 167.8 103.2 L 193.2 91.5 L 218.6 83.8 L 244.1 84.9 L 269.5 81.7 L 295.0 92.9 L 320.4 131.9 L 345.8 113.9 L 371.3 94.1 L 396.7 83.0 L 422.2 159.4 L 447.6 141.1 L 473.0 138.9 L 498.5 109.1 L 523.9 100.5" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="168.4" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="158.4" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="158.7" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="133.3" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="103.2" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="91.5" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="83.8" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="84.9" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="81.7" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="92.9" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="131.9" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="113.9" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="94.1" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="83.0" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="159.4" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="141.1" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="138.9" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="109.1" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="100.5" r="2.6" style="fill:#c2542a"/><path d="M 66.0 155.8 L 91.4 137.2 L 116.9 137.7 L 142.3 124.9 L 167.8 103.7 L 193.2 88.6 L 218.6 85.4 L 244.1 82.9 L 269.5 84.2 L 295.0 80.1 L 320.4 76.6 L 345.8 83.5 L 371.3 86.0 L 396.7 81.4 L 422.2 91.7 L 447.6 142.1 L 473.0 123.8 L 498.5 89.0 L 523.9 81.1 L 549.4 72.3 L 574.8 77.6 L 600.2 72.5 L 625.7 81.5 L 651.1 67.0 L 676.6 109.6 L 702.0 103.5" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="155.8" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="137.2" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="137.7" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="124.9" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="103.7" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="88.6" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="85.4" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="82.9" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="84.2" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="80.1" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="76.6" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="83.5" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="86.0" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="81.4" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="91.7" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="142.1" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="123.8" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="89.0" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="81.1" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="72.3" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="77.6" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="72.5" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="81.5" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="67.0" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="109.6" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="103.5" r="2.6" style="fill:#2a6fb0"/><path d="M 66.0 168.3 L 91.4 171.1 L 116.9 168.0 L 142.3 169.8 L 167.8 171.8 L 193.2 171.7 L 218.6 168.7 L 244.1 168.7 L 269.5 167.6 L 295.0 168.2 L 320.4 162.5 L 345.8 164.1 L 371.3 162.1 L 396.7 162.1 L 422.2 159.3 L 447.6 162.5 L 473.0 157.4 L 498.5 157.0 L 523.9 158.0" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="168.3" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="171.1" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="168.0" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="169.8" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="171.8" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="171.7" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="168.7" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="168.7" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="167.6" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="168.2" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="162.5" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="164.1" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="162.1" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="162.1" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="159.3" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="162.5" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="157.4" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="157.0" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="158.0" r="2.6" style="fill:#c2542a"/><path d="M 66.0 155.6 L 91.4 166.7 L 116.9 156.1 L 142.3 155.1 L 167.8 161.1 L 193.2 161.1 L 218.6 156.1 L 244.1 155.4 L 269.5 155.5 L 295.0 155.2 L 320.4 153.2 L 345.8 150.5 L 371.3 151.0 L 396.7 153.2 L 422.2 148.2 L 447.6 142.0 L 473.0 146.7 L 498.5 144.4 L 523.9 146.2 L 549.4 141.1 L 574.8 141.4 L 600.2 140.0 L 625.7 140.4 L 651.1 141.8 L 676.6 135.3 L 702.0 139.5" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="155.6" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="166.7" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="156.1" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="155.1" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="161.1" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="161.1" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="156.1" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="155.4" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="155.5" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="155.2" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="153.2" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="150.5" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="151.0" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="153.2" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="148.2" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="142.0" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="146.7" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="144.4" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="146.2" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="141.1" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="141.4" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="140.0" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="140.4" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="141.8" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="135.3" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="139.5" r="2.6" style="fill:#2a6fb0"/></svg><p class="legend"><span class="lg"><i style="background:#c2542a"></i>pro 全局 <b>0.0414</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 全局 <b>0.0406</b></span><span class="lg"><i style="background:#c2542a"></i>pro 新鲜数据 <b>0.0265</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 新鲜数据 <b>0.0313</b></span></p></figure>
+
+<h3>判断三：模型变强的方式，主要是把"半会"变成"全会"</h3>
+<p>
+一道题做 16 次，如果全对或者全错，这 16 次之间没有差异，产生不了学习信号，这道题就白采样了。
+这个约束让通过率的提升有了结构。
+</p>
+<p>
+把采样池拆成三块：全错（比例 p0）、全对（比例 p1）、以及中间（比例 1−p0−p1，平均通过率 m）。
+平均通过率等于 <code>p1 + (1−p0−p1) × m</code>。对首末做差分，就能拆成三项：
+全对率上升、中间池缩小、以及留在中间池里的题自己变好。
+pro 从第 1 步到第 19 步涨的 +0.0688 拆开是：
+</p>
+<table>
+<thead><tr><th>来源</th><th>pro 的贡献</th><th>flash 的贡献</th></tr></thead>
+<tbody>
+<tr><td>全对题目的比例上升</td><td>+0.0841</td><td>+0.1708</td></tr>
+<tr><td>中间池子缩小（题被推到全对了）</td><td>-0.0416</td><td>-0.0852</td></tr>
+<tr><td>中间池子里的题本身变好</td><td>+0.0262</td><td>+0.0388</td></tr>
+<tr><td><strong>合计</strong></td><td><strong>+0.0688</strong></td><td><strong>+0.1243</strong></td></tr>
+<tr><td>而"一次都没做对"的比例变化</td><td>-0.0114</td><td>-0.0149</td></tr>
+</tbody>
+</table>
+<p>
+读法：两次训练最大的单一驱动力都是"把原来对一半的题推成次次都对"。
+但三项里最本质的那一项——留在中间池里的题自己变好——pro 贡献了 2.62 个百分点，
+flash 贡献了 3.88 个百分点。按单步均值算，<strong>flash 的进步结构比 pro 健康</strong>，
+它更多是在真正的中间地带提升，而且它的绝对涨幅也更大。
+</p>
+<p>
+最刺眼的是全错比例。pro 从 0.146 到 0.135，
+flash 从 0.161 到 0.146，<strong>两次都在 0.13~0.16 这个区间里横盘</strong>，
+各自只降了一个多百分点。从相关性看也一样：通过率和全对比例的相关性是
++0.93 / +0.98，
+和全错比例只有 -0.48 / -0.56。
+</p>
+<p>
+观察期里出现过一次"墙松动了"的假信号：flash 第 19 步的全错比例掉到 0.1356，
+是两次训练里少有的跳出这个区间的点，通过率也跟着跳到 0.6262。
+但紧接着第 20 步就弹回 0.1576，通过率掉回 0.6071。<strong>那是一次波动，不是趋势。</strong>
+后来一直跑到第 25 步，全错比例再没有跌破过 0.14。
+这条记录本身也有价值：<strong>在单步噪声这么大的曲线上，一个数据点什么都说明不了。</strong>
+</p>
+<p>
+换句话说，这两次 RL 到目前为止主要是在"会一点的题上变得稳定"，
+而不是"攻克完全不会的题"。那 15% 是当前策略啃不动的部分，
+它们每一步都在消耗采样预算却不产生梯度。
+</p>
+<p>
+还有一条新出现的信号：<strong>奖励涨得越来越跟不上通过率</strong>。
+把"奖励涨幅 ÷ 通过率涨幅"算出来，pro 从 0.70 降到 0.57，flash 从 0.68 降到 0.58。
+通过率在涨、奖励跟不上，可能的解释有几个（新做对的题过程分被扣得多、
+奖励里还有别的成分在变差、两者统计口径本来就不同），这里不下结论。
+但如果这个比值继续掉，就意味着"通过率"这个指标正在和它代表的能力脱钩——
+那是 RL 训练里最需要警惕的一种变化。
+</p>
+<figure class="chart"><figcaption>图 4　全对题在涨，全错题一动不动</figcaption><svg viewBox="0 0 720 300" role="img" aria-label="图 4　全对题在涨，全错题一动不动"><rect x="66" y="40" width="636" height="220" class="plot"/><line x1="66" y1="260.0" x2="702" y2="260.0" class="grid"/><text x="58" y="264.0" class="ylab">0.000</text><line x1="66" y1="205.0" x2="702" y2="205.0" class="grid"/><text x="58" y="209.0" class="ylab">0.089</text><line x1="66" y1="150.0" x2="702" y2="150.0" class="grid"/><text x="58" y="154.0" class="ylab">0.178</text><line x1="66" y1="95.0" x2="702" y2="95.0" class="grid"/><text x="58" y="99.0" class="ylab">0.267</text><line x1="66" y1="40.0" x2="702" y2="40.0" class="grid"/><text x="58" y="44.0" class="ylab">0.356</text><line x1="66.0" y1="260" x2="66.0" y2="264" class="tick"/><text x="66.0" y="278" class="xlab">1</text><line x1="145.5" y1="260" x2="145.5" y2="264" class="tick"/><text x="145.5" y="278" class="xlab">4</text><line x1="225.0" y1="260" x2="225.0" y2="264" class="tick"/><text x="225.0" y="278" class="xlab">7</text><line x1="304.5" y1="260" x2="304.5" y2="264" class="tick"/><text x="304.5" y="278" class="xlab">10</text><line x1="384.0" y1="260" x2="384.0" y2="264" class="tick"/><text x="384.0" y="278" class="xlab">14</text><line x1="463.5" y1="260" x2="463.5" y2="264" class="tick"/><text x="463.5" y="278" class="xlab">17</text><line x1="543.0" y1="260" x2="543.0" y2="264" class="tick"/><text x="543.0" y="278" class="xlab">20</text><line x1="622.5" y1="260" x2="622.5" y2="264" class="tick"/><text x="622.5" y="278" class="xlab">23</text><line x1="702.0" y1="260" x2="702.0" y2="264" class="tick"/><text x="702.0" y="278" class="xlab">26</text><text x="66" y="22" class="axis">占全部题目的比例</text><text x="702" y="294" class="xlab" text-anchor="end">训练步 (step)</text><path d="M 66.0 150.1 L 91.4 154.7 L 116.9 145.6 L 142.3 148.4 L 167.8 147.8 L 193.2 131.6 L 218.6 129.8 L 244.1 129.7 L 269.5 126.4 L 295.0 128.6 L 320.4 104.1 L 345.8 107.0 L 371.3 115.4 L 396.7 101.6 L 422.2 94.0 L 447.6 97.4 L 473.0 85.9 L 498.5 85.2 L 523.9 98.1" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="150.1" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="154.7" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="145.6" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="148.4" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="147.8" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="131.6" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="129.8" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="129.7" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="126.4" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="128.6" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="104.1" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="107.0" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="115.4" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="101.6" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="94.0" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="97.4" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="85.9" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="85.2" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="98.1" r="2.6" style="fill:#c2542a"/><path d="M 66.0 185.4 L 91.4 178.1 L 116.9 173.6 L 142.3 182.6 L 167.8 163.0 L 193.2 171.2 L 218.6 160.1 L 244.1 150.3 L 269.5 144.6 L 295.0 140.2 L 320.4 149.8 L 345.8 139.2 L 371.3 141.0 L 396.7 134.3 L 422.2 115.1 L 447.6 109.2 L 473.0 109.3 L 498.5 120.6 L 523.9 98.8 L 549.4 104.9 L 574.8 92.6 L 600.2 89.6 L 625.7 81.0 L 651.1 92.2 L 676.6 67.0 L 702.0 79.9" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="185.4" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="178.1" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="173.6" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="182.6" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="163.0" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="171.2" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="160.1" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="150.3" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="144.6" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="140.2" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="149.8" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="139.2" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="141.0" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="134.3" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="115.1" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="109.2" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="109.3" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="120.6" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="98.8" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="104.9" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="92.6" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="89.6" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="81.0" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="92.2" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="67.0" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="79.9" r="2.6" style="fill:#2a6fb0"/><path d="M 66.0 169.6 L 91.4 165.3 L 116.9 161.0 L 142.3 171.0 L 167.8 165.2 L 193.2 169.0 L 218.6 166.4 L 244.1 171.9 L 269.5 171.3 L 295.0 167.4 L 320.4 169.8 L 345.8 166.4 L 371.3 170.7 L 396.7 167.2 L 422.2 167.5 L 447.6 180.2 L 473.0 169.8 L 498.5 159.5 L 523.9 176.7" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="169.6" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="165.3" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="161.0" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="171.0" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="165.2" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="169.0" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="166.4" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="171.9" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="171.3" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="167.4" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="169.8" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="166.4" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="170.7" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="167.2" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="167.5" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="180.2" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="169.8" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="159.5" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="176.7" r="2.6" style="fill:#c2542a"/><path d="M 66.0 160.9 L 91.4 155.9 L 116.9 166.3 L 142.3 164.2 L 167.8 163.7 L 193.2 161.6 L 218.6 155.3 L 244.1 167.4 L 269.5 172.3 L 295.0 158.9 L 320.4 155.4 L 345.8 161.2 L 371.3 167.9 L 396.7 165.1 L 422.2 166.8 L 447.6 160.8 L 473.0 161.2 L 498.5 161.9 L 523.9 176.2 L 549.4 162.6 L 574.8 171.0 L 600.2 169.6 L 625.7 173.4 L 651.1 158.2 L 676.6 168.9 L 702.0 170.0" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="160.9" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="155.9" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="166.3" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="164.2" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="163.7" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="161.6" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="155.3" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="167.4" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="172.3" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="158.9" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="155.4" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="161.2" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="167.9" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="165.1" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="166.8" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="160.8" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="161.2" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="161.9" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="176.2" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="162.6" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="171.0" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="169.6" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="173.4" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="158.2" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="168.9" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="170.0" r="2.6" style="fill:#2a6fb0"/></svg><p class="legend"><span class="lg"><i style="background:#c2542a"></i>pro 全对比例 <b>0.262</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 全对比例 <b>0.292</b></span><span class="lg"><i style="background:#c2542a"></i>pro 全错比例 <b>0.135</b></span><span class="lg"><i style="background:#2a6fb0"></i>flash 全错比例 <b>0.146</b></span></p><p class="note">「全对」和「全错」的题对训练没有任何贡献，这部分采样是白花的。</p></figure>
+
+<h3>判断四：上下文长度是这一切的幕后推手</h3>
+<table class="steps">
+<thead><tr><th></th><th>pro</th><th>flash</th></tr></thead>
+<tbody>
+<tr><th class="rowh">平均总上下文</th><td>72,178 → 101,040</td><td>71,634 → 125,897</td></tr>
+<tr><th class="rowh">其中题目部分</th><td>4,099 → 4,065</td><td>4,171 → 4,199</td></tr>
+<tr><th class="rowh">其中模型自己写的</th><td>68,078 → 96,974</td><td>67,463 → 121,697</td></tr>
+<tr><th class="rowh">平均回合数</th><td>47.5 → 56.0</td><td>47.3 → 61.9</td></tr>
+</tbody>
+</table>
+<p>
+题目长度几乎没变（4000 token 上下，只涨了 3%~5%），涨的全是模型自己写的内容。
+回合数只涨了四分之一到三分之一，上下文却涨了将近一半到六成，说明<strong>每一轮本身也在变长</strong>。
+</p>
+<p>
+这不是"模型变啰嗦"。在这类任务里，模型每做一步都要把观察结果（文件内容、命令输出、报错信息）
+读回上下文，这些会一直累积。上下文越长，它能记住的现场信息越多，通过率也确实越高——
+上下文长度和通过率的相关系数是 +0.91 / +0.85。
+</p>
+<p>
+但代价是硬的，而且可以精确算出来：<strong>每步训练 token 量 = 1568 道题 × 16 次 × 平均上下文长度</strong>
+（我验证过，误差 1%~3%）。而训练耗时又几乎正比于 token 量。
+所以<strong>上下文每长 1%，训练成本就贵 1%</strong>，而且单位 token 的训练效率本身还在变差：
+pro 从每百万 token 1.49 秒涨到 2.91 秒，
+flash 从 1.05 秒涨到 1.28 秒。
+</p>
+<p>
+上限是 1,048,570 个 token（站点没解释，但它明显是个硬性上限）。被截断的轨迹比例目前还是万分之几，
+绝对值很小，但方向是上升的，两边都值得每期看一眼。
+</p>
+<figure class="chart"><figcaption>图 2　平均上下文长度：题目几乎没变长，涨的全是模型自己写的内容</figcaption><svg viewBox="0 0 720 300" role="img" aria-label="图 2　平均上下文长度：题目几乎没变长，涨的全是模型自己写的内容"><rect x="66" y="40" width="636" height="220" class="plot"/><line x1="66" y1="260.0" x2="702" y2="260.0" class="grid"/><text x="58" y="264.0" class="ylab">0</text><line x1="66" y1="205.0" x2="702" y2="205.0" class="grid"/><text x="58" y="209.0" class="ylab">36877</text><line x1="66" y1="150.0" x2="702" y2="150.0" class="grid"/><text x="58" y="154.0" class="ylab">73753</text><line x1="66" y1="95.0" x2="702" y2="95.0" class="grid"/><text x="58" y="99.0" class="ylab">110630</text><line x1="66" y1="40.0" x2="702" y2="40.0" class="grid"/><text x="58" y="44.0" class="ylab">147507</text><line x1="66.0" y1="260" x2="66.0" y2="264" class="tick"/><text x="66.0" y="278" class="xlab">1</text><line x1="145.5" y1="260" x2="145.5" y2="264" class="tick"/><text x="145.5" y="278" class="xlab">4</text><line x1="225.0" y1="260" x2="225.0" y2="264" class="tick"/><text x="225.0" y="278" class="xlab">7</text><line x1="304.5" y1="260" x2="304.5" y2="264" class="tick"/><text x="304.5" y="278" class="xlab">10</text><line x1="384.0" y1="260" x2="384.0" y2="264" class="tick"/><text x="384.0" y="278" class="xlab">14</text><line x1="463.5" y1="260" x2="463.5" y2="264" class="tick"/><text x="463.5" y="278" class="xlab">17</text><line x1="543.0" y1="260" x2="543.0" y2="264" class="tick"/><text x="543.0" y="278" class="xlab">20</text><line x1="622.5" y1="260" x2="622.5" y2="264" class="tick"/><text x="622.5" y="278" class="xlab">23</text><line x1="702.0" y1="260" x2="702.0" y2="264" class="tick"/><text x="702.0" y="278" class="xlab">26</text><text x="66" y="22" class="axis">平均总上下文长度（token）</text><text x="702" y="294" class="xlab" text-anchor="end">训练步 (step)</text><path d="M 66.0 152.4 L 91.4 156.7 L 116.9 149.3 L 142.3 139.9 L 167.8 140.1 L 193.2 133.5 L 218.6 126.2 L 244.1 123.7 L 269.5 120.3 L 295.0 127.2 L 320.4 130.9 L 345.8 121.2 L 371.3 111.5 L 396.7 101.6 L 422.2 123.6 L 447.6 119.7 L 473.0 123.1 L 498.5 111.3 L 523.9 109.3" class="line" style="stroke:#c2542a"/><circle cx="66.0" cy="152.4" r="2.6" style="fill:#c2542a"/><circle cx="91.4" cy="156.7" r="2.6" style="fill:#c2542a"/><circle cx="116.9" cy="149.3" r="2.6" style="fill:#c2542a"/><circle cx="142.3" cy="139.9" r="2.6" style="fill:#c2542a"/><circle cx="167.8" cy="140.1" r="2.6" style="fill:#c2542a"/><circle cx="193.2" cy="133.5" r="2.6" style="fill:#c2542a"/><circle cx="218.6" cy="126.2" r="2.6" style="fill:#c2542a"/><circle cx="244.1" cy="123.7" r="2.6" style="fill:#c2542a"/><circle cx="269.5" cy="120.3" r="2.6" style="fill:#c2542a"/><circle cx="295.0" cy="127.2" r="2.6" style="fill:#c2542a"/><circle cx="320.4" cy="130.9" r="2.6" style="fill:#c2542a"/><circle cx="345.8" cy="121.2" r="2.6" style="fill:#c2542a"/><circle cx="371.3" cy="111.5" r="2.6" style="fill:#c2542a"/><circle cx="396.7" cy="101.6" r="2.6" style="fill:#c2542a"/><circle cx="422.2" cy="123.6" r="2.6" style="fill:#c2542a"/><circle cx="447.6" cy="119.7" r="2.6" style="fill:#c2542a"/><circle cx="473.0" cy="123.1" r="2.6" style="fill:#c2542a"/><circle cx="498.5" cy="111.3" r="2.6" style="fill:#c2542a"/><circle cx="523.9" cy="109.3" r="2.6" style="fill:#c2542a"/><path d="M 66.0 153.2 L 91.4 142.6 L 116.9 144.4 L 142.3 129.3 L 167.8 125.1 L 193.2 122.5 L 218.6 114.6 L 244.1 120.0 L 269.5 120.6 L 295.0 116.8 L 320.4 106.4 L 345.8 105.9 L 371.3 104.9 L 396.7 92.6 L 422.2 99.7 L 447.6 112.6 L 473.0 98.5 L 498.5 87.6 L 523.9 75.2 L 549.4 67.0 L 574.8 77.3 L 600.2 72.3 L 625.7 74.1 L 651.1 68.3 L 676.6 83.1 L 702.0 72.2" class="line" style="stroke:#2a6fb0"/><circle cx="66.0" cy="153.2" r="2.6" style="fill:#2a6fb0"/><circle cx="91.4" cy="142.6" r="2.6" style="fill:#2a6fb0"/><circle cx="116.9" cy="144.4" r="2.6" style="fill:#2a6fb0"/><circle cx="142.3" cy="129.3" r="2.6" style="fill:#2a6fb0"/><circle cx="167.8" cy="125.1" r="2.6" style="fill:#2a6fb0"/><circle cx="193.2" cy="122.5" r="2.6" style="fill:#2a6fb0"/><circle cx="218.6" cy="114.6" r="2.6" style="fill:#2a6fb0"/><circle cx="244.1" cy="120.0" r="2.6" style="fill:#2a6fb0"/><circle cx="269.5" cy="120.6" r="2.6" style="fill:#2a6fb0"/><circle cx="295.0" cy="116.8" r="2.6" style="fill:#2a6fb0"/><circle cx="320.4" cy="106.4" r="2.6" style="fill:#2a6fb0"/><circle cx="345.8" cy="105.9" r="2.6" style="fill:#2a6fb0"/><circle cx="371.3" cy="104.9" r="2.6" style="fill:#2a6fb0"/><circle cx="396.7" cy="92.6" r="2.6" style="fill:#2a6fb0"/><circle cx="422.2" cy="99.7" r="2.6" style="fill:#2a6fb0"/><circle cx="447.6" cy="112.6" r="2.6" style="fill:#2a6fb0"/><circle cx="473.0" cy="98.5" r="2.6" style="fill:#2a6fb0"/><circle cx="498.5" cy="87.6" r="2.6" style="fill:#2a6fb0"/><circle cx="523.9" cy="75.2" r="2.6" style="fill:#2a6fb0"/><circle cx="549.4" cy="67.0" r="2.6" style="fill:#2a6fb0"/><circle cx="574.8" cy="77.3" r="2.6" style="fill:#2a6fb0"/><circle cx="600.2" cy="72.3" r="2.6" style="fill:#2a6fb0"/><circle cx="625.7" cy="74.1" r="2.6" style="fill:#2a6fb0"/><circle cx="651.1" cy="68.3" r="2.6" style="fill:#2a6fb0"/><circle cx="676.6" cy="83.1" r="2.6" style="fill:#2a6fb0"/><circle cx="702.0" cy="72.2" r="2.6" style="fill:#2a6fb0"/></svg><p class="legend"><span class="lg"><i style="background:#c2542a"></i>mimo-v2.6-pro <b>101040</b></span><span class="lg"><i style="background:#2a6fb0"></i>mimo-v2.6-flash <b>125897</b></span></p></figure>
+
+<h3>判断五：成本结构——pro 每个 token 是 flash 的三倍</h3>
+<p>
+用每秒成本乘以每步墙钟时间，可以估算每步成本（会把重启等待算进去，是上界）：
+</p>
+<table class="steps">
+<thead><tr><th class="rowh"></th><th>单步成本</th><th>单步训练 token</th><th>每百万训练 token 成本</th></tr></thead>
+<tbody>
+<tr><th class="rowh">pro</th><td>3.9 ~ 6.0 万美元</td><td>1.7B ~ 2.7B</td><td>约 22 美元</td></tr>
+<tr><th class="rowh">flash</th><td>1.4 ~ 2.9 万美元</td><td>1.8B ~ 2.8B</td><td>约 8 美元</td></tr>
+</tbody>
+</table>
+<p>
+两边的单步 token 量差不多，但 pro 的每 token 成本是 flash 的三倍左右。
+也就是说钱的差别几乎全在"同一个 token 要多少张卡来算"上，而不是在"做了多少事"上。
+</p>
+<div class="warn">
+注意这张表用的是 <code>timing_s/step</code>，而它不含重启等待时间（见判断一）。
+所以这里的"单步成本"是<strong>下限</strong>。举例：pro 第 15 步上报 12,882 秒，
+真实耗时 29,907 秒，实际成本约 17.1 万美元，不是按上表区间算出来的 5 万左右。
+</div>
+
+<h3>判断六：稳定性本身就是成本项</h3>
+<p>
+pro 从启动到现在跑了 72.5 小时，
+已完成的 step 上报耗时加起来只有 48.4 小时，
+中间 24.1 小时没有落在任何一个上报的 step 里，占真实墙钟的 33%。
+按每秒 5.71 美元算，<strong>这部分约合 49.5 万美元</strong>。
+flash 同样少报 12.3 小时（占 18%），约 12.6 万美元。
+</p>
+<p>
+这些时间去了哪里，现在已经能对上账了：pro 重启了 9 次，
+flash 重启了 4 次，而少报的时间几乎全部紧跟在重启之后。
+pro 有 6 次重启后面直接完成了新的一步，这 6 段等待合计 20.8 小时，占了它全部少报量的 87%；
+最大的一段在 09-17 20:20Z 到第 17 步之间，5.88 小时，折合 12.1 万美元——
+那一段对应的公告是训练集群和判分服务之间的网络问题。
+flash 最大的一段是 09-18 的两次连续重启到第 25 步之间，4.49 小时。
+</p>
+<p>
+反过来说，没有重启的那些步，上报值和真实耗时差不到 10 秒。所以这个缺口确实来自重启，
+不是统计口径的漂移——这一点值得记一下，因为它让"少报 = 重启"这个结论变得可以验证，
+而不只是一个猜测。
+</p>
+<p>
+一个细节：单步时间并没有因为重启而变短。flash 上报过最长的一步（10,193 秒）正是重启后重跑的那一步——
+重启后所有沙箱要重新预热、所有在途轨迹要重跑，前半段机器是半空的。
+pro 第 15 步更极端：上报 12,882 秒，真实 29,907 秒，中间两次重启。
+</p>
+<p>
+还有一件事值得单独提：**重启后的第一个 step，它的指标不能和正常 step 直接比较**。
+从采样日志能看到，刚重启后的通过率只有 0.384，随着采样推进才逐步回升到 0.58——
+因为沙箱是重新预热的，最先跑完的往往是短任务，长任务还在路上，早期样本有偏。
+看板在"批次构成"面板底部专门有一句小字提醒类似的问题，说明团队知道这件事。
+</p>
+</section>
+
+<section id="s8">
+<h2><span class="num">第 8 章</span>我不确定的地方</h2>
+<p>写这份文档时，下面这些我确实没搞明白，站点也没给说明，所以列出来而不是猜：</p>
+<ol>
+  <li><code>actor/ppo_kl</code> 和 <code>actor/pg_clipfrac</code> 为什么恒等于 0。两个 run、每一步、每个子指标都是实打实的数字 0（不是空值），看板没有解释。</li>
+  <li><code>partial/i/n_tokens</code> 统计的 token 总量只有 <code>perf/total_num_tokens</code> 的 44%~56%，不知道它统计的是哪一部分。更奇怪的是"按类目拆"和"按数据集拆"两套切片各自求和都接近全量，两套相加超过 1.6 倍，说明它们不是同一划分的两半。</li>
+  <li><code>select_hack_attempt_rate</code> 在 0.32~0.55 之间，而且两个 run 都在全程上行。这个 "attempt" 到底算"触发检查"还是"确认作弊"，看板没说——这决定了它是一条好消息还是一条坏消息。</li>
+  <li><code>train/passrate/avg_passrate</code> 和 <code>dynsam/avg@n</code> 不是同一个数，说明统计口径不同（一个是训练批次、一个是采样批次），但站点没说具体差在哪。</li>
+  <li><code>dynsam/passrate/hist9_ratio</code>（通过率的九分箱）官方说明里提到过，但接口里所有 step 都返回空值。少了它就没法把"中间那批题"再细分。</li>
+  <li><code>harness-A</code> 到 <code>harness-U</code> 具体分别是什么脚手架，<code>-pw</code> 后缀是什么意思。23 个 harness 里只有 4 个的规模在三千条以上，其余都是几百条。</li>
+  <li><code>penalty/stage_credit_group/*</code> 这 535 个字段的逐条定义。它们不出自任何公开的训练框架，应该是自研的。能验证的部分是：候选组总数正好等于"不判分 + 两条判分路线"三项之和，受理数等于两条路线受理数之和。</li>
+  <li><code>penalty/signed/*</code> 这条分支为什么在 flash 的末段突然放量：<code>neg_mass_added</code> 从第 1~17 步的几十万跳到第 18~24 步的几百万（第 24 步 683 万），<code>neg_scale</code> 同期探到 0.971。pro 没有这个形态。看板没有解释。</li>
+  <li><code>env/possible_leak</code> 只在 pro 第 19 步等于 1，其余全为 0，不知道这个标记的判定条件。</li>
+  <li>flash 第 14 步出现过一条 2,236,430 token 的轨迹，是 pro 那个约 1,048,570 上限的两倍多，不知道是什么。</li>
+  <li>判分池的 <code>judge_pending</code> 和 <code>judge_pool_in_flight</code> 数值上几乎相等，两者是包含关系还是并列关系，看板没说。</li>
+</ol>
+<p>把这些写出来，比编一套自洽的解释有用。</p>
+</section>
+
+<section id="s9">
+<h2><span class="num">第 9 章</span>数据来源与怎么自己核</h2>
+<p>
+页面上的所有数据都来自同一个域名下的公开 GET 接口，不需要登录、不需要 token，
+用普通 HTTP 请求就能拿到和页面完全一样的 JSON。
+</p>
+<table>
+<thead><tr><th>接口</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>/rl/api/runs</code></td><td>运行列表、首页固定指标、格式化规则、22 条官方指标说明</td></tr>
+<tr><td><code>/rl/api/status?run=pro|flash</code></td><td>当前状态、成本、每个 step 的事件序列、重启记录</td></tr>
+<tr><td><code>/rl/api/live?run=pro|flash</code></td><td>动态采样器最新一条日志和最近 60 条明细</td></tr>
+<tr><td><code>/rl/api/notices</code></td><td>官方公告</td></tr>
+<tr><td><code>/rl/api/benchmarks</code></td><td>离线基准成绩</td></tr>
+<tr><td><code>/rl/api/tags?run=pro|flash</code></td><td>全部指标名（pro 2019 个 / flash 2052 个）和数据版本号</td></tr>
+<tr><td><code>/rl/api/series?run=&amp;v=&amp;tags=</code></td><td>指定指标的逐步历史（指标名太长，必须分批请求）</td></tr>
+</tbody>
+</table>
+<p>
+本项目的采集脚本在 <code>codes/scripts/</code> 下，原始数据存在
+<code>data/seed/&lt;UTC时间戳&gt;/</code> 里，一共 15 份快照。
+所有数字都可以用这些原始 JSON 复算。
+</p>
+<h3>本页面用到的自校验</h3>
+<ul>
+  <li><code>ctx_total_length/mean</code> = <code>ctx_prompt_length/mean</code> + <code>ctx_response_length/mean</code>，逐 step 完全成立。</li>
+  <li><code>partial/avg_staleness</code> = Σ i × <code>partial/i/frac</code>，pro 全部 step 精确成立。</li>
+  <li><code>perf/total_num_tokens</code> = 1568 × 16 × <code>ctx_total_length/mean</code>，误差 1%~3%。</li>
+  <li>全局 KL = Σ 各桶占比 × 各桶 KL，误差 2% 以内。</li>
+  <li><code>critic/rewards/mean</code> 与 <code>critic/score/mean</code> 逐 step 完全相同。</li>
+</ul>
+<p>
+这些等式本身也是理解指标含义最可靠的手段——如果你对某个指标的理解和某个恒等式冲突，
+那就是理解错了。这是本项目判断"哪些解读可以下结论、哪些只能存疑"的主要依据。
+</p>
+</section>
+
+<footer>
+<p>
+本页面由 <code>codes/scripts/build_mimo_rl_html.py</code> 从采集到的原始数据自动生成。<br>
+数据来源：<a href="https://mimo.xiaomi.com/rl/">https://mimo.xiaomi.com/rl/</a> 的公开接口。采集时间窗口见上表。<br>
+指标定义部分参考了公开的强化学习框架文档与论文，具体来源见同目录下的调研笔记。
+</p>
+</footer>
+</main>
+</body>
+</html>

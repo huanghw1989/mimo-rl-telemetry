@@ -1,0 +1,1699 @@
+{
+ "schema_version": 1,
+ "updated_at": 1789874111,
+ "note": "溯源登记表：解读条目里只写 ref，题目、作者、链接与逐字原文都在这里。paper/report/blog/doc 是外部材料，self 是我们自己对遥测仓库的核算 —— 页面上的立场标签只表达「这条材料与我们的读法是什么关系」，不代表材料的可靠性高低。共 149 条引文条目，去重后 109 份材料：同一篇论文的不同结论会各占一条，因为引的是不同的原文。全部条目都过了一遍 verify_sources.ts：arXiv 条目按 id 向官方 API 核对了真实标题（70 条全部一致），网页条目核对了页面可访问且引文逐字存在（其中两个 Notion 页面是前端渲染，用浏览器渲染后核验）。",
+ "gaps": [
+  {
+   "from": "r1",
+   "text": "没有找到任何公开材料给出“梯度范数单点尖峰多少倍算异常”的经验阈值；我们的“pro 第 19 步 6 倍属单步异常”仍然是自定倍数，公开文献只说明尖峰会带来不稳定（2502.17055）并提供机制（2509.02479），没有可对照的倍数基线。"
+  },
+  {
+   "from": "r1",
+   "text": "没有找到公开材料给出 actor/pg_tis_clipfrac 这类“截断比例”在真实大规模 RL run 中的典型量级或健康区间，因此本地 1e-4 量级究竟偏健康还是偏好，无法与公开基线对照。"
+  },
+  {
+   "from": "r1",
+   "text": "没有找到正面讨论“熵在几十步内单调上行、同时 avg@n 上行”的公开案例：entropy-mechanism(2505.22617) 描述的方向相反，DAPO 只是把“避免熵坍缩”当手段，所以“本 run 熵上行是良性”这条缺正面佐证，只找到边界条件（DISPO 说过度会退化）。"
+  },
+  {
+   "from": "r1",
+   "text": "没有找到公开材料解释“为什么 pg_clipfrac 与 ppo_kl 会同时恒为 0、而不是整个 tag 缺失”。verl 文档只给出两者的定义，没有讨论这个现象的判读；我们的解释是自洽推理，不是官方口径。"
+  },
+  {
+   "from": "r1",
+   "text": "没有找到公开材料单独讨论按 harness 拆分的熵（actor/agentic/entropy_loss、actor/code/entropy_loss 这类分组读数），即“分组熵是否应被当作同一物理量”在公开工作里没有对应物。"
+  },
+  {
+   "from": "r1",
+   "text": "简报参考起点里 2506.17863（标注为 The Art of Scaling RL Compute）与 2506.10947（标注为 Pass@k Training）两个 id 的标题都不符，我未能定位到标题正确的对应论文（两者分别属 D/C 组，未在本组继续核验）。"
+  },
+  {
+   "from": "r2",
+   "text": "没有任何公开材料解释本看板自己的 tag 口径：partial/<k> 的 k 到底如何计数（pro 只开 8 个桶、flash 开 10 个）、为什么 Σ_k n_tokens_k 只有同一步 perf/total_num_tokens 的 44%~56%、以及 partial/agentic 与 partial/<类目>/<数据集> 两个切片的分母关系（两者相加超过 1.6 倍）。"
+  },
+  {
+   "from": "r2",
+   "text": "train_infer_diff/new_infer/F(tau=*) 这一族在公开文献里找不到同名或同定义的指标，tau 的单位也没有任何材料写明；verl 只有 rollout_is_ratio_fraction_high（IS 权重超阈占比）和 log_ppl_abs_diff（平均绝对 log-perplexity 差）这两个相近但口径不同的名字。"
+  },
+  {
+   "from": "r2",
+   "text": "没有找到「全局 KL 精确等于 Σ_k frac_k × KL_k」这一 shift-share 恒等式（我们验算相关 1.000000）的公开表述；公开材料只在概念层面把「引擎差异项」与「陈旧度项」拆开（arXiv:2605.12070、verl Rollout Correction），没有给出按新鲜度桶加权求和的口径。"
+  },
+  {
+   "from": "r2",
+   "text": "没有找到按数据集拆 staleness 的公开做法或阈值参考，因此 partial/code/dataset-yfch/avg_staleness 高达 7.27 这件事没有可对标的公开基线。"
+  },
+  {
+   "from": "r2",
+   "text": "「asymmetric importance sampling」作为具名方法在 arXiv 全库检索没有对应文献；最接近的是 Asymmetric REINFORCE（被 arXiv:2509.24203 重新解释成 REINFORCE 的正则化形式），没有任何材料支持「按正/负优势或以 high/low 边界拆成四侧裁剪」这种口径。"
+  },
+  {
+   "from": "r2",
+   "text": "没有找到讨论 agentic 这一数据切片口径的公开材料；本看板 meta.json 声明的 categories 里也没有 agentic，无法用公开材料解释 partial/agentic/avg_staleness 与全局相关 0.9999 这个现象。"
+  },
+  {
+   "from": "r3",
+   "text": "没有找到任何公开方法做「按 advantage 符号拆分 → 抽走一部分正优势质量 → 给负优势补质量 → 再把每个符号的总量缩放回原值」这套处理。arXiv 检索里 \"advantage clipping\" 与 \"positive and negative advantages\" scaling 都是 0 命中；\"asymmetric clipping\" 命中的 4 篇（如 VEPO、Entropy-Preserving RL）是熵/约束方向的工作，与本站 penalty/signed/* 的机制无关。"
+  },
+  {
+   "from": "r3",
+   "text": "没有找到公开材料讨论或实现「符号内总量守恒」：train/adv_pos_sum_post_penalty 与 pre 逐点完全相等这种形态在公开方法里没有对应物（GRPO 的组内除 std 归一化反而会改变总量）。"
+  },
+  {
+   "from": "r3",
+   "text": "没有找到把 avg@n（每题 n 次成功比例的题平均，n=16）作为独立指标命名的公开文献。HumanEval 只给了 pass@k 的无偏估计量定义，passrate/one、passrate/zero 以及 avg@n = one + 中间桶占比 × 中间桶质量 这套三分解是本遥测自己的口径。"
+  },
+  {
+   "from": "r3",
+   "text": "拿不到 Dr. GRPO 正文 Section 3.1 关于 std 归一化偏置「方向」的逐字原文：arXiv HTML 两次抓取都在进入该节前被截断，ar5iv 无此篇；只摘到论文图 1 标题与摘要层面的表述（「removing the length and std normalization terms」）。"
+  },
+  {
+   "from": "r3",
+   "text": "没有找到定义 dynsam/infra_error/seq_rate 这类「被检出的 infra 失败序列占比」的公开材料：公开工作讨论 rollout 失败与重采样，但没有这个具体比率的定义或口径。"
+  },
+  {
+   "from": "r3",
+   "text": "没有找到解释 critic/rewards/min 长期贴 −0.8 的公开来源；公开 RLVR（DAPO 等）用的是二值 {1, −1} 规则奖励，−0.8 这种地板分属于本站私有判分口径。"
+  },
+  {
+   "from": "r3",
+   "text": "没有找到对「组内标准差归一化对低方差 prompt 的系统性偏置」这一具体方向的定量公开论述（只有 Dr. GRPO 的定性主张与 2601.23135 的反向论证）。"
+  },
+  {
+   "from": "r4",
+   "text": "判分前的路由丢弃（routed/off 占 groups_total 约 48.9%）找不到任何公开材料：没有论文或文档描述「先按路由把一半候选组排除在判分之外」这种设计，也没有口径可以对照。公开文献里最接近的是 DAPO 的动态采样（过采样后过滤掉正确率为 1 和 0 的 prompt），但那是按奖励过滤、发生在打分之后，与我们的判分前路由不是一回事，不能混用。"
+  },
+  {
+   "from": "r4",
+   "text": "二审从未执行这件事（pass2_success_rate 恒 1.0 而 judge_pass2_attempts 恒 0）找不到公开材料。BAITBENCH 只用到「two-stage judge pipeline」这个说法，没有给任何阶段的成功率/尝试次数口径；也没有任何材料讨论「两遍判分但第二遍没被启用」这种读数陷阱。"
+  },
+  {
+   "from": "r4",
+   "text": "判分约 570 秒/组、97% 花在一审：没有找到任何公开的判分器/verifier 单组耗时基线、分位数或成本统计，无法把 550 秒这个量级与公开系统做对照，也无法验证「97% 在一审」这种拆分的合理性。"
+  },
+  {
+   "from": "r4",
+   "text": "判分器（select_v4 / select_v4_nogold）本身的公开实现与判定标准找不到；select_probe_disagree_rate 里 probe 具体指同模型多次采样、不同提示、还是不同模型，没有任何公开材料可以确认。"
+  },
+  {
+   "from": "r4",
+   "text": "「判分饱和」（judge saturation）没有找到专门文献：arXiv 全文检索 \"judge saturation\" 只有 1 条且与主题无关（客服流失解释），因此我们关于「判分饱和」的读法没有溯源。"
+  },
+  {
+   "from": "r4",
+   "text": "select_tier_share_T1/T2/T3/H 的档位定义与排序方向（哪一档更难、H 是 hard 还是 hold）没有任何公开材料；MiMo-7B 只提到 test-difficulty-driven code-reward，没有档位命名。"
+  },
+  {
+   "from": "r4",
+   "text": "RL 训练的算力-效果缩放律（能不能从算力预测效果）没有找到可引用的论文：简报给的 2506.17863 实际是另一篇论文（见 notes），本会话对 arXiv 搜索接口的连续检索也多次被拒。perf/total_num_tokens 目前只挂到 MiMo 官方「efficiently scaling RL compute」这类定性表述和 MiMo-VL 的算力规模叙述，属于 context 而非缩放律证据。"
+  },
+  {
+   "from": "r4",
+   "text": "env/possible_leak 的判定口径（什么算泄漏、统计窗口是瞬时还是累计）没有公开材料；2609.02246 描述了 agent 从环境里读缓存答案键这类泄漏形态，但没有给出对应指标定义。"
+  },
+  {
+   "from": "r4",
+   "text": "沙箱翻台率/环境错误率的公开基线：MiMo 官方只给了「10,000+ concurrent pods 与 70% environment setup success rate」，没有给 sandbox 生命周期、翻台次数或错误率的分母口径，因此我们「两个 run 的沙箱周转都在 14 倍上下」只能算自证，不能与官方或第三方对照。"
+  },
+  {
+   "from": "r4",
+   "text": "判分耗时与数据陈旧度之间的因果（判分慢 → partial/avg_staleness 上升）没有找到公开材料直接论证；这属于本遥测的推断。"
+  },
+  {
+   "from": "sampler",
+   "text": "没有找到任何公开材料给出 mimo.xiaomi.com/rl 采样器表格里 judged / in flight 两列的官方口径。能确证的只有：这两列的英文标签出自原站自己的渲染代码；judged 一列只在一部分 code 数据源上上报、且恒不超过 accepted；in flight 一列的分源合计恒等于面板上的 remain + remain_partial。它们的准确计数单位（题还是序列、是否包含 partial rollout）没有公开说明。"
+  },
+  {
+   "from": "self",
+   "text": "本站核算都是「数据内部的关系」，它们能证明口径与恒等式，不能证明某个读法在方法上是最优的 —— 这一层只能靠公开文献。"
+  },
+  {
+   "from": "self",
+   "text": "pro 第 19 步是记录范围内的最后一步，无法验证梯度尖峰是否会变成新常态。"
+  }
+ ],
+ "notes": [
+  "r1：1) 简报参考起点的 id 有三个标题不符，务必修正：2002.11803 实际是 'Disentangling Adaptive Gradient Methods from Learning Rates'（我把它当“学习率陷阱”的材料用了）；2506.17863 实际是 'LLMs for Customized Marketing Content Generation and Evaluation at Scale'；2506.10947 实际是 'Spurious Rewards: Rethinking Training Signals in RLVR'。'Why Gradient Clipping Accelerates Training' 的正确 id 是 1905.11881。逐字核验通过的：1707.06347 PPO、1502.05477 TRPO、2503.14476 DAPO、2503.20783 Dr.GRPO、2507.18071 GSPO、2505.22617 Entropy Mechanism、2504.13837 pass@k 边界、2107.03374 Codex/HumanEval、2409.19256 HybridFlow、1711.05101 AdamW、2502.16982 Muon、2310.06770 SWE-bench、2503.11926 Monitoring Reasoning Models。2) export.arxiv.org 的 API 在本会话后半段开始返回非 XML 响应（疑似限流），因此后期条目改用 arxiv.org/abs 摘要页（2110.00641、2502.17055、2509.02479、2602.00983）与 Semantic Scholar API 交叉核对；这些条目的 quote 来自摘要页正文的 Abstract 段，同样逐字。3) 共成功 fetch 约 20 个 URL（另有若干被限流失败），其中 ICLR Blog Track 一页与 verl 两个文档页因为包含多条互相独立的原文，按不同引文拆成了多条 item（id 各自唯一、url 相同）。4) richardli.xyz/rl-collapse 只返回一个跳转页，无法摘录原文，故未收录为来源，仅作为 verl rollout_corr 文档所引用的博客线索。",
+  "r2：id 核验坑（两个都记错了）：2508.10695 不是 TIS 来源博客的 arXiv 版，API 返回的是 \"Learning from Natural Language Feedback for Personalized Question Answering\"；2509.23798 不是 \"When Speed Kills Stability\"，返回的是 quant-ph 的原子分束器论文。TIS 博客与 When Speed Kills Stability 目前只存在于 Notion（richardli.xyz/rl-collapse 会 302 到 Notion），web_fetch 抓 Notion 只得到 \"Notion\" 两个字，正文是用 Playwright 打开后取 innerText 得到的，所以这两条的 quote 是页面渲染文本。已逐个核验标题一致的 id：2503.14476 DAPO、2507.18071 GSPO、2503.20783 Dr. GRPO、2505.22617 Entropy Mechanism、2510.26788 FP16、2512.01374 Stabilizing RL with LLMs、2510.01161 M2PO、2512.23075 Trust Region Masking、2509.24203 Group-Relative REINFORCE。arXiv API 有速率限制：并发或密集调用会返回 429，或让 web_fetch 报 unsupported content type \"unknown\"，必须间隔十几秒重试；arXiv 的 HTML 搜索页（arxiv.org/search）在 API 被限流时仍可用。另外该文（When Speed Kills Stability）在页面里声明 DeepSeek-V3.2（arXiv:2512.02556）采用了它的 geometric sequence masking，但这条我只在 Notion 页面上看到、没有独立核验该 id。",
+  "r3：【重点结论：penalty/signed/* 有没有公开对应物】没有。公开方法里对正/负优势的「非对称」处理全部作用在重要性采样比或 surrogate 目标上，而不是 advantage 的质量分配：DAPO 的 Clip-Higher 只是把上下裁剪界拆开并放宽上界（明确保持 εlow 不动，理由是加大会把 token 概率压向 0）；dual-clip PPO 只在 Â_t<0 时给目标加一个下界 c·Â_t，截断的是过大的负向更新。两者都不改变 advantage 的分布，也都没有「补质量之后再按符号归一化回原总量」这一步。检索「advantage clipping」「positive and negative advantages」scaling 均 0 命中，可以支撑「本站 signed 分支这套符号内质量搬运 + 重归一化在公开文献里找不到对应物」这个结论。【id 核验的坑】(1) 简报里的 `2506.10947 Pass@k Training` 是错的：该 id 实际是 \"Spurious Rewards: Rethinking Training Signals in RLVR\"（已按实际标题收录）；真正的 Pass@k Training 是 2508.10751 \"Pass@k Training for Adaptively Balancing Exploration and Exploitation of Large Reasoning Models\"（已收录）。(2) 其余参考 id 标题均与预期一致：1707.06347 PPO、1506.02438 GAE、2402.03300 DeepSeekMath/GRPO、2503.14476 DAPO、2503.20783 Dr. GRPO、2504.13837、2107.03374、1912.09729。(3) 本会话 export.arxiv.org 的 search_query 端点一律报 unsupported content type，检索改用 https://arxiv.org/search/ 页面完成；id_list 端点正常。(4) ar5iv 的 MathML 转文本会把符号重复输出（如 pass@kk、n≥kn\\geq k），我按论文原文转写为纯文本符号，其余字句逐字未改。"
+ ],
+ "items": [
+  {
+   "id": "adamw",
+   "kind": "paper",
+   "title": "Decoupled Weight Decay Regularization",
+   "authors": "Ilya Loshchilov, Frank Hutter",
+   "venue": "arXiv:1711.05101 (ICLR 2019)",
+   "year": "2017",
+   "url": "https://arxiv.org/abs/1711.05101",
+   "quote": "We provide empirical evidence that our proposed modification (i) decouples the optimal choice of weight decay factor from the setting of the learning rate for both standard SGD and Adam",
+   "topic": "自适应优化器里学习率与正则的耦合"
+  },
+  {
+   "id": "adaptive-grad-lr",
+   "kind": "paper",
+   "title": "Disentangling Adaptive Gradient Methods from Learning Rates",
+   "authors": "Naman Agarwal et al.",
+   "venue": "arXiv:2002.11803",
+   "year": "2020",
+   "url": "https://arxiv.org/abs/2002.11803",
+   "quote": "We introduce a \"grafting\" experiment which decouples an update's magnitude from its direction, finding that many existing beliefs in the literature may have arisen from insufficient isolation of the implicit schedule of step sizes.",
+   "topic": "学习率指标的常见混淆"
+  },
+  {
+   "id": "baitbench",
+   "kind": "paper",
+   "title": "BAITBENCH: Measuring Agent Reward Hacking with Optional Shortcuts Planted in ML Tasks",
+   "authors": "Pradyumna Shyama Prasad et al.",
+   "venue": "arXiv:2608.30724",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.30724",
+   "quote": "Across seven frontier agents scored by our two-stage judge pipeline, 57.1% of runs exhibit reward hacking, with five of seven above 50%.",
+   "topic": "奖励攻击率的公开量级与两阶段判分流水线"
+  },
+  {
+   "id": "beyond-precision",
+   "kind": "paper",
+   "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+   "authors": "Yaxiang Zhang, Yingru Li, Jiacai Liu, Jiawei Xu, Ziniu Li, Qian Liu, Haoyuan Li",
+   "venue": "arXiv:2602.01826",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.01826",
+   "quote": "standard remedies, such as Importance Sampling, might fail during extended training runs",
+   "topic": "长期训练里 IS 类修正可能失效"
+  },
+  {
+   "id": "beyond-precision-dynamic",
+   "kind": "paper",
+   "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+   "authors": "Yaxiang Zhang, Yingru Li, Jiacai Liu, Jiawei Xu, Ziniu Li, Qian Liu, Haoyuan Li",
+   "venue": "arXiv:2602.01826",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.01826",
+   "quote": "we deduce that the mismatch is not merely a static numerical discrepancy, but a dynamic failure coupled with the model's optimization.",
+   "topic": "TIM 是与优化耦合的动态失效"
+  },
+  {
+   "id": "dapo",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Unlike previous works that withhold training details, we introduce four key techniques of our algorithm that make large-scale LLM RL a success.",
+   "topic": "上下裁剪解耦（Decoupled Clip）"
+  },
+  {
+   "id": "dapo-accuracy1-rising",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Empirically, the number of samples with accuracy equal to 1 continues to increase, as shown in Figure 3(b).",
+   "topic": "全对题占比随训练单向上行"
+  },
+  {
+   "id": "dapo-dynsam",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "we propose to over-sample and filter out prompts with the accuracy equal to 1 and 0 as illustrated in Equation 11, leaving all prompts in the batch with effective gradients and keeping a consistent number of prompts.",
+   "topic": "动态采样：丢弃全对/全错（零优势）组"
+  },
+  {
+   "id": "dapo-length-quality",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale（§3.3 长样本的低质形态）",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "we observe that excessively long samples often exhibit low-quality patterns such as gibberish and repetitive words",
+   "topic": "响应长度膨胀可能是不健康的"
+  },
+  {
+   "id": "dapo-longtail-generation",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale（§3.2 长尾主导生成时间）",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "the generation time is typically dominated by the generation of long-tail samples if the RL system is synchronized and the generation stage is not pipelined",
+   "topic": "生成墙钟由长尾样本主导"
+  },
+  {
+   "id": "dapo-overlong",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale（Overlong Reward Shaping）",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Overlong Reward Shaping, which reduces reward noise and stabilizes training.",
+   "topic": "超长样本需要专门的奖励整形"
+  },
+  {
+   "id": "dapo-rule-reward",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Instead, we directly use the final accuracy of a verifiable task as the outcome reward, computed using the following rule:",
+   "topic": "可验证奖励（rule-based verifiable reward）"
+  },
+  {
+   "id": "dapo-upper-clip",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "We identify that the upper clip can restrict the exploration of the policy, where making an ‘exploitation’ token more probable is much easier yet the probability of an unlikely ‘exploration’ token is too tightly bounded to be uplifted.",
+   "topic": "非对称裁剪（Clip-Higher）在公开方法里的形态"
+  },
+  {
+   "id": "dapo-zero-advantage",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "A zero advantage results in zero policy gradients, shrinking the magnitude and increasing the noise sensitivity of the batch gradient, thereby degrading sample efficiency.",
+   "topic": "为什么必须丢弃零优势组"
+  },
+  {
+   "id": "dart-gui",
+   "kind": "paper",
+   "title": "Efficient Multi-turn RL for GUI Agents via Decoupled Training and Adaptive Data Curation",
+   "authors": "Pengxiang Li et al.",
+   "venue": "arXiv:2509.23866",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.23866",
+   "quote": "stabilizing learning via truncated importance sampling for policy mismatch between policy rollout and updating.",
+   "topic": "TIS 的定义性描述"
+  },
+  {
+   "id": "decoupled-ppo",
+   "kind": "paper",
+   "title": "Batch size-invariance for policy optimization",
+   "authors": "Jacob Hilton, Karl Cobbe, John Schulman",
+   "venue": "arXiv:2110.00641 (NeurIPS 2022)",
+   "year": "2021",
+   "url": "https://arxiv.org/abs/2110.00641",
+   "quote": "Our key insight is to decouple the proximal policy (used for controlling policy updates) from the behavior policy (used for off-policy corrections).",
+   "topic": "proximal policy 与 behavior policy 解耦"
+  },
+  {
+   "id": "dispo",
+   "kind": "paper",
+   "title": "DISPO: Enhancing Training Efficiency and Stability in Reinforcement Learning for Large Language Model Mathematical Reasoning",
+   "authors": "Batuhan K. Karaman et al.",
+   "venue": "arXiv:2602.00983 (AISTATS 2026)",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.00983",
+   "quote": "For correct responses, weights >1 increase the average token entropy (i.e., exploration) while weights <1 decrease it (i.e., distillation) -- both beneficial but causing gradual performance degradation when excessive.",
+   "topic": "裁剪方向如何推高/压低熵"
+  },
+  {
+   "id": "dr-grpo",
+   "kind": "paper",
+   "title": "Understanding R1-Zero-Like Training: A Critical Perspective",
+   "authors": "Zichen Liu et al.",
+   "venue": "arXiv:2503.20783",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.20783",
+   "quote": "we identify an optimization bias in Group Relative Policy Optimization (GRPO), which artificially increases response length (especially for incorrect outputs) during training.",
+   "topic": "组相对目标的长度偏置"
+  },
+  {
+   "id": "dr-grpo-length-bias",
+   "kind": "paper",
+   "title": "Understanding R1-Zero-Like Training: A Critical Perspective",
+   "authors": "Zichen Liu et al.",
+   "venue": "arXiv:2503.20783",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.20783",
+   "quote": "we identify an optimization bias in Group Relative Policy Optimization (GRPO), which artificially increases response length (especially for incorrect outputs) during training",
+   "topic": "长度膨胀可能来自目标函数偏置"
+  },
+  {
+   "id": "drgrpo",
+   "kind": "paper",
+   "title": "Understanding R1-Zero-Like Training: A Critical Perspective (Dr. GRPO)",
+   "authors": "Zichen Liu et al.",
+   "venue": "arXiv:2503.20783",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.20783",
+   "quote": "Dr. GRPO introduces simple yet significant modifications to address the biases in GRPO (Shao et al., 2024), by removing the length and std normalization terms.",
+   "topic": "组内标准差归一化是偏置项"
+  },
+  {
+   "id": "drpo",
+   "kind": "paper",
+   "title": "Rethinking the Divergence Regularization in LLM RL",
+   "authors": "Jiarui Yao, Xiangxin Zhou, Penghui Qi, Wee Sun Lee, Liefeng Bo, Tianyu Pang",
+   "venue": "arXiv:2606.09821",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2606.09821",
+   "quote": "In practice, LLM RL is often off-policy because of training-inference mismatch and policy staleness, making trust-region control essential for stable optimization.",
+   "topic": "off-policy 的两个来源并列"
+  },
+  {
+   "id": "dual-clip-ppo",
+   "kind": "paper",
+   "title": "Mastering Complex Control in MOBA Games with Deep Reinforcement Learning (dual-clip PPO)",
+   "authors": "Deheng Ye et al.",
+   "venue": "arXiv:1912.09729",
+   "year": "2019",
+   "url": "https://arxiv.org/abs/1912.09729",
+   "quote": "When A_t<0, such a large ratio r_t(theta) will introduce a big and unbounded variance since r_t(theta)A_t << 0.",
+   "topic": "「只有一侧动下界」的公开对应物"
+  },
+  {
+   "id": "entropy-mechanism",
+   "kind": "paper",
+   "title": "The Entropy Mechanism of Reinforcement Learning for Reasoning Language Models",
+   "authors": "Ganqu Cui et al.",
+   "venue": "arXiv:2505.22617",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.22617",
+   "quote": "In practice, we establish a transformation equation R=-a*e^H+b between entropy H and downstream performance R.",
+   "topic": "熵与性能的权衡（熵坍缩叙事）"
+  },
+  {
+   "id": "estr",
+   "kind": "paper",
+   "title": "Deconstructing Off-Policy Ratios: Entropy-Scaled Trust Regions for Asynchronous Reinforcement Learning",
+   "authors": "Guanqun Zhao, Zijun Xie, Binbin Zheng, Enlei Gong, Jiafeng Lu, Yehan Yang, Aoqi Hu, Zeyu Chen",
+   "venue": "arXiv:2607.22186",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2607.22186",
+   "quote": "we reveal that the natural scale of the importance ratio varies systematically with token entropy. Under asynchronous dynamics, this entropy-ratio scaling dictates two distinct phenomena: at low entropy, the inherent train-inference discrepancy is drastically amplified into substantial sampling noise",
+   "topic": "离策略偏差的尺度与 token 熵系统相关"
+  },
+  {
+   "id": "f-tis",
+   "kind": "paper",
+   "title": "F-TIS: Harnessing Diverse Models in Collaborative GRPO",
+   "authors": "Nikolay Blagoev et al.",
+   "venue": "arXiv:2605.22537",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2605.22537",
+   "quote": "prior work has identified that off-policy samples can hurt GRPO convergence.",
+   "topic": "离策略样本对 GRPO 收敛的危害"
+  },
+  {
+   "id": "fp16-mismatch",
+   "kind": "paper",
+   "title": "Defeating the Training-Inference Mismatch via FP16",
+   "authors": "Penghui Qi et al.",
+   "venue": "arXiv:2510.26788",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2510.26788",
+   "quote": "we show that its root cause lies in the floating point precision itself. The widely adopted BF16, despite its large dynamic range, introduces large rounding errors that breaks the consistency between training and inference.",
+   "topic": "训练-推理不匹配的精度来源"
+  },
+  {
+   "id": "fp8-rl",
+   "kind": "paper",
+   "title": "FP8-RL: A Practical and Stable Low-Precision Stack for LLM Reinforcement Learning",
+   "authors": "Zhaopeng Qiu, Shuang Yu, Jingqi Zhang, Shuai Zhang, Xue Huang, Jingyi Yang, Junjie Lai",
+   "venue": "arXiv:2601.18150",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.18150",
+   "quote": "low-precision rollouts can deviate from the higher-precision policy assumed by the trainer, causing train-inference mismatch and potential instability",
+   "topic": "低精度 rollout 与 KV cache 造成的 TIM"
+  },
+  {
+   "id": "gae",
+   "kind": "paper",
+   "title": "High-Dimensional Continuous Control Using Generalized Advantage Estimation",
+   "authors": "John Schulman et al.",
+   "venue": "arXiv:1506.02438",
+   "year": "2015",
+   "url": "https://arxiv.org/abs/1506.02438",
+   "quote": "which is simply the empirical returns minus the value function baseline",
+   "topic": "GAE 的极限形式与 advantage 的定义"
+  },
+  {
+   "id": "gipo",
+   "kind": "paper",
+   "title": "GIPO: Gaussian Importance Sampling Policy Optimization",
+   "authors": "Chengxuan Lu et al.",
+   "venue": "arXiv:2603.03955",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2603.03955",
+   "quote": "GIPO (Gaussian Importance sampling Policy Optimization) is proposed as a policy optimization objective based on truncated importance sampling, replacing hard clipping with a log-ratio-based Gaussian trust weight to softly damp extreme importance ratios while maintaining non-zero gradients.",
+   "topic": "TIS 硬截断的代价"
+  },
+  {
+   "id": "grad-clip-theory",
+   "kind": "paper",
+   "title": "Why gradient clipping accelerates training: A theoretical justification for adaptivity",
+   "authors": "Jingzhao Zhang et al.",
+   "venue": "arXiv:1905.11881",
+   "year": "2019",
+   "url": "https://arxiv.org/abs/1905.11881",
+   "quote": "Further, this smoothness positively correlates with the gradient norm, and contrary to standard assumptions in the literature, it can grow with the norm of the gradient.",
+   "topic": "梯度范数与不稳定性的理论联系"
+  },
+  {
+   "id": "gradient-stabilizer",
+   "kind": "paper",
+   "title": "GradientStabilizer: Fix the Norm, Not the Gradient",
+   "authors": "Tianjin Huang et al.",
+   "venue": "arXiv:2502.17055",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2502.17055",
+   "quote": "Training instability in modern deep learning systems is frequently triggered by rare but extreme gradient-norm spikes, which can induce oversized parameter updates, corrupt optimizer state, and lead to slow recovery or divergence.",
+   "topic": "梯度范数尖峰与训练不稳定"
+  },
+  {
+   "id": "grpo-deepseekmath",
+   "kind": "paper",
+   "title": "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models",
+   "authors": "Zhihong Shao et al.",
+   "venue": "arXiv:2402.03300",
+   "year": "2024",
+   "url": "https://arxiv.org/abs/2402.03300",
+   "quote": "GRPO foregoes the critic model, instead estimating the baseline from group scores, significantly reducing training resources compared to Proximal Policy Optimization (PPO).",
+   "topic": "GRPO 去掉 critic：组内分数当 baseline"
+  },
+  {
+   "id": "grpo-normalization-curvature",
+   "kind": "paper",
+   "title": "Why GRPO Needs Normalization: A Local-Curvature Perspective on Adaptive Gradients",
+   "authors": "Cheng Ge et al.",
+   "venue": "arXiv:2601.23135",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.23135",
+   "quote": "In this work, we provide an explanation through the lens of local curvature of the sequence-level policy gradient: standard deviation normalization implements an adaptive gradient.",
+   "topic": "std 归一化的两面性（自适应梯度 vs 偏置）"
+  },
+  {
+   "id": "grpo-offpolicy",
+   "kind": "paper",
+   "title": "Group-Relative REINFORCE Is Secretly an Off-Policy Algorithm: Demystifying Some Myths About GRPO and Its Friends",
+   "authors": "Chaorui Yao, Yanxi Chen, Yuchang Sun, Yushuo Chen, Wenhao Zhang, Xuchen Pan, Yaliang Li, Bolin Ding",
+   "venue": "arXiv:2509.24203 (ICLR 2026)",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.24203",
+   "quote": "without assuming a specific training data distribution, showing that it admits a native off-policy interpretation. This perspective yields two general principles for adapting REINFORCE to truly off-policy settings: regularizing policy updates, and actively shaping the data distribution.",
+   "topic": "GRPO 类算法本身就有 off-policy 的解读"
+  },
+  {
+   "id": "gspo",
+   "kind": "paper",
+   "title": "Group Sequence Policy Optimization",
+   "authors": "Chujie Zheng et al.",
+   "venue": "arXiv:2507.18071",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2507.18071",
+   "quote": "Unlike previous algorithms that adopt token-level importance ratios, GSPO defines the importance ratio based on sequence likelihood and performs sequence-level clipping, rewarding, and optimization.",
+   "topic": "token 级 vs 序列级重要性比值"
+  },
+  {
+   "id": "hack-verifiable-terminal-bench",
+   "kind": "paper",
+   "title": "Hack-Verifiable Terminal Bench: Evaluating Reward Hacking in Terminal Tasks",
+   "authors": "Amit Roth, Ivan Bercovich, Yonathan Efroni",
+   "venue": "arXiv:2608.22103",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.22103",
+   "quote": "Measuring reward hacking is itself challenging, as detection typically relies on human inspection or LLM judges, both of which can be unreliable.",
+   "topic": "用 LLM 判分器检测作弊的可靠性边界"
+  },
+  {
+   "id": "humaneval-passk",
+   "kind": "paper",
+   "title": "Evaluating Large Language Models Trained on Code",
+   "authors": "Mark Chen et al.",
+   "venue": "arXiv:2107.03374",
+   "year": "2021",
+   "url": "https://arxiv.org/abs/2107.03374",
+   "quote": "Instead, to evaluate pass@k, we generate n >= k samples per task (in this paper, we use n = 200 and k <= 100), count the number of correct samples c <= n which pass unit tests, and calculate the unbiased estimator",
+   "topic": "无偏 pass@k 估计量与采样方差"
+  },
+  {
+   "id": "hybridflow",
+   "kind": "paper",
+   "title": "HybridFlow: A Flexible and Efficient RLHF Framework",
+   "authors": "Guangming Sheng et al.",
+   "venue": "arXiv:2409.19256",
+   "year": "2024",
+   "url": "https://arxiv.org/abs/2409.19256",
+   "quote": "We further design a 3D-HybridEngine for efficient actor model resharding between training and generation phases, with zero memory redundancy and significantly reduced communication overhead.",
+   "topic": "混合控制器 RL 系统里生成/训练两阶段切分"
+  },
+  {
+   "id": "judge-consistency-not-reliability",
+   "kind": "paper",
+   "title": "When Consistency Does Not Mean Reliability: Evaluating Local LLM Judges Against Human Ratings",
+   "authors": "Aakash Kumar Tiwari",
+   "venue": "arXiv:2609.13824",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.13824",
+   "quote": "These results show that high self-consistency does not necessarily indicate high agreement with human judgments.",
+   "topic": "自洽 ≠ 正确"
+  },
+  {
+   "id": "judge-not-oracle",
+   "kind": "paper",
+   "title": "LLM-as-a-Judge Is Not an Oracle: Why Self-Improving Agents Need Deterministic Guardrails",
+   "authors": "Vansh Wahi",
+   "venue": "arXiv:2609.02246",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.02246",
+   "quote": "Agents achieved perfect scores by reading cached answer keys from their environment, a 100% pass rate concealing 68% true capability.",
+   "topic": "满分可能是作弊的产物"
+  },
+  {
+   "id": "m2po",
+   "kind": "paper",
+   "title": "Prosperity before Collapse: How Far Can Off-Policy RL Reach with Stale Data on LLMs?",
+   "authors": "Haizhong Zheng, Jiawei Zhao, Beidi Chen",
+   "venue": "arXiv:2510.01161",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2510.01161",
+   "quote": "M2PO sharply reduces the fraction of clipped tokens under high staleness (from 1.22% to 0.06% over training), precisely masking high-variance tokens while maintaining stable optimization.",
+   "topic": "高陈旧度下的被裁剪 token 占比量级"
+  },
+  {
+   "id": "mismatch-lr-scheduler",
+   "kind": "paper",
+   "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+   "authors": "Yaxiang Zhang et al.",
+   "venue": "arXiv:2602.01826",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.01826",
+   "quote": "we find that the mismatch can be effectively suppressed by shrinking the update size.",
+   "topic": "用学习率调度压训练-推理不匹配"
+  },
+  {
+   "id": "missing-old-logits",
+   "kind": "paper",
+   "title": "Missing Old Logits in Asynchronous Agentic RL: Semantic Mismatch and Repair Methods for Off-Policy Correction",
+   "authors": "Zhong Guan, Yongjian Guo, Haoran Sun, Wen Huang, Shuai Di, Likang Wu, Xiong Jun Wu, Hongke Zhao",
+   "venue": "arXiv:2605.12070",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2605.12070",
+   "quote": "This missing-old-logit problem entangles discrepancy repair with staleness correction, breaks the intended semantics of decoupled correction, and makes clipping and masking thresholds interact undesirably.",
+   "topic": "总比值本应拆成「引擎差异项」与「陈旧度项」两项"
+  },
+  {
+   "id": "monitor-cot-hacking",
+   "kind": "paper",
+   "title": "Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation",
+   "authors": "Bowen Baker et al.",
+   "venue": "arXiv:2503.11926",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.11926",
+   "quote": "We show that we can monitor a frontier reasoning model, such as OpenAI o3-mini, for reward hacking in agentic coding environments by using another LLM that observes the model's chain-of-thought (CoT) reasoning.",
+   "topic": "奖励攻击的检测（CoT 监控）"
+  },
+  {
+   "id": "mtbench-judge",
+   "kind": "paper",
+   "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+   "authors": "Lianmin Zheng et al.",
+   "venue": "arXiv:2306.05685 (NeurIPS 2023 D&B)",
+   "year": "2023",
+   "url": "https://arxiv.org/abs/2306.05685",
+   "quote": "We examine the usage and limitations of LLM-as-a-judge, including position, verbosity, and self-enhancement biases, as well as limited reasoning ability, and propose solutions to mitigate some of them.",
+   "topic": "LLM 判分器的系统性偏差（位置/长度/自增强）"
+  },
+  {
+   "id": "multi-judge-ensemble",
+   "kind": "paper",
+   "title": "Can We Trust LLM Judges: A Study of Capability-Dependent Biases and Multi-Judge Ensemble for Bias Calibration",
+   "authors": "Gemma Zhang et al.",
+   "venue": "arXiv:2609.12002",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.12002",
+   "quote": "We introduce a disagreement-based estimator that derives these error rates purely from inter-judge agreement patterns, requiring no ground-truth labels or task metadata.",
+   "topic": "多判分器聚合与用「分歧」估计错误率"
+  },
+  {
+   "id": "muon",
+   "kind": "paper",
+   "title": "Muon is Scalable for LLM Training",
+   "authors": "Jingyuan Liu et al.",
+   "venue": "arXiv:2502.16982",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2502.16982",
+   "quote": "We identify two crucial techniques for scaling up Muon: (1) adding weight decay and (2) carefully adjusting the per-parameter update scale.",
+   "topic": "优化器不同导致同一 lr 数值不可比"
+  },
+  {
+   "id": "passk-inversion",
+   "kind": "paper",
+   "title": "When RLVR Shrinks the Reasoning Boundary: Diagnosing Pass@k Inversion",
+   "authors": "Todd Zhou",
+   "venue": "arXiv:2607.20543",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2607.20543",
+   "quote": "The failure concentrates on boundary prompts, where the base model contains rare correct trajectories that are recoverable by sampling but too sparse to reliably appear in finite RLVR rollout groups.",
+   "topic": "pass@k 反转的机制：boundary prompt 与有限 rollout 组"
+  },
+  {
+   "id": "passk-training",
+   "kind": "paper",
+   "title": "Pass@k Training for Adaptively Balancing Exploration and Exploitation of Large Reasoning Models",
+   "authors": "Zhipeng Chen et al.",
+   "venue": "arXiv:2508.10751",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2508.10751",
+   "quote": "Reinforcement learning with verifiable rewards (RLVR), which typically adopts Pass@1 as the reward, has faced the issues in balancing exploration and exploitation, causing policies to prefer conservative actions, converging to a local optimum.",
+   "topic": "以 Pass@1 为奖励导致覆盖收窄"
+  },
+  {
+   "id": "pipeline-rl",
+   "kind": "paper",
+   "title": "PipelineRL: Faster On-policy Reinforcement Learning for Long Sequence Generation",
+   "authors": "Alexandre Piche, Ehsan Kamalloo, Rafael Pardinas, Xiaoyin Chen, Dzmitry Bahdanau",
+   "venue": "arXiv:2509.19128",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.19128",
+   "quote": "PipelineRL employs concurrent asynchronous data generation and model training, distinguished by the novel in-flight weight updates.",
+   "topic": "异步流水线里序列跨策略版本生成"
+  },
+  {
+   "id": "ppo",
+   "kind": "paper",
+   "title": "Proximal Policy Optimization Algorithms",
+   "authors": "John Schulman et al.",
+   "venue": "arXiv:1707.06347",
+   "year": "2017",
+   "url": "https://arxiv.org/abs/1707.06347",
+   "quote": "Whereas standard policy gradient methods perform one gradient update per data sample, we propose a novel objective function that enables multiple epochs of minibatch updates.",
+   "topic": "PPO 裁剪代理目标与单轮/多轮更新"
+  },
+  {
+   "id": "psn-rlvr",
+   "kind": "paper",
+   "title": "Learning to Explore with Parameter-Space Noise: A Deep Dive into Parameter-Space Noise for Reinforcement Learning with Verifiable Rewards",
+   "authors": "Bizhe Bai et al.",
+   "venue": "arXiv:2602.02555",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.02555",
+   "quote": "To mitigate the resulting sampling-update mismatch, we incorporate truncated importance sampling (TIS).",
+   "topic": "TIS 用来处理采样-更新不匹配"
+  },
+  {
+   "id": "reality-final-verifier",
+   "kind": "paper",
+   "title": "Reality Is the Final Verifier: On Two Key Gaps in Agentic Software Engineering",
+   "authors": "Alexander Krentsel et al.",
+   "venue": "arXiv:2609.12039",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.12039",
+   "quote": "reward hacking exploits omissions in the requirements or model, while hallucination widens the gaps by fabricating requirements or environment assumptions",
+   "topic": "测试通过 ≠ 部署可接受（两个 gap）"
+  },
+  {
+   "id": "rlvr-entropy-coverage",
+   "kind": "paper",
+   "title": "Boosting LLM Exploration via Weak-Model Guidance in RLVR",
+   "authors": "Xingyu Shen et al.",
+   "venue": "arXiv:2608.27420",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.27420",
+   "quote": "Reinforcement Learning with Verifiable Rewards (RLVR) significantly improves LLM reasoning but often causes a drop in policy entropy, leading to narrowed reasoning coverage and degraded pass@k for large k.",
+   "topic": "熵下降 → 覆盖收窄 → 大 k pass@k 退化"
+  },
+  {
+   "id": "rlvr-passk-shrink",
+   "kind": "paper",
+   "title": "Does Reinforcement Learning Really Incentivize Reasoning Capacity in LLMs Beyond the Base Model?",
+   "authors": "Yang Yue et al.",
+   "venue": "arXiv:2504.13837",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2504.13837",
+   "quote": "While RLVR-trained models outperform their base models at small k (e.g., k = 1), the base models achieve a higher pass@k score when k is large.",
+   "topic": "RLVR 提升 pass@1 但收缩 pass@k 覆盖"
+  },
+  {
+   "id": "robusttests",
+   "kind": "paper",
+   "title": "Robust Code RL via Faulty-Code-Driven Test case Synthesis and Dense Reward Shaping",
+   "authors": "Yiwen Zhang et al.",
+   "venue": "arXiv:2608.24135 (EMNLP 2026)",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.24135",
+   "quote": "its efficacy is often hindered by insufficient test case coverage, leading to reward hacking and policy degradation",
+   "topic": "用新生成的测试补覆盖以治奖励攻击"
+  },
+  {
+   "id": "scaling-beyond-human-supervision",
+   "kind": "paper",
+   "title": "Scaling Large Reasoning Models beyond Human Supervision: A Path toward Superintelligence",
+   "authors": "Zhiqin Yang et al.",
+   "venue": "arXiv:2608.31075",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.31075",
+   "quote": "Our analysis further highlights the risks introduced by increasingly autonomous rewards and experience generation, including reward hacking, feedback drift, curriculum collapse, and environment errors.",
+   "topic": "自主奖励与环境生成的风险清单"
+  },
+  {
+   "id": "score-centering",
+   "kind": "paper",
+   "title": "Score Centering Stabilizes Off-policy Reinforcement Learning",
+   "authors": "Martin Marek, Max Ryabinin",
+   "venue": "arXiv:2609.20807",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.20807",
+   "quote": "we show that the instability of RL under TIM is primarily caused by drift: a persistent bias between training and inference engines that accumulates with every training step.",
+   "topic": "两个引擎之间存在随步累积的持续性偏置"
+  },
+  {
+   "id": "simpletir",
+   "kind": "paper",
+   "title": "SimpleTIR: End-to-End Reinforcement Learning for Multi-Turn Tool-Integrated Reasoning",
+   "authors": "Zhenghai Xue et al.",
+   "venue": "arXiv:2509.02479",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.02479",
+   "quote": "This issue compounds over successive turns, causing catastrophic gradient norm explosions that derail the training process.",
+   "topic": "多轮 agentic 场景下的梯度范数爆炸"
+  },
+  {
+   "id": "spurious-rewards",
+   "kind": "paper",
+   "title": "Spurious Rewards: Rethinking Training Signals in RLVR",
+   "authors": "Rulin Shao et al.",
+   "venue": "arXiv:2506.10947",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2506.10947",
+   "quote": "we show that GRPO exhibits a clipping bias from the clip term, which can amplify high-prior behaviors learned during pretraining even without informative rewards.",
+   "topic": "裁剪项本身带来的偏置"
+  },
+  {
+   "id": "stabilizing-rl",
+   "kind": "paper",
+   "title": "Stabilizing Reinforcement Learning with LLMs: Formulation and Practices",
+   "authors": "Chujie Zheng, Kai Dang, Bowen Yu, Mingze Li, Huiqiang Jiang, Junrong Lin, Yuqiong Liu, Hao Lin, Chencan Wu, Feng Hu, An Yang, Jingren Zhou, Junyang Lin",
+   "venue": "arXiv:2512.01374",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2512.01374",
+   "quote": "through a first-order approximation, we show that this surrogate becomes increasingly valid only when both the training-inference discrepancy and policy staleness are minimized.",
+   "topic": "TIM 与 staleness 是两个必须同时压小的独立量"
+  },
+  {
+   "id": "swebench",
+   "kind": "paper",
+   "title": "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?",
+   "authors": "Carlos E. Jimenez et al.",
+   "venue": "arXiv:2310.06770 (ICLR 2024)",
+   "year": "2023",
+   "url": "https://arxiv.org/abs/2310.06770",
+   "quote": "Resolving issues in SWE-bench frequently requires understanding and coordinating changes across multiple functions, classes, and even files simultaneously, calling for models to interact with execution environments, process extremely long contexts and perform complex reasoning",
+   "topic": "执行环境 + 长上下文是这类评测的固有要求"
+  },
+  {
+   "id": "tim-diagnosing",
+   "kind": "paper",
+   "title": "Diagnosing Training Inference Mismatch in LLM Reinforcement Learning",
+   "authors": "Tianle Zhong et al.",
+   "venue": "arXiv:2605.14220",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2605.14220",
+   "quote": "TIM is difficult to inspect because it is entangled with off-policy drift and common stabilization mechanisms.",
+   "topic": "不匹配与离策略漂移的纠缠"
+  },
+  {
+   "id": "trpo",
+   "kind": "paper",
+   "title": "Trust Region Policy Optimization",
+   "authors": "John Schulman et al.",
+   "venue": "arXiv:1502.05477 (ICML 2015)",
+   "year": "2015",
+   "url": "https://arxiv.org/abs/1502.05477",
+   "quote": "We describe an iterative procedure for optimizing policies, with guaranteed monotonic improvement.",
+   "topic": "信任域方法的出发点"
+  },
+  {
+   "id": "trust-region-masking",
+   "kind": "paper",
+   "title": "Trust Region Masking for Long-Horizon LLM Reinforcement Learning",
+   "authors": "Yingru Li, Jiacai Liu, Jiawei Xu, Yuxuan Tong, Ziniu Li, Qian Liu, Baoxiang Wang",
+   "venue": "arXiv:2512.23075",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2512.23075",
+   "quote": "a sequence-level quantity that cannot be controlled by token-independent methods like PPO clipping",
+   "topic": "决定误差界的是最大 token 级散度（序列级量）"
+  },
+  {
+   "id": "mimo-7b-continuous-rollout",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining（§3.4.1 Seamless Rollout Engine：连续 rollout 与异步判分）",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "After computing rewards, we update the number of valid samples and the current step's pass-rate statistics, then launch new rollout tasks if active tasks are insufficient to meet training demands based on these statistics.",
+   "topic": "判分完成后更新有效样本数与通过率统计，再按需补开 rollout 任务"
+  },
+  {
+   "id": "mimo-7b-early-termination",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining（§3.4.1 Early Termination：凑够 batch 后按 FIFO 终止在途任务）",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "We terminate ongoing tasks only if the valid sample count meets the batch requirement and all tasks initiated prior to these selected samples have completed.",
+   "topic": "有效样本满足 batch 需求后按 FIFO 终止在途任务：在途量在步末收干"
+  },
+  {
+   "id": "mimo-7b-easy-pool",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining（§3.3.2 Easy Data Filter and Re-Sampling：简单题回采池）",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "During the training process, we maintain an easy data pool, where problems with perfect pass rates are stored. When performing rollouts, there is a probability α (10% in our experiments) to sample data from this easy data pool.",
+   "topic": "简单题回采池：动态采样过滤掉满分题之后，用一个池子按比例再采回来"
+  },
+  {
+   "id": "mimo-7b-sample-waste",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining（表 2：Sample Waste Ratio 的定义）",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "Sample Waste Ratio represents the ratio of excess valid samples generated relative to the required batch size.",
+   "topic": "多采出来的有效样本占 batch 需求的比例：接受的样本会超过目标配额"
+  },
+  {
+   "id": "mimo-7b-tr",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining",
+   "authors": "LLM-Core Xiaomi（Bingquan Xia et al.）",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "During post-training, we curate a dataset of 130K verifiable mathematics and programming problems for reinforcement learning, integrating a test-difficulty-driven code-reward scheme to alleviate sparse-reward issues and employing strategic data resampling to stabilize training.",
+   "topic": "官方用测试难度驱动代码奖励"
+  },
+  {
+   "id": "mimo-v2-flash-data-scheduler",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report（§4.6.2 Data Scheduler：按数据源的采样配额）",
+   "authors": "Xiaomi MiMo Team",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "The Data Scheduler supports data source-specific configurations (sample quota, scheduling priority, length limits, temperature) and fits pass rates to accept samples by configured ratios.",
+   "topic": "每个数据源有独立的采样配额；按通过率和配置比例决定受理量"
+  },
+  {
+   "id": "mimo-v2-flash-tr",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "where the rollout phase consistently emerges as the dominant bottleneck due to the inference and decoding costs",
+   "topic": "RL 系统：生成与训练两阶段"
+  },
+  {
+   "id": "mimo-v2-flash-tr-compute",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report（后训练算力缩放）",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "In post-training, we focus on efficiently scaling RL compute to improve reasoning and agentic capabilities.",
+   "topic": "官方对 RL 算力缩放的态度"
+  },
+  {
+   "id": "mimo-v2-flash-tr-reward-hacking",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report 附录 B（Reward Hacking of SWE-Bench）",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "B Reward Hacking of SWE-Bench",
+   "topic": "官方单列章节讨论 SWE-Bench 上的奖励攻击"
+  },
+  {
+   "id": "mimo-vl-tr",
+   "kind": "report",
+   "title": "MiMo-VL Technical Report",
+   "authors": "Xiaomi LLM-Core Team（Zihao Yue et al.）",
+   "venue": "arXiv:2506.03569",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2506.03569",
+   "quote": "Our training combines four-stage pre-training (2.4 trillion tokens) with Mixed On-policy Reinforcement Learning (MORL) integrating diverse reward signals.",
+   "topic": "MiMo 系列官方 RL 配方（混合奖励信号）"
+  },
+  {
+   "id": "dapo-clip-higher",
+   "kind": "blog",
+   "title": "DAPO: an Open-Source LLM Reinforcement Learning System at Scale（官方项目页，Algorithm Insights）",
+   "authors": "ByteDance Seed / Tsinghua AIR / HKU",
+   "venue": "dapo-sia.github.io",
+   "year": "2025",
+   "url": "https://dapo-sia.github.io/",
+   "quote": "We observe an entropy-collapsing phenomenon in our initial experiments. We propose increasing the upper clip range of the importance sampling ratio in policy gradient loss to mitigate this problem.",
+   "topic": "Clip-Higher 与熵坍缩"
+  },
+  {
+   "id": "iclr-ppo-approxkl",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization（approxkl 的定义）",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "`approxkl`: the approximate Kullback–Leibler divergence, measured by `(-logratio).mean()`, which corresponds to the `k1` estimator in John Schulman’s blog post on approximating KL divergence.",
+   "topic": "PPO 里 KL 曲线的定义"
+  },
+  {
+   "id": "iclr-ppo-clipfrac",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization（Debug variables）",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "`clipfrac`: the fraction of the training data that triggered the clipped objective.",
+   "topic": "clipfrac 的标准定义"
+  },
+  {
+   "id": "iclr-ppo-entropy-bonus",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization（Overall Loss and Entropy Bonus）",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "The overall loss is calculated as `loss = policy_loss - entropy * entropy_coefficient + value_loss * value_coefficient`, which maximizes an entropy bonus term.",
+   "topic": "熵是被目标函数显式最大化的量"
+  },
+  {
+   "id": "iclr-ppo-gradclip",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization（Global Gradient Clipping）",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "For each update iteration in an epoch, PPO rescales the gradients of the policy and value network so that the “global l2 norm” (i.e., the norm of the concatenated gradients of all parameters) does not exceed `0.5`.",
+   "topic": "global gradient norm 的口径"
+  },
+  {
+   "id": "mimo-rl-qbitai-async",
+   "kind": "blog",
+   "title": "量子位：罗福莉官宣小米强化学习、直播新模型训练过程（异步流水线）",
+   "authors": "梦晨（量子位）",
+   "venue": "qbitai.com",
+   "year": "2026",
+   "url": "https://www.qbitai.com/2026/09/490950.html",
+   "quote": "有的Agent还在环境中执行任务，有的已经完成、等待判分，有的正在计算Reward，还有新的任务正在进入系统。生成、执行、评分和训练不再严格排队，而是组成了一套持续运转的异步流水线。",
+   "topic": "采样器面板背后的异步流水线：任务同时处于执行 / 待判分 / 算奖励 三种状态"
+  },
+  {
+   "id": "mimo-rl-thirdparty-note",
+   "kind": "blog",
+   "title": "第三方学习笔记：小米把 RL 训练过程搬上直播（逐字段版本）",
+   "authors": "Bingqiang Zhou",
+   "venue": "bingqiangzhou.github.io",
+   "year": "2026",
+   "url": "https://bingqiangzhou.github.io/posts/xiaomi-mimo-rl-live/",
+   "quote": "右边是一张按数据源拆开的实时表：25 个数据源（名字全部哈希化，如 code/dataset-obg8、visual/dataset-gtav、cyber/dataset-9aui、chat/dataset-8kb6），每个源当前 accepted / target / remaining / judged / in flight 各是多少。你能实时看到哪个数据池快采干了、哪个源的样本还在沙箱里跑着。",
+   "topic": "目前唯一逐字段讲这张表的公开材料，但作者自己标明是从页面读出来的解读，不是官方说明"
+  },
+  {
+   "id": "schulman-kl",
+   "kind": "blog",
+   "title": "Approximating KL Divergence",
+   "authors": "John Schulman",
+   "venue": "joschu.net",
+   "year": "2020",
+   "url": "http://joschu.net/blog/kl-approx.html",
+   "quote": "This post will explain why this expression is a good (though biased) estimator of KL, and how to make it unbiased while preserving its low variance.",
+   "topic": "KL 估计量的口径与偏置"
+  },
+  {
+   "id": "tis-blog",
+   "kind": "blog",
+   "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+   "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+   "venue": "Notion 工程博客（verl/THUDM 生态，被 verl 文档列为 TIS 来源）",
+   "year": "2025",
+   "url": "https://fengyao.notion.site/off-policy-rl",
+   "quote": "In modern RL training frameworks (e.g., VeRL), different implementations are used for rollout generation (e.g., vLLM) and model training (e.g., FSDP). Here, we show the implementation gap implicitly turns the on-policy RL to be off-policy",
+   "topic": "训练推理不一致与截断重要性采样（TIS）的原创定义"
+  },
+  {
+   "id": "tis-blog-clamp",
+   "kind": "blog",
+   "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+   "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+   "venue": "Notion 工程博客（verl/THUDM 生态）",
+   "year": "2025",
+   "url": "https://fengyao.notion.site/off-policy-rl",
+   "quote": "Therefore, we use a clamp operation in our truncated importance sampling (TIS) for training stabilization.",
+   "topic": "TIS 的 clamp 口径"
+  },
+  {
+   "id": "tis-blog-kl-bias",
+   "kind": "blog",
+   "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+   "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+   "venue": "Notion 工程博客（verl/THUDM 生态）",
+   "year": "2025",
+   "url": "https://fengyao.notion.site/off-policy-rl",
+   "quote": "These negative KL estimates signal ill-conditioned training dynamics.",
+   "topic": "训练推理不一致下的 KL 估计有偏"
+  },
+  {
+   "id": "when-speed-kills",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion 博客（ByteDance，verl Rollout Correction 的动机来源）",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "The relentless push for faster inference has created a dangerous \"training-inference mismatch\" that can silently kill reinforcement learning with LLMs.",
+   "topic": "训练推理不一致是训练崩溃的直接原因"
+  },
+  {
+   "id": "wsk-hardware",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion 博客（ByteDance）",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "the magnitude of the vllm-kl essentially follows: H20 < L20 < A100. Specifically, the vllm-kl for the H20 is generally on the order of 5e-4 to 1e-3, for the L20 it is around 1e-3 to 1e-2, and for the A100, it is predominantly between 1e-2 and 1.",
+   "topic": "KL 量级的硬件基准带"
+  },
+  {
+   "id": "wsk-logppl-sign",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion 博客（ByteDance）",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "The mismatch consistently show that the fsdp-log-ppl is greater than the vllm-log-ppl indicating that the FSDP engine produces more extreme low-probability tokens.",
+   "topic": "训练侧 log-ppl 系统性偏大（符号不翻转）"
+  },
+  {
+   "id": "wsk-lowprob",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion 博客（ByteDance）",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "the divergence is most severe for tokens that have a low probability according to the vLLM inference engine. As a token's inference probability approaches zero, the training probability can become orders of magnitude smaller, leading to an infinite PPL and gradient.",
+   "topic": "低概率 token 是分歧的集中地"
+  },
+  {
+   "id": "wsk-nonfirst-round",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion 博客（ByteDance）",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "The mismatch primarily occurs in non-first-round model outputs, manifested by a larger mean absolute difference in both log-ppl and token probability between FSDP policy and vLLM policy compared to the first-round output",
+   "topic": "多轮/agentic 输出的不一致更严重"
+  },
+  {
+   "id": "wsk-sample-size",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion 博客（ByteDance）",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "Rollout batches were collected within the following three vllm-kl ranges, with five batches (around 5M tokens) in each group",
+   "topic": "按不一致程度分组统计时的样本量下限"
+  },
+  {
+   "id": "wsk-token-vs-seq",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion 博客（ByteDance）",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "A common heuristic, often inspired by algorithms like PPO and used in (Yao et al., 2025), applies a per-token importance ratio. While this typically has lower variance than the sequence-level ratio, it is a biased estimator that is theoretically unsound for autoregressive models.",
+   "topic": "token 级 IS 有偏、序列级才无偏"
+  },
+  {
+   "id": "mimo-rl-notices-cyber",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl 官方运行公告：移除 cyber 数据集",
+   "authors": "mimo.xiaomi.com/rl/ 看板官方公告",
+   "venue": "https://mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "we also removed the cyber dataset from the upcoming pro run, since we observed some bad patterns in the rollout logs.",
+   "topic": "本次 run 的官方公告（环境/数据源变更）"
+  },
+  {
+   "id": "mimo-rl-notices-easy-filter",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl 官方公告：过滤掉对当前模型偏简单的题",
+   "venue": "mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "we filtered out tasks that are relatively easy for the current pro model.",
+   "topic": "官方对「简单题会被过滤」的直接说明"
+  },
+  {
+   "id": "mimo-rl-notices-grader",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl 官方公告：pro 训练集群与判分服务之间网络故障",
+   "venue": "mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "there was a network connectivity issue between the pro training cluster and the grader deployment.",
+   "topic": "站点自己承认存在一个独立的判分服务（grader deployment）"
+  },
+  {
+   "id": "mimo-rl-notices-restart",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl 官方运行公告：flash 从第 15 步重跑",
+   "authors": "mimo.xiaomi.com/rl/ 看板官方公告",
+   "venue": "https://mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "we restarted the flash run from step 15. reason: a type of infra error on one of datasets was not correctly detected over the past ~3 hours.",
+   "topic": "本次 run 的官方公告（重跑与 infra error）"
+  },
+  {
+   "id": "mimo-v2-flash-readme-env",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash 官方 README（§5.2 Scaling Agentic RL 环境规模）",
+   "authors": "XiaomiMiMo（小米 MiMo 团队）",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "Our automated pipeline maintains a Kubernetes cluster capable of running over 10,000 concurrent pods with a 70% environment setup success rate.",
+   "topic": "官方沙箱环境规模与环境建立成功率"
+  },
+  {
+   "id": "mimo-v2-flash-readme-infra",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash 官方 README（§5.3 Advanced RL Infrastructure / R3）",
+   "authors": "XiaomiMiMo（小米 MiMo 团队）",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "Rollout Routing Replay (R3): Addresses numerical precision inconsistencies in MoE routing between inference and training. R3 reuses the exact routed experts from rollout during the training pass, ensuring consistency with negligible overhead.",
+   "topic": "训练推理不一致的官方工程机制（越界补给 B 组）"
+  },
+  {
+   "id": "mimo-v2-flash-readme-mtp",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash 官方 README（MTP 与 RL rollout 提速）",
+   "authors": "XiaomiMiMo（小米 MiMo 团队）",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "Facilitates self-speculative decoding, tripling generation speed and mitigating GPU idleness during small-batch RL training.",
+   "topic": "生成侧吞吐优化的官方动机"
+  },
+  {
+   "id": "mimo-v2-flash-readme-sched",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash 官方 README（§5.3 细粒度数据调度与部分 rollout）",
+   "authors": "XiaomiMiMo（小米 MiMo 团队）",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "We extend the rollout engine to schedule fine-grained sequences instead of micro-batches. Combined with partial rollout, this significantly reduces GPU idleness caused by long-tail stragglers.",
+   "topic": "长尾拖尾造成生成阶段 GPU 空转"
+  },
+  {
+   "id": "verl-drift",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation（Overview: Common off-policy scenarios / 两段漂移）",
+   "authors": "verl (Yingru Li)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr_math.html",
+   "quote": "This is the distribution shift between the data collection policy and the training reference policy.",
+   "topic": "两段漂移：rollout→old 与 old→current"
+  },
+  {
+   "id": "verl-perf-tuning",
+   "kind": "doc",
+   "title": "verl 文档：Performance Tuning Guide（长序列训练的显存/batch 取舍）",
+   "authors": "verl project (ByteDance Seed MLSys)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/perf/perf_tuning.html",
+   "quote": "To train long sequence (>32k), users may need to decrease the `*micro_batch_size_per_gpu` and `*max_token_len_per_gpu` to avoid OOM.",
+   "topic": "上下文变长如何推高训练耗时"
+  },
+  {
+   "id": "verl-ppo-config",
+   "kind": "doc",
+   "title": "Proximal Policy Optimization (PPO) — verl documentation（Configuration）",
+   "authors": "verl (ByteDance Seed Foundation MLSys Team)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/ppo.html",
+   "quote": "`actor_rollout_ref.actor.clip_ratio`: The PPO clip range. Default to 0.2",
+   "topic": "verl 的裁剪区间是单参数对称设置"
+  },
+  {
+   "id": "verl-ppo-epochs",
+   "kind": "doc",
+   "title": "Proximal Policy Optimization (PPO) — verl documentation（ppo_epochs）",
+   "authors": "verl (ByteDance Seed Foundation MLSys Team)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/ppo.html",
+   "quote": "`actor_rollout_ref.actor.ppo_epochs`: Number of epochs for PPO updates on one set of sampled trajectories for actor",
+   "topic": "单轮更新的配置含义"
+  },
+  {
+   "id": "verl-rollout-corr",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation",
+   "authors": "Yingru Li（verl 文档作者）",
+   "venue": "verl 官方文档（readthedocs）",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "These off-policy gaps can cause training instability and policy collapse.",
+   "topic": "off-policy 问题的官方分类：引擎实现差异 vs 时间滞后"
+  },
+  {
+   "id": "verl-rollout-corr-threshold",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation",
+   "authors": "Yingru Li（verl 文档作者）",
+   "venue": "verl 官方文档（readthedocs）",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "Typical threshold: 1.5 - 5.0",
+   "topic": "token 级 IS 截断阈值的常用量纲"
+  },
+  {
+   "id": "verl-three-policy",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation（Important Note on Common Implementation Mistakes）",
+   "authors": "verl (Yingru Li)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "Many LLM-RL implementations incorrectly apply PPO by **ignoring the actual rollout policy** π_rollout and assuming the training reference policy π_old is the behavior policy.",
+   "topic": "π_rollout 与 π_old 是两个不同的策略"
+  },
+  {
+   "id": "verl-tis-def",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation（Key Design Principle: Separation of IS Weights and Rejection Sampling）",
+   "authors": "verl (Yingru Li)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "**Truncated**: Upper clamped via `.clamp(max=rollout_is_threshold)` (TIS: Truncated Importance Sampling)",
+   "topic": "TIS 的标准定义"
+  },
+  {
+   "id": "self-a3-dataset-composition",
+   "kind": "self",
+   "title": "本地遥测复算：25 个数据集的总体通过率三项 shift-share 分解（A3-dataset-numbers.json 的 S3_composition / S3c_dashboardVsPanelGap）",
+   "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+   "year": "2026",
+   "quote": "复算口径：对每个数据集 d，p_d(t)=train/passrate/avg_passrate/<cat>/dataset-<id>[t]（哨兵 0 当缺失），w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t]，s_d(t)=w_d(t)/Σw(t)；面板取首末两步 p 与 w 都非空且 w>0 的数据集，pro 22 个、flash 23 个。分解式 ΔA=Σs_d(0)Δp_d+ΣΔs_d·p_d(0)+ΣΔs_d·Δp_d，脚本输出 checkSumError=0。pro：+3.5437=+3.8128+0.1623−0.4314；flash：+9.1494=+8.3071+0.0077+0.8346。等价对照曲线：固定第 1 步配比下 pro 末值 60.6717 vs 实际 60.4026（+0.2691pp），flash 61.0930 vs 61.1559（−0.0630pp）。",
+   "topic": "训练看板-数据集层-构成效应与辛普森悖论"
+  },
+  {
+   "id": "self-a3-dataset-composition-length",
+   "kind": "self",
+   "title": "本地遥测复算：生成长度的总体变化三项分解（A3-dataset-numbers.json 的 S3_composition 中 pro_length_accW / flash_length_accW）",
+   "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+   "year": "2026",
+   "quote": "复算口径：p_d(t)=ctx_response_length/<cat>/dataset-<id>/mean[t]，w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t]，s_d(t)=w_d(t)/Σw(t)，分解式同通过率那条。pro：totalChange=58110.0677，withinBaseWeights=53292.5038，compositionBaseRates=2292.1952，interaction=2525.3687；flash：94262.4931 / 72194.9915 / 5765.1180 / 16302.3836。冻结第 1 步配比后 pro 末值 118318.3177 vs 实际 123135.8816，flash 139159.3777 vs 161226.8792。",
+   "topic": "训练看板-数据集层-长度的构成效应"
+  },
+  {
+   "id": "self-a3-dataset-crossrun",
+   "kind": "self",
+   "title": "本地遥测复算：pro 与 flash 的逐数据集涨幅秩相关（A3-dataset-numbers.json 的 S6b_crossRun 与 S2_perDataset）",
+   "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+   "year": "2026",
+   "quote": "复算口径：对每个数据集取 train/passrate/avg_passrate/<cat>/dataset-<id> 的第一个非空值与最后一个非空值，相减乘 100 得 Δpp；pro 有 24 步、flash 有 30 步，25 个数据集全部可用（cyber 在 pro 只到第 14 步，用第 1→14 步）。Spearman 用平均秩处理并列，p 值用 t 近似。实测 rho=0.5823、p=0.002258、n=25，临界值 spearmanCrit(25)=0.3961。",
+   "topic": "训练看板-数据集层-跨 run 可复现性"
+  },
+  {
+   "id": "self-a3-dataset-restart-gap",
+   "kind": "self",
+   "title": "本地遥测复算：重启耦合的上报缺口（A3-dataset-numbers.json 的 S8_mechanicalChecks.sentinelEvidence 与 S7_dynsam.*.heldIdentity）",
+   "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+   "year": "2026",
+   "quote": "复算口径：重启受影响步 = 遍历 axis.walls，若 status.json 的 events[].kind==='restart' 的时间戳落在 walls[k-1] 与 walls[k] 之间，则记第 k+1 步；哨兵 0 = train/passrate/avg_passrate/visual/dataset-{gtav,ol8x} 上取值精确为 0 的步。pro 的 0 步 = [1,2,3,11,15,17,23]，重启受影响步 = [3,11,15,17,23]，同期 critic score = [0.569136,0.532828,0.547952,0.542567,0.552110,0.566738,0.566313]（gtav）；flash 的 0 步 = [1,3,16,25,28]，重启受影响步 = [16,25,28]。held 检验：|held(t)−(step(t)+carryover(t−1))|/max(1,held(t)) ≤ 0.05 记通过，pro 422 通过 / 143 失败，flash 629 通过 / 96 失败。",
+   "topic": "训练看板-数据集层-数据质量与重启耦合"
+  },
+  {
+   "id": "self-avgn-decompose",
+   "kind": "self",
+   "title": "本站核算：avg@n 的三项分解",
+   "venue": "遥测仓库 analyze.ts",
+   "year": "2026",
+   "quote": "avg@n = p1 + M·m（p1 全对占比，M 中间池占比，m 中间池平均通过率）。pro 第 1→19 步 +6.88pp = 全对率 +8.41 − 中间池缩小 4.16 + 中间题变好 2.62；flash 第 1→26 步 +12.43pp = +17.08 − 8.52 + 3.88，三项代数相加与实测一致。",
+   "topic": "涨的是哪一部分"
+  },
+  {
+   "id": "self-bench-cross-run",
+   "kind": "self",
+   "title": "A3 评测榜测量误差与饱和预测复算（第 8 节）",
+   "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）",
+   "year": "2026",
+   "quote": "复算口径：同步号对齐只取两条 run 都有读数的步；按成本对齐用 cost(step)=rate_per_s×(walls[step−1]−run_start) 把每个有读数的步映射到成本，再对每 $0.1M 网格线性插值；tokens 用 perf/total_num_tokens 逐步累加。结果：同步号上 avg@n pro 高 22/24、DeepSWE 16/16、In-house 15/15；同成本上 flash 全部领先（avg@n 均值 +2.80pp、DeepSWE +2.48 分、In-house +1.45 分、Automation +3.71 分）；同 token 上 20B 处 DeepSWE pro 63.53 > flash 58.90。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts。",
+   "topic": "两条 run 的横向对比与对齐口径"
+  },
+  {
+   "id": "self-bench-gap",
+   "kind": "self",
+   "title": "A3 评测榜测量误差与饱和预测复算（第 9 节）",
+   "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）+ 外部文献",
+   "year": "2026",
+   "quote": "复算口径：在两条 run 的各自共同步号上，分别对 In-house Coding 与 DeepSWE 序列做 Theil–Sen 拟合，斜率之差用配对 bootstrap 4000 次取 95% 区间；gap 定义为 dynsam/avg@n×100 减榜分，斜率同样用 Theil–Sen + bootstrap。结果：斜率差 pro −0.176 [−0.355,−0.041]、flash −0.177 [−0.266,−0.042]，两个 run 方向一致且均排除 0；gap 斜率 Automation pro +0.178、flash +0.160，In-house flash +0.197，DeepSWE pro −0.163。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts。",
+   "topic": "边训边测与评测集污染的可判定边界"
+  },
+  {
+   "id": "self-bench-mde",
+   "kind": "self",
+   "title": "A3 评测榜测量误差与饱和预测复算（第 3 节）",
+   "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）",
+   "year": "2026",
+   "quote": "复算口径：读 benchmarks.json 的稀疏逐步成绩，对每个 (榜, run) 先做 Theil–Sen 拟合，取残差标准差为单点噪声 σ_pt，MDE=1.96·σ_pt·√2；再对每个相邻步变化算 z=Δ/(σ_pt·√2) 与偏离趋势的 z=(Δ−τ·gap)/(σ_pt·√2)，最后在每个 (榜, run) 组内做 Holm-Bonferroni。结果：MDE 依次为 DeepSWE 4.56/6.43、In-house 1.55/1.68、Automation 2.20/2.70（pro/flash）；115 个变化朴素显著 9 个、Holm 后 1 个（In-house/pro 16→18 步 +1.99，原始 p=0.0019）、相对趋势 + Holm 后 0 个。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts，种子 20260919。",
+   "topic": "评测榜的测量误差与最小可检测变化（MDE）"
+  },
+  {
+   "id": "self-bench-saturation",
+   "kind": "self",
+   "title": "A3 评测榜测量误差与饱和预测复算（第 7 节）",
+   "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）",
+   "year": "2026",
+   "quote": "复算口径：对每条序列拟合四种模型 exp_saturation `a−b·exp(−cx)`、gompertz `a·exp(−b·exp(−cx))`、logistic `K/(1+exp(−r(x−x0)))`、piecewise_linear_plateau `min(α+βx,P)`；参数用 profile + 黄金分割求，区间用残差 bootstrap 500 次；可识别判据 = 平台 95% CI 宽度 ≤ 2 倍数据极差。flash avg@n（n=30）结果：分段平台 0.6483 [0.6331,0.6598]、逻辑斯蒂 0.7271 [0.6792,0.8948]、Gompertz 0.7415 [0.6847,0.9745]、指数不可识别；最后一步 0.6435，MDE 3.08pp。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts，种子 20260919。",
+   "topic": "饱和曲线外推的参数不确定性与「什么时候该停」"
+  },
+  {
+   "id": "self-clip-inert",
+   "kind": "self",
+   "title": "本站核算：裁剪比例与 PPO KL 全程恒等于 0（是 0，不是空）",
+   "venue": "遥测仓库 check.ts",
+   "year": "2026",
+   "quote": "actor/pg_clipfrac 与 actor/ppo_kl 在两个 run 的全部步上等于数值 0：pro 50 个 tag / 940 个取值，flash 50 个 tag / 1250 个取值，全部非空且为 0。",
+   "topic": "恒零怎么读"
+  },
+  {
+   "id": "self-copies-are-names-not-signals",
+   "kind": "self",
+   "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "复算口径：对分析集（pro 1389×24、flash 1465×30，覆盖率 ≥0.8、非常数、z-score）计算全部指标对的 Pearson ρ，得 pro 963,  966 对（1389×1388/2 = 963,966）、flash 1,071,780 对；统计 |ρ| 分位数与各阈值占比。副本组：键经 normalizeKey 后相同（dataset-xxxx→dataset-<id>、harness-[A-Z]→harness-<x>、partial/<数字>/→partial/<k>/、类别段→<cat>）；组内平均 |ρ| 再取组间中位数。零方差指标在预处理阶段（标准差为 0）统计。快照：pro 2026-09-19 08:58:10Z、flash 2026-09-19 03:07:03Z。数字见 A3-factor-numbers.json 的 clusters.{pro,flash}.rho_stats 与 copy_groups。",
+   "topic": "指标数量是命名复制而非信号冗余"
+  },
+  {
+   "id": "self-cost-basis",
+   "kind": "self",
+   "title": "本站核算：成本是按墙钟时间线性累计的",
+   "venue": "遥测仓库 check.ts",
+   "year": "2026",
+   "quote": "cost = rate × (now − start) 在 21 个同步点上全部精确成立（rate：pro $5.71/s，flash $2.855/s）。换算到训练 token：pro $35,181 / 1B tokens，flash $10,690 / 1B tokens，相差 3.3 倍。",
+   "topic": "成本口径"
+  },
+  {
+   "id": "self-effective-dof-is-twelve",
+   "kind": "self",
+   "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "复算口径：读 `series.json` 全部键，覆盖率 ≥0.8（pro ≥20/24 步、flash ≥24/30 步非空），线性插值后每个指标单独 z-score（除以总体标准差），零方差指标剔除（pro 294 个、flash 277 个），得 pro 1389×24、flash 1465×30。构造 G = Z Zᵀ（步×步），自写 Jacobi 循环旋转求特征值（脚本自检 max|Av−λv| = 9.3e-15），方差占比 = λ/(d·N)，参与率 = (Σλ)²/Σλ²。贪心前向选择：维护残差矩阵 R，每步取使 r_jᵀ(RᵀR)r_j/(r_jᵀr_j) 最大的候选 j，把 R 沿 r_j 方向投影掉，累计解释方差 = Σ_d(||z_d||²−||r_d||²)/(d·N)。快照时刻：pro 2026-09-19 08:58:10Z（第 24 步）、flash 2026-09-19 03:07:03Z（第 30 步）。全部数字见 tasks/mimo-rl-training/analysis/A3-factor-numbers.json。",
+   "topic": "指标空间的有效维度与最小指标集"
+  },
+  {
+   "id": "self-grad-spike-isolated",
+   "kind": "self",
+   "title": "本站核算：pro 第 19 步的梯度尖峰在被记录范围内是孤立的",
+   "venue": "遥测仓库 analyze.ts",
+   "year": "2026",
+   "quote": "pro 第 19 步 grad_norm 0.0335148，是其余 18 步中位数 0.005626 的 5.96 倍；同一步的 pg_loss、entropy_loss、rewards/mean、train_infer_diff/new_infer/kl、avg@n、passrate/zero 全部在正常波动区间内；flash 全程无同类尖峰（25 步范围 0.004928~0.009054）。",
+   "topic": "尖峰是不是异常"
+  },
+  {
+   "id": "self-grader-disagreement-60pct-rising",
+   "kind": "self",
+   "title": "A3 奖励与判分结构复算产物",
+   "venue": "我方实测",
+   "year": "2026",
+   "quote": "复算口径：select_probe_disagree_rate 直接取原序列对步号做 Pearson（pro n=24 r=0.6874 p=2.06e-4；flash n=30 r=0.7039 p=1.42e-5），与 dynsam/avg@n 的相关同时给水平、一阶差分（Δx vs Δy，n−1 点）与去线性趋势残差三个口径。复核计数类指标的官方 rate 字段多数不存在，脚本自建 count/groups_judged 的归一化率（derived/select_*_per_judged_group）。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts。核对外部读数「判分器不一致率到 60% 且在上升」：本数据命中 select_probe_disagree_rate，量级 0.586~0.606、两个 run 均显著上行。",
+   "topic": "判分器不一致/信用分配的观测口径"
+  },
+  {
+   "id": "self-grader-tightens-not-loosens",
+   "kind": "self",
+   "title": "A3 奖励与判分结构复算产物",
+   "venue": "我方实测",
+   "year": "2026",
+   "quote": "复算口径：五维等权均值为 derived/score_rubric_mean = mean(select_score_{A,B,E,P,S}_mean) 逐步计算，再对步号做 Pearson；失败占比 = select_groups_failed / groups_attempted；end2end 与 pass1 只做同量级核对。相关性口径：水平（原始值）、一阶差分（Δx vs Δy，n−1 点）、去线性趋势残差（两边各对步号 OLS 取残差）。pro n=24、flash n=30；p 为双侧 t 检验。关键值：scoreRubricMean pro first 4.40509 last 4.29016 r=−0.8736 p=2.49e-8；flash first 4.39191 last 4.31082 r=−0.4820 p=6.99e-3。above_gold vs step：pro r=−0.0026 p=0.9904，flash r=0.3770 p=0.0400；flash above_gold vs avg@n 一阶差分 r=−0.3413 p=0.0705、去趋势 r=−0.0579 p=0.7603。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts。",
+   "topic": "判分侧松紧的观测口径"
+  },
+  {
+   "id": "self-judge-identity",
+   "kind": "self",
+   "title": "本站核算：判分流水线的三条恒等式",
+   "venue": "遥测仓库 analyze.ts",
+   "year": "2026",
+   "quote": "groups_total = routed/off + select_v4 + select_v4_nogold（全步精确）；groups_attempted = select_v4/attempted + select_v4_nogold/attempted（全步精确）；attempted − judged ≈ select_groups_failed（差值 ≤4）。",
+   "topic": "判分口径"
+  },
+  {
+   "id": "self-judge-throughput",
+   "kind": "self",
+   "title": "本站核算：判分饱和与二审未启用",
+   "venue": "遥测仓库 analyze.ts",
+   "year": "2026",
+   "quote": "judge_pending ≈ judge_pool_in_flight（pro 95 vs 94，flash 114 vs 113），队列里没有堆积；单组判分约 562 秒（pro）/ 570 秒（flash），其中 97% 花在一审；pass2_success_rate 恒为 1.0，而 judge_pass2_attempts 恒为 0。",
+   "topic": "判分词条解读"
+  },
+  {
+   "id": "self-kl-decompose",
+   "kind": "self",
+   "title": "本站核算：把全局 KL 拆成「配比变化」与「桶内变化」两部分",
+   "venue": "遥测仓库 analyze.ts",
+   "year": "2026",
+   "quote": "固定配比、只代入各步真实桶 KL 的还原曲线，与真实全局 KL 的相关只有 pro 0.53 / flash 0.55；只代入真实配比、桶 KL 取平均，还原度 R² 反而有 pro 0.79 / flash 0.90。",
+   "topic": "变差的是配比还是桶"
+  },
+  {
+   "id": "self-kl-mixture",
+   "kind": "self",
+   "title": "本站核算：全局 KL 是各新鲜度桶 KL 的加权平均",
+   "venue": "遥测仓库 check.ts / analyze.ts",
+   "year": "2026",
+   "quote": "逐点验证 全局 KL = Σ(桶 token 占比 × 桶 KL)：pro 19 步、flash 26 步，桶占比合计均为 1.0000，最大相对误差 0.15%。",
+   "topic": "CL 混合口径"
+  },
+  {
+   "id": "self-mimo-rl-coverage-source",
+   "kind": "self",
+   "title": "本站核算：网络检索没找到这几个计数器的官方定义",
+   "venue": "本次调研（2026-09-20）",
+   "year": "2026",
+   "quote": "MiMo-7B 技术报告（arXiv:2505.07608）与 MiMo-V2-Flash 技术报告（arXiv:2601.02780）都只写到动态采样、按数据源的 sample quota、early termination 的机制，没有给出 accepted/target/judged/in flight 这几个逐数据源计数器的定义；mimo.xiaomi.com/rl 站点的 22 条指标说明里也没有它们。",
+   "topic": "检索空白：机制有文献、计数器口径没有"
+  },
+  {
+   "id": "self-mimo-rl-ds-identities",
+   "kind": "self",
+   "title": "本站核算：采样器四元组的加总恒等式（全部留档）",
+   "venue": "遥测仓库 codes/scripts/mimo_rl_telemetry/sampler_report.ts",
+   "year": "2026",
+   "quote": "复算脚本 sampler_report.ts 逐条核验 data/store/runs/<run>/live.jsonl 的采样器留档（pro 18 / flash 11）：Σaccepted == 面板 accept 29/29；Σtarget == 面板 target == 1568 29/29；judged_of == accept 29/29；Σ(in flight) == 面板 remain + remain_partial，最大差 2；第三个数（页面标 judged）只在 8 个 code 数据源上出现，232 个非空值全部满足 c <= accepted；最硬的一条是面板 judged 的精确分解：Σc(上报源) + Σaccepted(未上报源) == 面板 judged（29/29），等价地 accept − judged == Σ(accepted − c)，缺口只来自那 8 个上报源。",
+   "topic": "表格里哪些关系是恒等式、哪些只在部分数据源上成立"
+  },
+  {
+   "id": "self-mimo-rl-ds-tuple",
+   "kind": "self",
+   "title": "本站核验：/live 的 ds 四元组与面板各列的对应关系",
+   "venue": "遥测仓库 docs/01 与 site/js/app.js（原站副本 data/upstream/js/app.js）",
+   "year": "2026",
+   "quote": "原站 data/upstream/js/app.js 把 latest.ds 的四元组依次渲染为 accepted / target / judged / in flight：源码里 Object.entries(latest.ds).map(([name, v]) => ({ name, acc: v[0], tgt: v[1], j: v[2], r: v[3] }))，表头是 <th>source</th><th>accepted / target</th><th></th><th>remaining</th><th>judged</th><th>in flight</th>；其中 remaining 一列不是接口字段，是页面现算的 Math.max(0, r.tgt - r.acc)。这段代码在遥测层没有改过（遥测只动了 5 处、都有 [telemetry] 标记）。",
+   "topic": "列映射的出处：原站自己的渲染代码，而不是本站的猜测"
+  },
+  {
+   "id": "self-mimo-rl-github-search",
+   "kind": "self",
+   "title": "本站核算：GitHub 上的第三方镜像里，有的把列名搞错了",
+   "venue": "本次调研（2026-09-20）",
+   "year": "2026",
+   "quote": "按仓库名检索 GitHub，找到 5 个第三方项目在抓 mimo.xiaomi.com/rl 的数据（都在 2026-09-17 建、0 star）：LianxinRay/mimo-rl-mission-control、AbhyudayPatel/rl-observatory、Project516/mimo-rl-status、YYY-676/mimo-rl-archive、ashafizullah/mimo-baby。其中 rl-observatory 是忠实透传：它把 live.judged 当一等字段读出来，不把四元组第三位叫 in flight；而 mission-control 的采集脚本注释写「每源 [accepted, target, in_flight, x]」、页面把第三位渲染成表头 IN FLIGHT 并丢掉第四位，把 c、d 两列弄反了。其余几个只做存档或状态展示。没有找到任何一个项目对这张表做过逐列解读。",
+   "topic": "GitHub 检索结果：有忠实透传的遥测，也有把 c、d 弄反的反例；没有逐列解读"
+  },
+  {
+   "id": "self-partial-ntokens-scope-collapse",
+   "kind": "self",
+   "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "复算口径：逐桶比较 `partial/<k>/n_tokens`、`partial/agentic/<k>/n_tokens`、`partial/code/dataset-yfch/<k>/n_tokens` 三个数组是否逐元素相等（含 null 位置）。pro 在 k=4,5,6,7 上相等（分别覆盖 8/6/3/2 步），flash 在 k=4..9 上相等（15/13/11/9/7/5 步）；k≤3 上不相等。快照 2026-09-18。",
+   "topic": "分桶统计里不同切片口径回退成同一个值"
+  },
+  {
+   "id": "self-passrate-ratio-is-running-mean",
+   "kind": "self",
+   "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "复算口径：取 `series['train/passrate/passrate_0_ratio']` 与 `..._1_ratio` 的非空数组，逐项求一阶差分并统计符号。flash 30 步全部差分 >0；pro 24 步中第 15 步差分 -0.050687、第 23 步 -0.009173，其余为正。样本为 2026-09-18 快照（pro 24 步、flash 30 步）。",
+   "topic": "累计口径指标被误读成瞬时比例"
+  },
+  {
+   "id": "self-penalty-identity",
+   "kind": "self",
+   "title": "本站核算：正负优势的「抽质量—补质量—按符号缩放回原值」",
+   "venue": "遥测仓库 analyze.ts",
+   "year": "2026",
+   "quote": "pos_scale ≈ 1 + pos_mass_removed / adv_pos_sum_pre_penalty（残差 5.2e-6 / 7.9e-6），neg_scale ≈ 1 − neg_mass_added / |adv_neg_sum_pre_penalty|（残差 6.3e-5 / 8.2e-4）；同时 adv_pos_sum 与 adv_neg_sum 的 pre/post 值逐点完全相等（最大差 0）。",
+   "topic": "惩罚项的守恒结构"
+  },
+  {
+   "id": "self-per-token-throughput",
+   "kind": "self",
+   "title": "本站核算：每步训练 token 数 = 1568 × 16 × 上下文长度",
+   "venue": "遥测仓库 check.ts",
+   "year": "2026",
+   "quote": "perf/total_num_tokens ≈ 1568×16×ctx_total_length/mean，pro 19 步最大相对误差 1.2%，flash 最大 2.7%。由此反推每个 prompt 采样 16 次。",
+   "topic": "采样次数怎么来的"
+  },
+  {
+   "id": "self-pipeline-report",
+   "kind": "self",
+   "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/timeline.jsonl + series.json，脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "复算口径：对 timeline.jsonl 的 27 行逐行验证 progress 与 since/expected 相等；对每行取「已完成步号 k 的最近 3 步上报耗时中位数」比 expected；取「上一步 outer_gen ÷ 上一步 timing_s/step」比 gen_frac。样本 pro 24 步 / flash 30 步，数据切口 2026-09-19T08:58Z（pro s24 完成、flash s30 完成并 end）。",
+   "topic": "看板字段口径 / 步内进度可信度"
+  },
+  {
+   "id": "self-pipeline-report-2",
+   "kind": "self",
+   "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{axis,status,events}.json，脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "复算口径：真实步耗时 = axis.walls 相邻之差（第 1 步从 run_start 起）；上报 = series['timing_s/step']；restart 事件 t 视为恢复运行时刻（由 timeline.restarted_at 与 step.since 的起点验证）。缺口口径 A：pro 26.147 h / $537,478（账单 27.7%）、flash 14.147 h / $145,403（17.0%）。作废重算由 events.json 中同一步号出现两次且第二次 redo=true 判定。",
+   "topic": "重启成本 / 机时账"
+  },
+  {
+   "id": "self-pipeline-report-3",
+   "kind": "self",
+   "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{series,axis,events}.json，脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "复算口径：avg_staleness 与 Σ k×frac_k 逐点对减；段内位置 = 距上一次 restart 事件的步数（段首记为 0）；相关性用 Spearman，剔除重启步本身（重启会让陈旧度归零）。样本 pro 17 个非重启步 / flash 25 个非重启步。",
+   "topic": "数据陈旧度 / 排队延迟"
+  },
+  {
+   "id": "self-pipeline-report-4",
+   "kind": "self",
+   "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json（train/trace/*），脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "复算口径：对 train/trace 下 6 个溢出型计数器逐列统计 n_nonnull 与 n_nonzero；pro 24 步、flash 30 步，全部 n_nonzero = 0。drain_wait_seconds / outcome_write_seconds / late_finishes 另给 min/median/max。",
+   "topic": "流水线背压 / 吞吐瓶颈"
+  },
+  {
+   "id": "self-pool-shrink-netted-out",
+   "kind": "self",
+   "title": "A3 奖励与判分结构复算产物",
+   "venue": "我方实测",
+   "year": "2026",
+   "quote": "复算口径：M_i = 1 − dynsam/passrate/zero_i − dynsam/passrate/one_i；m_i = (dynsam/avg@n_i − one_i) / M_i；分解取首末步 Δp1、ΔM、Δm，m̄=(m_first+m_last)/2、M̄=(M_first+M_last)/2，三项为 Δp1、m̄·ΔM、M̄·Δm，交互残差 = Δavg@n − 三项和（实测两端都是 0）。pro：M 0.675889→0.654545、p1 0.177866→0.201426、Δavg@n=0.031755，三项 0.023560 / −0.012544 / 0.020713，残差 0。flash：M 0.718784→0.552846、p1 0.120756→0.290720、Δavg@n=0.129833，三项 0.169964 / −0.098311 / 0.058195，残差 0。增量斜率：对 avg@n 的一阶差分按序号 1..n−1 做 OLS 与 Pearson。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts → poolDecomposition。",
+   "topic": "动态采样的样本池收缩"
+  },
+  {
+   "id": "self-regimes-are-ops-not-model",
+   "kind": "self",
+   "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{series,axis,status,tags}.json 与 data/store/notices.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "复算口径：取分析集（pro 1389×24、flash 1465×30）的前 3 个主成分得分，各自标准化成单位方差，得 N×3 的步坐标矩阵；对每个候选位置 p∈[2, N−2] 算两段均值差的统计量 (p(N−p)/N)·Σ_dim(m1−m2)²（脚本中的 splitProfile），再按统计量排序取 Top6。回退比 = ‖mean(步 p+3..N) − mean(步 p..p+2)‖ / ‖mean(步 p..p+2) − mean(步 p−3..p−1)‖（欧氏）。运维事件对齐：status.json 的 events[kind=restart].t 与 tags.json 的 versions[].at 分别用 axis.walls 映射到步并算小时差。pro 最大统计量 19.138 位于 p=14（=第 15 步），回退比 0.97；flash 24.9 位于 p=14，回退比 0.93。数字见 A3-factor-numbers.json 的 regimes 与 regime_ops。",
+   "topic": "阶段边界是运维事件还是模型状态"
+  },
+  {
+   "id": "self-reward-ceiling-pinned",
+   "kind": "self",
+   "title": "A3 奖励与判分结构复算产物",
+   "venue": "我方实测",
+   "year": "2026",
+   "quote": "复算口径：critic/score/max 取 clean(values) 后统计 nDistinct 与 modalShare，得 pro nDistinct=1 modalShare=1.0（n=24）、flash nDistinct=1 modalShare=1.0（n=30）；critic/score/mean 对步号 1..n 做 Pearson，pro r=0.9039 p=1.38e-9、flash r=0.9389 p=1.76e-14；mean−min 序列由 critic/score/mean 减 critic/score/min 逐点构造后统计趋势，pro 首值 1.2593 末值 0.7384 r=0.1594 p=0.4567，flash 首值 1.3139 末值 1.4005 r=0.5234 p=0.0030；贴地板判定为 |score/min + 0.8| < 1e-12。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts，执行 bun codes/scripts/mimo_rl_telemetry/reward_report.ts。",
+   "topic": "奖励信号分布形状"
+  },
+  {
+   "id": "self-reward-vs-avgn",
+   "kind": "self",
+   "title": "本站核算：奖励均值不等于 avg@n",
+   "venue": "遥测仓库 check.ts",
+   "year": "2026",
+   "quote": "critic/rewards/mean 与 critic/score/mean 在每一步都精确相等；但两者与 dynsam/avg@n 的差最大到 pro 0.044750、flash 0.059080，方向还不固定。",
+   "topic": "两个「平均」不是一回事"
+  },
+  {
+   "id": "self-time-accounting",
+   "kind": "self",
+   "title": "本站核算：上报的每步耗时之和比墙钟少三成，缺的几乎全是重启等待",
+   "venue": "遥测仓库 analyze.ts",
+   "year": "2026",
+   "quote": "pro 墙钟 72.18h，Σtiming_s/step 只有 48.43h，缺口 23.74h（32.9%）折合约 48.8 万美元；其中 6 次重启后紧跟新步的等待占 20.76h，即缺口的 87.4%。非重启步的上报值与墙钟差不到 10 秒。",
+   "topic": "少报的时间去哪了"
+  },
+  {
+   "id": "self-trend-control-which-relations-survive",
+   "kind": "self",
+   "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "复算口径：取两条序列的成对非空点（pro 24 个、flash 30 个），算 Pearson 得“原始”列；控制变量 t = 步序号（0-based，重编号后），对每条序列做最小二乘 x = a + b·t 取残差，再算残差的 Pearson 得“偏相关”列。例：pro 的 `ctx_response_length/mean` 与 `dynsam/avg@n` 原始 0.766、偏 −0.013；`partial/avg_staleness` 与 `train_infer_diff/new_infer/kl` 原始 0.923、偏 0.941。注意 `notes/09-生成长度相关性分析.md` 已用一阶差分给出长度~通过率的同类结论，本条的新内容是与“陈旧度~KL 扛过控制”的对照以及熵的变号。脚本输出见 A3-factor-numbers.json 的 partial_corr 字段。",
+   "topic": "偏相关：区分共同趋势与真实关系"
+  },
+  {
+   "id": "self-two-context-length-caps",
+   "kind": "self",
+   "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "复算口径：对每个 `ctx_{total,prompt,response}_length/*/(max|p99|p90)` 指标，取其非空值中出现次数最多的值 v；若 v 同时等于该指标全期最大值、出现次数 ≥3、且 |v−2^k|/2^k < 1e-5，判为上限档。结果：pro 命中 7 个（1048570 档 5 个、262144 档 2 个），flash 命中 10 个（1048570 档 7 个、262144 档 3 个）。快照 2026-09-18。",
+   "topic": "同一族指标走两套不同的截断阈值"
+  },
+  {
+   "id": "self-zero-passrate-means-no-sample",
+   "kind": "self",
+   "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "复算口径：对每个 `dynsam/<cat>/dataset-<id>/num_accepted/step` 对应的数据集，取 `train/passrate/avg_passrate/<cat>/dataset-<id>` 的 0 值步集合 A、`partial/<cat>/dataset-<id>/1/frac` 的 null 步集合 B、以及 `num_accepted/step == num_accepted/held` 的步集合 C，逐元素比较。pro 上 A=B=C={1,2,3,11,15,17,23}（ol8x、gtav 各 7 步）；flash 上 A=B=C={1,3,16,25,28}（各 5 步）。快照 2026-09-18。",
+   "topic": "把「未采样」编码成 0 而不是 null"
+  }
+ ]
+}

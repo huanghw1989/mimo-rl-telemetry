@@ -1,0 +1,187 @@
+[
+  {
+    "id": "a3-no-simpson-in-passrate",
+    "kind": "structural",
+    "title": "总体通过率 pro 涨的 3.54pp 里，数据配比只贡献 −0.27pp：这轮成绩提升不是靠把权重挪到简单题上刷出来的",
+    "summary": "担心「平均分涨了只是因为训练越来越多拿简单题来考」。把总体通过率按各数据集受理题数 num_accepted/step 加权重构，做三项 shift-share 分解：pro 总变化 +3.544pp = 自身变好 +3.813 + 配比 +0.162 + 交互 −0.431，配比相关合计 −0.269pp；flash +9.149pp = +8.307 + 0.008 + 0.835，配比相关 +0.843pp。成绩提升九成以上来自各数据集自己变好，换 held 权重结论不变。",
+    "body": [
+      "要问的问题很具体：总体的通过率曲线是各数据集的加权平均，而权重（每步从每个数据集受理多少题）本身在变。如果权重系统性地挪向更容易的数据集，总体曲线就会在没有真实进步的情况下往上走——这就是辛普森悖论在时间序列上的形态。",
+      "做法是三项 shift-share 分解，三项之和精确等于总变化：ΔA = Σ s_d(0)·Δp_d（各数据集自己变好，按基准配比计价）+ Σ Δs_d·p_d(0)（配比挪动，按基准成绩计价）+ Σ Δs_d·Δp_d（交互项）。之所以不用「固定配比曲线之差」单独下结论，是因为那个差恰好等于「配比项 + 交互项」，会把「挪过去的那些数据集同期也在变好」混进配比里。两种口径本文都算，结论一致。",
+      "pro 面板是首末两步都有通过率且权重大于 0 的 22 个数据集（25 个减去 cyber、gtav、ol8x：cyber 末步缺失，gtav/ol8x 首值疑似未上报）。总变化 +3.544pp = +3.813（107.6%）+ 0.162 + (−0.431)，配比相关合计 −0.269pp。flash 面板 23 个，总变化 +9.149pp = +8.307（90.8%）+ 0.008 + 0.835，配比相关合计 +0.843pp（+9.2%）。两个 run 都没有出现「提升主要靠换数据」的形态。",
+      "稳健性做了四档：权重换成 num_accepted/held（题池持有量）时 pro 变 −0.936pp、flash +0.933pp；把 gtav/ol8x 的 0 当真实值（面板 24/25）时 pro −0.814pp、flash +0.878pp；等权时配比项恒为 0（构造使然）；只取 cyber 时代的前 14 步时 pro 是 +0.149pp。四种口径下配比相关项都不超过 1pp。",
+      "真正让方向不同的是交互项，而它的符号在两个 run 上相反：pro 把流量从改善最快的 code/dataset-m1dt 上撤走（份额 11.4%→8.3%，−3.09pp，同期通过率 +14.10pp），给了略微退步的 code/dataset-obg8（+3.21pp 份额，通过率 −5.97pp）；flash 恰好相反，把 +3.18pp 份额加给了涨得最多的 code/dataset-yfch（通过率 +34.99pp）。所以 pro 的配比效应是轻微低估进步，flash 是轻微高估。",
+      "读别的「总体」指标时要复现这套检查，尤其是那些看起来纯模型行为的量。本文同口径作用在生成长度上，配比效应从 9% 跳到 23%（见另一条候选洞察）。"
+    ],
+    "facts": [
+      {
+        "label": "pro 总体通过率三项分解",
+        "value": "+3.544pp = +3.813 + 0.162 − 0.431",
+        "note": "面板 22 个数据集（25 − cyber − gtav − ol8x），权重 dynsam/<cat>/dataset-<id>/num_accepted/step，单位 pp"
+      },
+      {
+        "label": "flash 总体通过率三项分解",
+        "value": "+9.149pp = +8.307 + 0.008 + 0.835",
+        "note": "面板 23 个数据集（25 − gtav − ol8x），同口径"
+      },
+      {
+        "label": "配比相关项占各自总变化",
+        "value": "pro −7.6% / flash +9.2%",
+        "note": "配比项 + 交互项；换 held 权重、0 当真实值、只取前 14 步四种口径下绝对值都 ≤1pp"
+      },
+      {
+        "label": "冻结第 1 步配比的末值差",
+        "value": "pro +0.27pp / flash −0.06pp",
+        "note": "固定第 1~3 步均值或前半段均值，差的绝对值 ≤0.30pp"
+      },
+      {
+        "label": "权重份额最大的两笔动作（pro）",
+        "value": "m1dt −3.09pp（通过率 +14.10pp）／ obg8 +3.21pp（通过率 −5.97pp）",
+        "note": "份额按 num_accepted/step 归一化；两笔方向相反，合成配比项为负"
+      }
+    ],
+    "source": {
+      "id": "self-a3-dataset-composition",
+      "title": "本地遥测复算：25 个数据集的总体通过率三项 shift-share 分解（A3-dataset-numbers.json 的 S3_composition / S3c_dashboardVsPanelGap）",
+      "venue": "本项目本地遥测 data/store（我方实测，脚本 src/dataset_report.ts）",
+      "quote": "复算口径：对每个数据集 d，p_d(t)=train/passrate/avg_passrate/<cat>/dataset-<id>[t]（哨兵 0 当缺失），w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t]，s_d(t)=w_d(t)/Σw(t)；面板取首末两步 p 与 w 都非空且 w>0 的数据集，pro 22 个、flash 23 个。分解式 ΔA=Σs_d(0)Δp_d+ΣΔs_d·p_d(0)+ΣΔs_d·Δp_d，脚本输出 checkSumError=0。pro：+3.5437=+3.8128+0.1623−0.4314；flash：+9.1494=+8.3071+0.0077+0.8346。等价对照曲线：固定第 1 步配比下 pro 末值 60.6717 vs 实际 60.4026（+0.2691pp），flash 61.0930 vs 61.1559（−0.0630pp）。",
+      "topic": "训练看板-数据集层-构成效应与辛普森悖论"
+    }
+  },
+  {
+    "id": "a3-length-total-composition-dirty",
+    "kind": "counterintuitive",
+    "title": "同一套权重下，「生成长度总体在涨」有 8.3%（pro）到 23.4%（flash）只是流量挪到了本来就写得长的数据集",
+    "summary": "同一个「总体」，成绩那条几乎干净，长度这条脏三倍。把三项分解搬到 ctx_response_length/mean：pro 生成长度总增长 +58110 token = 自身变长 +53293（91.7%）+ 配比 +2292 + 交互 +2525，配比相关合计 +4818（8.3%）；flash +94262 = +72195（76.6%）+ 5765 + 16302，配比相关 +22067（23.4%）。flash 这块主要在 code/dataset-yfch 一个数据集上。",
+    "body": [
+      "「总体的生成长度在涨」这句话隐含一个假设：涨的是模型写得越来越长，而不是训练越来越多地喂本来就需要长回答的题。这两件事在数据里可以分开：把每个数据集的 ctx_response_length/mean 按同一个 num_accepted/step 加权，再做三项分解。",
+      "pro：+58110.07 token = +53292.50（91.7%）+ 2292.20 + 2525.37，配比相关合计 +4817.56（8.3%）。flash：+94262.49 = +72194.99（76.6%）+ 5765.12 + 16302.38，配比相关合计 +22067.50（23.4%）。固定第 1 步配比的末值差与这个数字一致（pro 实际 123135.88 vs 固定 118318.32，差 −4817.56；flash 161226.88 vs 139159.38，差 −22067.50）。",
+      "flash 的交互项之所以那么大，主要来自 code/dataset-yfch 一个点：它的平均生成长度 416513 token，是全场第 1（pro 也差不多，358130），权重份额从 2.10% 涨到 5.28%（+3.18pp），而它同期通过率涨了 +34.99pp。拿到更多流量的是一个本来就写得很长的数据集，而且它同时也在变好——这一项只能靠交互项接住。",
+      "对照着看更有意思的是：成绩那条线的配比相关项在两个 run 上是 −0.269pp 和 +0.843pp（占总变化 −7.6% / +9.2%），而长度这条线是 +4818 / +22067（8.3% / 23.4%）。同一套权重、同一批数据集、同一个分解式，长度的构成效应是成绩的 2~3 倍。",
+      "实践含义：读「整体回答变长了」这类结论时，必须先把权重挪动剔掉再下判断。这也解释了为什么「长度」类结论特别容易和「模型行为」类结论混在一起——它不是纯粹的模型行为，它是「模型行为 × 数据配比」的加权混合。"
+    ],
+    "facts": [
+      {
+        "label": "pro 生成长度总量分解",
+        "value": "+58110.07 = +53292.50 + 2292.20 + 2525.37 token",
+        "note": "面板 22 个数据集，权重 num_accepted/step；配比相关合计 +4817.56，占 8.3%"
+      },
+      {
+        "label": "flash 生成长度总量分解",
+        "value": "+94262.49 = +72194.99 + 5765.12 + 16302.38 token",
+        "note": "面板 23 个数据集；配比相关合计 +22067.50，占 23.4%"
+      },
+      {
+        "label": "固定配比末值差（长度）",
+        "value": "pro −4817.56 token / flash −22067.50 token",
+        "note": "冻结第 1 步配比；与实际曲线末值比较，符号与配比相关项一致"
+      },
+      {
+        "label": "flash 最大的交互来源",
+        "value": "code/dataset-yfch：份额 2.10%→5.28%，通过率 +34.99pp",
+        "note": "该数据集平均生成长度 416513 token 为全场第 1"
+      },
+      {
+        "label": "成绩 vs 长度的构成效应",
+        "value": "通过率 8.3% 以内（pro 为负）／长度 8.3%~23.4%",
+        "note": "同一套权重、同一分解式、同两个 run"
+      }
+    ],
+    "source": {
+      "id": "self-a3-dataset-composition-length",
+      "title": "本地遥测复算：生成长度的总体变化三项分解（A3-dataset-numbers.json 的 S3_composition 中 pro_length_accW / flash_length_accW）",
+      "venue": "本项目本地遥测 data/store（我方实测，脚本 src/dataset_report.ts）",
+      "quote": "复算口径：p_d(t)=ctx_response_length/<cat>/dataset-<id>/mean[t]，w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t]，s_d(t)=w_d(t)/Σw(t)，分解式同通过率那条。pro：totalChange=58110.0677，withinBaseWeights=53292.5038，compositionBaseRates=2292.1952，interaction=2525.3687；flash：94262.4931 / 72194.9915 / 5765.1180 / 16302.3836。冻结第 1 步配比后 pro 末值 118318.3177 vs 实际 123135.8816，flash 139159.3777 vs 161226.8792。",
+      "topic": "训练看板-数据集层-长度的构成效应"
+    }
+  },
+  {
+    "id": "a3-restart-coupled-reporting-gap",
+    "kind": "method",
+    "title": "两个数据集的通过率精确 0 和采样器结转链断裂，落在同一批步上：第 1 步加全部「重启后的首个上报步」",
+    "summary": "visual/dataset-gtav 与 ol8x 的通过率里有精确 0。与重启事件对齐后：pro 的 0 在第 1、2、3、11、15、17、23 步（各 7 次），事件推出的「重启后首个上报步」是 3、11、15、17、23，只多链首两步；flash 的 0 在 1、3、16、25、28，重启步是 16、25、28。同期 critic score 正常，同一批步上 held = step + carryover(t−1) 也整片断裂。这些 0 是重启耦合缺报。",
+    "body": [
+      "两类「数据可疑」的现象过去是分开记的：一条是 notes/09 里「gtav/ol8x 的 0 可能是未上报哨兵」，另一条是中文指标解读里「held 恒等式在重启那一步会断」。把两条放在一起按步对齐后，它们指的是同一件事。",
+      "先看 0。pro 的重启事件时间戳落在第 2/3 步之间、第 10/11 步之间、第 14/15 步之间、第 16/17 步之间、第 22/23 步之间，对应的「重启后第一个上报步」是 3、11、15、17、23。gtav 与 ol8x 的精确 0 正好出现在 1、2、3、11、15、17、23——是这批步的超集，只多了第 1 步和第 2 步。flash 的重启受影响步是 16、25、28（另有第 16、17 步是重跑步），而 0 出现在 1、3、16、25、28，同样是超集，只多了第 1 和第 3 步。",
+      "再看 held。检验式 held(t) = step(t) + carryover(t−1)，容差 5% 相对误差：pro 在 422/565 个（数据集 × 步）上成立（74.69%），断链步是 2、3、11、15、17、23；flash 在 629/725 上成立（86.76%），断链步是 3、16、25、28。断链不是零散的——pro 第 11 步 25 个数据集全断、第 15 步 24/24、第 17 步 24/24。这是步级事件（结转链被重置），不是数据集级噪声。",
+      "两条现象的步集合几乎一样（pro 的 held 断链步 2,3,11,15,17,23 与 0 的出现步完全相同；flash 的 3,16,25,28 是 0 的出现步去掉第 1 步），说明它们共享同一个原因：重启会把上报链路重置。",
+      "为什么同一时刻 critic 分是正常的？因为 critic/visual/<ds>/score/mean 走的是另一条上报路径，没被重置。这恰好是最有用的判据：同一实体、同一步，一条指标族是 0、另一条正常，就不是「真的 0」，而是缺报。",
+      "实践含义有两条：一是 gtav/ol8x 的这 14 个（pro）和 10 个（flash）观测点必须从趋势和相关性统计里剔掉，否则会把「重启」读成「通过率掉到 0」；二是别拿 held 这个关系式去校验数据完整性，它在重启步必然失败。"
+    ],
+    "facts": [
+      {
+        "label": "精确 0 出现的步",
+        "value": "pro 1,2,3,11,15,17,23（各 7 次）／ flash 1,3,16,25,28（各 5 次）",
+        "note": "数据集为 visual/dataset-gtav 与 visual/dataset-ol8x，两条完全同步"
+      },
+      {
+        "label": "重启受影响步（由 events 的 restart 时间戳与 axis.walls 对齐）",
+        "value": "pro 3,11,15,17,23 ／ flash 16,25,28",
+        "note": "精确 0 的步集合是其超集，多出的只有第 1 步（pro 还有第 2 步）"
+      },
+      {
+        "label": "同期 critic score 是否正常",
+        "value": "gtav 0.53~0.57 ／ ol8x 0.60~0.67",
+        "note": "pro 与 flash 在这些步上 critic/<cat>/dataset-<id>/score/mean 都是常规值，证明通过率的 0 不是真实测量"
+      },
+      {
+        "label": "held = step + carryover(t−1) 成立率",
+        "value": "pro 74.69%（422/565）／ flash 86.76%（629/725）",
+        "note": "容差 5%；断链步 pro 2,3,11,15,17,23、flash 3,16,25,28，每个断链步上几乎全部数据集同时断"
+      },
+      {
+        "label": "数据集层恒为 0 的指标族",
+        "value": "actor/*/dataset-*/ppo_kl 与 pg_clipfrac，pro 542 个值、flash 690 个值全部为 0",
+        "note": "这两族不可用于任何推断；可用的只有 pg_tis_clipfrac（非零，最大 pro 2.216e-3、flash 2.598e-3）"
+      }
+    ],
+    "source": {
+      "id": "self-a3-dataset-restart-gap",
+      "title": "本地遥测复算：重启耦合的上报缺口（A3-dataset-numbers.json 的 S8_mechanicalChecks.sentinelEvidence 与 S7_dynsam.*.heldIdentity）",
+      "venue": "本项目本地遥测 data/store（我方实测，脚本 src/dataset_report.ts）",
+      "quote": "复算口径：重启受影响步 = 遍历 axis.walls，若 status.json 的 events[].kind==='restart' 的时间戳落在 walls[k-1] 与 walls[k] 之间，则记第 k+1 步；哨兵 0 = train/passrate/avg_passrate/visual/dataset-{gtav,ol8x} 上取值精确为 0 的步。pro 的 0 步 = [1,2,3,11,15,17,23]，重启受影响步 = [3,11,15,17,23]，同期 critic score = [0.569136,0.532828,0.547952,0.542567,0.552110,0.566738,0.566313]（gtav）；flash 的 0 步 = [1,3,16,25,28]，重启受影响步 = [16,25,28]。held 检验：|held(t)−(step(t)+carryover(t−1))|/max(1,held(t)) ≤ 0.05 记通过，pro 422 通过 / 143 失败，flash 629 通过 / 96 失败。",
+      "topic": "训练看板-数据集层-数据质量与重启耦合"
+    }
+  },
+  {
+    "id": "a3-dataset-ranking-reproducible",
+    "kind": "numeric",
+    "title": "换一个模型重训，25 个数据集的涨幅排序仍然复现：pro 与 flash 的 Δpp 秩相关 ρ=0.582（n=25，p=0.0023）",
+    "summary": "如果数据集层的强弱只是噪声，两个独立 run 不该给出相似排序。实测 pro 与 flash 在全部 25 个数据集上的首末通过率变化秩相关 ρ=0.582，n=25，p=0.0023（双尾 0.05 临界 0.396）。共同的大涨家是 m1dt（+14.10/+17.78pp）、x7wh（+6.27/+15.36）、jzd3（+15.36/+13.00）、ve5o（+8.36/+13.37）；共同的不涨家是 bvg7、v7yx、5610。这条同时是「配比不是主因」的旁证。",
+    "body": [
+      "数据集层的异质性结论只有在可复现时才有意义。pro 与 flash 是两个不同规模的模型、跑了 24 步和 30 步、重启时间点也不一样，如果数据集之间的差别只是采样噪声，两者的排序应该互不相关。",
+      "实测：把每个数据集「最后一个有值步 − 第一个有值步」的通过率变化（pp）拿出来，对 25 个数据集做 Spearman 秩相关，得到 ρ=0.582，n=25，p=0.0023。这个样本量下双尾 0.05 的临界 |ρ| 是 0.396，实测值明显超过。",
+      "共同的大涨家：code/dataset-m1dt（pro +14.10pp、flash +17.78pp，两个 run 的回归斜率分别 0.611 和 0.615 pp/步）、code/dataset-x7wh（+6.27 / +15.36）、visual/dataset-jzd3（+15.36 / +13.00）、visual/dataset-ve5o（+8.36 / +13.37）、code/dataset-zg6q（+3.35 / +8.31）。共同的不涨家：code/dataset-bvg7（−2.84 / −1.41）、code/dataset-v7yx（−9.17 / −4.50）、general/dataset-5610（−1.60 / −3.06）、chat/dataset-8kb6（+2.72 / −4.16，flash 上明确下滑）。",
+      "这不代表每个数据集都一致。pro 涨得最多的 visual/dataset-jzd3 在 flash 上起点更低（36.12%）但同样涨（+13.00pp）；反过来 code/dataset-4onq 在 pro 上掉 10.14pp、flash 上却涨 9.26pp，是两 run 分歧最大的一个。ρ=0.582 说的是整体排序，不是逐点一致。",
+      "这条对下一步的用处是：数据集层的强弱可以作为稳定的分层依据去做更细的归因（例如「为什么 chat 类整轮抬不起来」），而不必担心它只是单次训练的偶然。它同时也是「配比换数据刷分」这个解释的旁证：如果总分提升主要来自把流量挪给容易的数据集，两个 run 的排序不会这么一致。"
+    ],
+    "facts": [
+      {
+        "label": "跨 run 秩相关",
+        "value": "ρ = 0.582，n = 25，p = 0.0023",
+        "note": "变量为各数据集「末值−首值」的通过率变化（pp）；双尾 0.05 临界 |ρ|=0.396"
+      },
+      {
+        "label": "两个 run 共同的大涨家",
+        "value": "m1dt +14.10/+17.78pp；x7wh +6.27/+15.36pp；jzd3 +15.36/+13.00pp；ve5o +8.36/+13.37pp",
+        "note": "格式为 pro/flash；均取自 train/passrate/avg_passrate/<cat>/dataset-<id>"
+      },
+      {
+        "label": "两个 run 共同的不涨家",
+        "value": "bvg7 −2.84/−1.41pp；v7yx −9.17/−4.50pp；5610 −1.60/−3.06pp；8kb6 +2.72/−4.16pp",
+        "note": "同口径"
+      },
+      {
+        "label": "两 run 分歧最大的数据集",
+        "value": "code/dataset-4onq：pro −10.14pp / flash +9.26pp",
+        "note": "说明 ρ=0.582 是整体排序一致，不是逐点一致"
+      }
+    ],
+    "source": {
+      "id": "self-a3-dataset-crossrun",
+      "title": "本地遥测复算：pro 与 flash 的逐数据集涨幅秩相关（A3-dataset-numbers.json 的 S6b_crossRun 与 S2_perDataset）",
+      "venue": "本项目本地遥测 data/store（我方实测，脚本 src/dataset_report.ts）",
+      "quote": "复算口径：对每个数据集取 train/passrate/avg_passrate/<cat>/dataset-<id> 的第一个非空值与最后一个非空值，相减乘 100 得 Δpp；pro 有 24 步、flash 有 30 步，25 个数据集全部可用（cyber 在 pro 只到第 14 步，用第 1→14 步）。Spearman 用平均秩处理并列，p 值用 t 近似。实测 rho=0.5823、p=0.002258、n=25，临界值 spearmanCrit(25)=0.3961。",
+      "topic": "训练看板-数据集层-跨 run 可复现性"
+    }
+  }
+]

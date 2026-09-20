@@ -1,0 +1,1909 @@
+{
+ "schema_version": 1,
+ "updated_at": 1789812614,
+ "window": {
+  "label": "2026-09-16 00:02Z ~ 2026-09-19 08:58Z",
+  "note": "覆盖两次训练各自全部已完成的步：pro 24 步、flash 30 步（flash 训练已结束）。上一轮窗口停在 pro 第 19 步 / flash 第 26 步，这一轮把窗口推到当前最新的数据。每条洞察的证据强度在正文里另行标注。",
+  "pro_step": 24,
+  "flash_step": 30
+ },
+ "items": [
+  {
+   "id": "kl-is-a-mix",
+   "kind": "structural",
+   "title": "首页那条 KL 涨了三倍，涨的是数据配比，不是训练器和推理引擎的分歧",
+   "summary": "全局 KL 从 0.00219 涨到 0.00769，看着像一致性在恶化。但把它拆到按数据新鲜度分的桶里，最新鲜那批数据上的 KL 只从 0.00219 动到 0.00264，涨两成。全局值的上涨主要来自陈旧数据在 batch 里占了更大比重。",
+   "body": [
+    "这个指标量的是同一批 token 上推理引擎和训练器的 log-prob 差多少。看板只给了一个全局曲线，但底层数据是按数据新鲜度分了桶的：桶 0 是最新鲜的（刚从当前策略采样出来就训练），桶号越大说明这批数据从采样到被训练之间隔的策略版本越多。每个桶有自己的一份 KL，也有自己在 batch 里的 token 权重 frac。",
+    "全局 KL 就是这些桶的加权和。我逐点验算过 Σ(frac_k × KL_k)，和看板上的全局值差在 1e-5 量级，所以这个分解是对的。既然它是个加权和，那权重 frac 一变，全局值就会变，跟每桶的 KL 有没有变没关系。",
+    "相关性也指向同一件事：pro 的全局 KL 和平均过期程度（avg_staleness）相关 0.930，flash 0.925；而桶 0 的 KL 和过期程度几乎无关，pro -0.194、flash 0.197。也就是说全局曲线基本是在描摹「这批数据有多旧」，不是在描摹「两个引擎对不齐了」。",
+    "flash 第 25 步把这件事钉死了。它在 09-18 连续重启了两次，重启后数据全部重新采样，平均过期程度从第 24 步的 2.1832 掉到 0.3198，全局 KL 同步从 0.010106 掉到 0.005971，降了 41%。而同一时刻桶 0 的 KL 只从 0.003407 变到 0.003549。真正的分歧没动，动的是 bucket 配比。紧接着的第 26 步又给了一次反向印证：过期程度从 0.3198 回到 0.8207，全局 KL 跟着升到 0.006266，而桶 0 的 KL 反而降到 0.003399。两条线方向相反，说明它们量的确实不是同一件事。",
+    "读这图的时候，把全局曲线和 avg_staleness 一起看。两条线同向走是正常的；只有桶 0 的 KL 持续抬升才说明两个引擎真的开始对不齐了。"
+   ],
+   "facts": [
+    {
+     "label": "全局 KL（pro）",
+     "value": "0.00219 → 0.00769",
+     "note": "首步到第 19 步，涨 3.5 倍"
+    },
+    {
+     "label": "桶 0 KL（pro）",
+     "value": "0.00219 → 0.00264",
+     "note": "同一区间，涨 21%"
+    },
+    {
+     "label": "全局 KL（flash）",
+     "value": "0.00287 → 0.01011（第 24 步峰值）",
+     "note": "第 25 步回落到 0.00597，第 26 步 0.00627"
+    },
+    {
+     "label": "桶 0 KL（flash）",
+     "value": "0.00287 → 0.00340",
+     "note": "全程只在 0.0025~0.0039 之间，第 26 步还在降"
+    },
+    {
+     "label": "corr(全局KL, 平均过期)",
+     "value": "pro 0.930 / flash 0.925",
+     "note": ""
+    },
+    {
+     "label": "corr(桶0KL, 平均过期)",
+     "value": "pro -0.194 / flash 0.197",
+     "note": "几乎无关"
+    },
+    {
+     "label": "Σ(frac×KL) 与全局值之差",
+     "value": "≤ 1e-5",
+     "note": "逐点验算"
+    }
+   ],
+   "verify": "在回放界面切到任意一个历史时刻，同时打开 train_infer_diff/new_infer/kl 和 partial/avg_staleness 两个图。要更细的话去看 metrics 视图里 partial/<k>/train_infer_diff/new_infer/kl 每个桶各自的曲线。",
+   "metrics": [
+    "train_infer_diff/new_infer/kl",
+    "partial/avg_staleness",
+    "partial/0/frac",
+    "partial/0/train_infer_diff/new_infer/kl"
+   ],
+   "sources": [
+    {
+     "ref": "self-kl-mixture",
+     "stance": "support",
+     "note": "这是本条洞察最硬的一块：全局 KL 精确等于「桶占比 × 桶 KL」的加权和（pro 19 步 / flash 26 步，占比合计 1.0000，最大相对误差 0.15%）。所以只要桶占比变了，全局 KL 就会跟着变。"
+    },
+    {
+     "ref": "self-kl-decompose",
+     "stance": "support",
+     "note": "反过来的检验：固定配比、只代入真实桶 KL，与真实全局 KL 的相关只有 0.53 / 0.55；只代入真实配比、桶 KL 取平均，反而能还原 R² 0.79 / 0.90。上行主要来自陈旧 token 占比变大。"
+    },
+    {
+     "ref": "verl-three-policy",
+     "stance": "context",
+     "note": "工程文档把 π_rollout、π_old、π_θ 三个策略和两段 drift（rollout↔old、old↔θ）拆开，与「引擎差异 + 陈旧度」两条线是同一个拆法；但公开材料没有给出「按新鲜度桶加权求和」这个具体口径。"
+    },
+    {
+     "ref": "missing-old-logits",
+     "stance": "context",
+     "note": "该文同样把「引擎数值差异」与「数据陈旧」当成两个可加的误差来源，支持我们不要把 new_infer/kl 一个数直接读成某一个原因。"
+    },
+    {
+     "ref": "tis-blog-kl-bias",
+     "stance": "challenge",
+     "note": "该博客指出 k1 型 KL 估计在 rollout 由推理引擎产生时本身有偏、训练失稳时还会给出负值。所以「我们的 KL 一直为正」并不能反过来当成「引擎没有问题」的证据。"
+    }
+   ]
+  },
+  {
+   "id": "graduation-not-conquest",
+   "kind": "structural",
+   "title": "成绩的提升，来自把做对一半的题变成次次做对，不是攻克原来做不对的题",
+   "summary": "两个 run 的「全对率」都涨得比 avg@n 快，而「全错率」基本躺着不动。flash 第 1 步到第 25 步全对率涨了 19.2 个百分点，全错率只降了 1.3 个百分点。",
+   "body": [
+    "把每一步的 prompt 按 n 次尝试里成功几次分成三类：「全对」（n 次全成功）、「全错」（一次都没成）、「中间」（成功了一部分）。avg@n 是每道题通过率的平均，所以它等于全对率加上中间那批题各自的通过率。",
+    "这样就能把 avg@n 的变化拆成三块：全对率上升带来的、中间那批题规模缩水带来的、以及留下来的中间题自己变好带来的。pro 从第 1 步到第 19 步 avg@n 涨了 6.88 个百分点，拆开是 +8.41（全对率从 17.79% 涨到 26.20%）、−4.16（中间组规模从 67.59% 缩到 60.32%）、+2.62（留下来的中间题通过率从 0.5723 升到 0.6158）。flash 从第 1 步到第 26 步涨 12.43 个百分点，拆开是 +17.08（全对率 12.08% → 29.15%）、−8.52（中间组 71.88% → 56.29%）、+3.88（中间题通过率 0.5467 → 0.6081）。两个 run 的三项代数相加都精确等于实测涨幅。",
+    "也就是说，主要的过程是「原来做对一半的题，现在能次次做对」，题从中间那格毕业到了全对那格。而从头到尾一次都没做对的题，比例几乎没变：pro 从 14.62% 降到 13.48%，flash 从 16.05% 降到 14.56%，两个 run 各自只降了 1.1 和 1.5 个百分点。",
+    "这批题的绝对规模值得单独看一眼。每个 prompt 有 n 次尝试（从 perf/total_num_tokens 反推是 16 次），「全错」意味着 16 次一次都没成。pro 有大约 13.5%、flash 约 14.6% 的题属于这一类，26 步训练下来基本没松动。",
+    "这条对判断很有用：如果你关心的是「还有多少题模型根本不会」，看全错率，它没怎么改善。avg@n 涨得好不代表难题被攻克了。",
+    "还有一个读图时必须先做的动作：passrate 的分母（dynsam/num_measurable）在 pro 里从 1636 跳到 4728，相差 2.9 倍。在 p≈0.15 这个量级上，单步标准误是 0.52~0.88 个百分点，而相邻两步的摆动经常就有 2~3 个百分点。所以比较不同步的 passrate 之前，先看一眼分母，否则会把抽样噪声当成进步。"
+   ],
+   "facts": [
+    {
+     "label": "pro avg@n",
+     "value": "0.5647 → 0.6334",
+     "note": "+6.88pp"
+    },
+    {
+     "label": "pro 全对率",
+     "value": "0.1779 → 0.2620",
+     "note": "+8.41pp"
+    },
+    {
+     "label": "pro 全错率",
+     "value": "0.1462 → 0.1348",
+     "note": "-1.14pp"
+    },
+    {
+     "label": "pro 三项分解",
+     "value": "+8.41 − 4.16 + 2.62",
+     "note": "全对率升 / 中间组缩小 / 中间题变好"
+    },
+    {
+     "label": "flash avg@n",
+     "value": "0.5137 → 0.6380",
+     "note": "+12.43pp（第 1→26 步）"
+    },
+    {
+     "label": "flash 全对率",
+     "value": "0.1208 → 0.2915",
+     "note": "+17.08pp"
+    },
+    {
+     "label": "flash 全错率",
+     "value": "0.1605 → 0.1456",
+     "note": "-1.49pp"
+    },
+    {
+     "label": "flash 三项分解",
+     "value": "+17.08 − 8.52 + 3.88",
+     "note": "同上"
+    },
+    {
+     "label": "passrate 分母",
+     "value": "pro 1636 ~ 4728",
+     "note": "差 2.9 倍，单步标准误 0.52~0.88pp"
+    }
+   ],
+   "verify": "在同一个切面上看 dynsam/avg@n、dynsam/passrate/one、dynsam/passrate/zero 三条曲线。三者是同步的，切到第 1 步和第 25 步各看一次就能对上。",
+   "metrics": [
+    "dynsam/avg@n",
+    "dynsam/passrate/one",
+    "dynsam/passrate/zero"
+   ],
+   "sources": [
+    {
+     "ref": "self-avgn-decompose",
+     "stance": "support",
+     "note": "三分解是本条洞察的算术基础：avg@n = 全对占比 + 中间池占比 × 中间池质量，pro +6.88pp 与 flash +12.43pp 都能被三项代数还原。"
+    },
+    {
+     "ref": "dapo-accuracy1-rising",
+     "stance": "support",
+     "note": "DAPO 原文明确写道：随着训练进行，accuracy 等于 1 的样本数持续增加。这正是「全对占比涨得比 avg@n 快」的公开对应物，说明它不是本 run 独有现象。"
+    },
+    {
+     "ref": "dapo-dynsam",
+     "stance": "support",
+     "note": "DAPO 的动态采样会过采样并过滤掉正确率为 1 和 0 的组。这从机制上解释了为什么「全对」这一端会单向抬升：它们是最先被筛出去的那批。"
+    },
+    {
+     "ref": "rlvr-passk-shrink",
+     "stance": "challenge",
+     "note": "该文的关键结论是 RLVR 训出来的模型在小的 k 上更好，但 k 大时基座模型反而更高分 —— 也就是「可解范围」被收缩了。所以全对占比上升不能被直接读成能力扩张。"
+    },
+    {
+     "ref": "dr-grpo-length-bias",
+     "stance": "challenge",
+     "note": "Dr. GRPO 指出 GRPO 的长度与标准差归一化会引入优化偏置，长回答被系统性优待。我们的 avg@n 上行里混着这个偏置，不能用它单独证明能力提升。"
+    }
+   ]
+  },
+  {
+   "id": "timing-excludes-restart",
+   "kind": "structural",
+   "title": "timing_s/step 不含重启等待，pro 因此少报了 23.7 小时、约 48.8 万美元",
+   "summary": "pro 已经跑了 72.18 小时墙钟，但把每一步上报的 timing_s/step 加起来只有 48.43 小时。差的 23.74 小时几乎全是重启期间的等待，占真实墙钟的 32.9%。flash 同样少报 21.6%。",
+   "body": [
+    "运行卡片上的「本步已用时」和 timing_s/step 是同一个数，只统计这一步真正在跑的时间。重启、恢复、重新加载权重这些等待不算在里面。所以看「训练跑了多久」或者「花了多少钱」的时候，用这个数会明显偏低。",
+    "pro 到现在重启了 9 次。其中 6 次后面紧跟着完成了新的一步，这 6 段等待合计 20.76 小时，占全部少报量的 87.4%。最大的一段在 2026-09-17 20:20Z 到第 17 步完成之间，5.88 小时，折合 12.1 万美元——那一段对应的公告是训练集群和判分服务之间的网络问题。",
+    "flash 重启 4 次，扣掉重复计数后是 3 段等待，合计 12.60 小时，占它少报量的 86.5%。最大的一段是 2026-09-18 的两次连续重启到第 25 步完成之间，4.49 小时。",
+    "两个 run 合起来少报 38.3 小时，按各自的费率折合约 63.8 万美元。这部分机时是真实花掉的，只是不体现在逐步耗时里。",
+    "顺带一提，每步的 wall clock 和上报值在没有重启的步上差不到 10 秒，所以这个缺口确实来自重启，不是统计口径漂移。"
+   ],
+   "facts": [
+    {
+     "label": "pro 墙钟",
+     "value": "72.18 h",
+     "note": "2026-09-15 10:32Z 起算"
+    },
+    {
+     "label": "pro Σ timing_s/step",
+     "value": "48.43 h",
+     "note": "少报 23.74 h，占 32.9%"
+    },
+    {
+     "label": "pro 少报折合",
+     "value": "$488,074",
+     "note": "按 $5.71/s"
+    },
+    {
+     "label": "flash 墙钟",
+     "value": "67.44 h",
+     "note": ""
+    },
+    {
+     "label": "flash Σ timing_s/step",
+     "value": "52.87 h",
+     "note": "少报 14.57 h，占 21.6%"
+    },
+    {
+     "label": "flash 少报折合",
+     "value": "$149,757",
+     "note": "按 $2.855/s"
+    },
+    {
+     "label": "重启次数",
+     "value": "pro 9 / flash 4",
+     "note": "来自 totals.restarts"
+    },
+    {
+     "label": "最大单段等待",
+     "value": "pro 5.88 h / flash 4.49 h",
+     "note": ""
+    }
+   ],
+   "verify": "看 timing_s/step 的同时看运行卡片上的时钟（那是从 start 算的真实墙钟），两者的差就是被漏掉的部分。回放界面里把切面切到某次重启前后，差会肉眼可见地跳一下。",
+   "metrics": [
+    "timing_s/step",
+    "timing_s/outer_gen",
+    "timing_s/trainer_ops"
+   ],
+   "sources": [
+    {
+     "ref": "self-time-accounting",
+     "stance": "support",
+     "note": "本条的全部数字都出自这次核算：pro 墙钟 72.18h vs Σtiming_s/step 48.43h，缺口 23.74h（32.9%），其中 6 次重启后紧跟新步的等待占 87.4%；非重启步两者差不到 10 秒。"
+    },
+    {
+     "ref": "hybridflow",
+     "stance": "context",
+     "note": "混合控制器框架说明「一个 step」在工程上就是 generation + training 的一条数据流，计时口径自然只覆盖这条流；框架外的停机等待不在其中。"
+    },
+    {
+     "ref": "pipeline-rl",
+     "stance": "context",
+     "note": "流水线式（异步）RL 训练正是为了消除生成与训练之间的空等。这从反面说明同步式训练里的等待时间是真实成本，而不是可以忽略的记账细节。"
+    },
+    {
+     "ref": "mimo-v2-flash-readme-infra",
+     "stance": "context",
+     "note": "官方 README 给出的运行环境是上万并发 pod 与约 70% 的环境建立成功率 —— 大规模调度本来就伴随失败与重排，重启等待不是异常事件。"
+    }
+   ]
+  },
+  {
+   "id": "gen-vs-train-balance",
+   "kind": "structural",
+   "title": "算力在生成和训练之间大致对半，但配比在往训练那头漂",
+   "summary": "两个 run 全程看下来，rollout 生成约占一半墙钟、训练器占 45% 上下。但逐步看，第一步是生成压倒性的 69~70%，到后面生成占比掉到 36%（pro 第 19 步），训练段反过来成了大头。",
+   "body": [
+    "timing_s/outer_gen 是 rollout 生成用的墙钟，timing_s/trainer_ops 是训练器用的墙钟。两者相加在每一步都不超过 timing_s/step，剩下的 2% 左右是数据准备、评测、同步这些零碎。",
+    "全程合计：pro 的生成 25.62 小时（占逐步耗时之和的 52.9%）、训练 21.77 小时（45.0%）；flash 生成 26.47 小时（50.1%）、训练 24.88 小时（47.1%）。总量上确实是对半。",
+    "但逐步看趋势是单向的。pro 第 1 步生成占两者之和的 69.3%，中间稳定在 47~54%，第 19 步掉到 36.1%，同一步训练段是 2.04 小时、生成 1.19 小时。flash 第 1 步 70.2%，第 25 步是 61.2%（那一步刚重启完，数据全新，生成时间重新变长）。",
+    "这个漂移有两股力量：一是上下文和 batch 一直在变大（pro 的 ctx 总长从 7.2 万涨到 10.1 万 token），训练段的绝对耗时跟着涨；二是生成侧可能有优化，pro 的生成时间从第 1 步的 1.81 小时降到第 19 步的 1.19 小时。",
+    "需要说明的是 pro 第 19 步这个 62% 的训练占比是全轮最高，而它紧跟在「调整训练并行策略」的公告之后，所以那一步不完全能代表稳态。"
+   ],
+   "facts": [
+    {
+     "label": "pro 生成 / 训练",
+     "value": "25.62 h / 21.77 h",
+     "note": "占逐步耗时之和 52.9% / 45.0%"
+    },
+    {
+     "label": "flash 生成 / 训练",
+     "value": "26.47 h / 24.88 h",
+     "note": "50.1% / 47.1%"
+    },
+    {
+     "label": "pro 生成占比",
+     "value": "第 1 步 69.3% → 第 19 步 36.1%",
+     "note": ""
+    },
+    {
+     "label": "flash 生成占比",
+     "value": "第 1 步 70.2% → 第 25 步 61.2%",
+     "note": "第 25 步刚重启完"
+    },
+    {
+     "label": "其余开销",
+     "value": "约 2%",
+     "note": "outer_gen + trainer_ops < timing_s/step"
+    }
+   ],
+   "verify": "把 timing_s/outer_gen 和 timing_s/trainer_ops 两个图叠在一起看，H 视图里两条线的交叉点就是主导权换手的地方。",
+   "metrics": [
+    "timing_s/outer_gen",
+    "timing_s/trainer_ops",
+    "timing_s/step"
+   ],
+   "sources": [
+    {
+     "ref": "hybridflow",
+     "stance": "support",
+     "note": "该框架把 RLHF/RL 流水线明确拆成 generation 与 training 两个阶段，支持我们按 outer_gen / trainer_ops 做时间占比分析这个口径。"
+    },
+    {
+     "ref": "dapo-longtail-generation",
+     "stance": "support",
+     "note": "DAPO 原文指出生成时间由长尾样本主导。这解释了为什么生成占比会在长序列任务上涨到七成 —— 平均值被少数极长的 rollout 拉走。"
+    },
+    {
+     "ref": "mimo-v2-flash-readme-mtp",
+     "stance": "support",
+     "note": "官方把 MTP（多 token 预测）当作给 rollout 提速的手段，等于承认 rollout 是 RL 的主导瓶颈，与我们在时间占比里看到的形态一致。"
+    },
+    {
+     "ref": "mimo-v2-flash-tr-compute",
+     "stance": "context",
+     "note": "技术报告把后训练目标描述为「高效放大 RL 算力」，那 generation/training 的平衡就是这条缩放曲线上的第一手读数。"
+    }
+   ]
+  },
+  {
+   "id": "flash-cheaper-per-token",
+   "kind": "structural",
+   "title": "flash 的上下文比 pro 长 17%，每 token 成本却只有 pro 的三成",
+   "summary": "pro 到目前花了 148.4 万美元、训练了 421.7 亿 token；flash 花了 69.3 万美元、训练了 648.4 亿 token。折算下来 pro 每 10 亿 token 要 3.52 万美元，flash 只要 1.07 万。",
+   "body": [
+    "两个 run 用的是不同的费率：pro $5.71/s，flash $2.855/s，正好是两倍。但按训练量折算，差距被放大到了 3.3 倍，说明 flash 的单位时间产出更高。",
+    "单步看也是这个结论：pro 平均每步 78,087 美元，flash 27,726 美元；而 flash 每步训练的 token 数反而更多（平均 25.9 亿对 pro 的 22.2 亿）。",
+    "有意思的是 flash 的上下文并不短，反而更长：平均总长 104,203 token，pro 是 88,878，flash 长 17%。回答长度 pro 平均 84,731、flash 99,947。prompt 长度两者差不多，都在 4,100~4,300。所以差距全在模型自己生成的部分。",
+    "沙箱用量差得更远：flash 累计起了 6,240,816 个沙箱环境（活跃约 3.8 万），pro 是 2,347,584 个（活跃约 2.3 万）。flash 的轨迹更长、轮数更多，对应的环境开销也更大。",
+    "把这两个 run 放在一起看，pro 的单步价值不在吞吐，它的 avg@n 现在和 flash 差不多（0.6334 对 0.6408），但每 token 成本是三倍。"
+   ],
+   "facts": [
+    {
+     "label": "累计花费",
+     "value": "pro $1,483,650 / flash $693,152",
+     "note": "cost = rate × 经过时间"
+    },
+    {
+     "label": "每 10 亿训练 token 成本",
+     "value": "pro $35,181 / flash $10,690",
+     "note": "flash 便宜 3.3 倍"
+    },
+    {
+     "label": "平均每步花费",
+     "value": "pro $78,087 / flash $27,726",
+     "note": ""
+    },
+    {
+     "label": "上下文总长均值",
+     "value": "pro 88,878 / flash 104,203 token",
+     "note": "flash 长 17%"
+    },
+    {
+     "label": "累计训练 token",
+     "value": "pro 42.17B / flash 64.84B",
+     "note": ""
+    },
+    {
+     "label": "累计沙箱",
+     "value": "pro 2,347,584 / flash 6,240,816",
+     "note": ""
+    },
+    {
+     "label": "当前 avg@n",
+     "value": "pro 0.6334 / flash 0.6408",
+     "note": "水平接近"
+    }
+   ],
+   "verify": "看板右上角有累计成本，运行卡片上有当前步的 token 数，两者相除即可。成本口径是费率乘经过时间，不是按用量计费，所以它是机时成本不是账单。",
+   "metrics": [
+    "perf/total_num_tokens",
+    "ctx_total_length/mean",
+    "env/active",
+    "ctx_response_length/mean"
+   ],
+   "sources": [
+    {
+     "ref": "self-cost-basis",
+     "stance": "support",
+     "note": "成本口径的核算：cost = rate × (now − start) 在 21 个同步点精确成立；换算到训练 token 是 pro $35,181/1B vs flash $10,690/1B，差 3.3 倍。"
+    },
+    {
+     "ref": "self-per-token-throughput",
+     "stance": "support",
+     "note": "每步训练 token ≈ 1568 × 16 × 上下文长度（误差 1.2% / 2.7%），这条恒等式说明两个 run 的 token 数差异几乎全部来自上下文长度与步数。"
+    },
+    {
+     "ref": "mimo-v2-flash-readme-sched",
+     "stance": "support",
+     "note": "官方 README 描述了细粒度数据调度与部分 rollout（partial rollout）。这类调度正是「单位 token 成本更低」的工程来源，给利润差找到了机制解释。"
+    },
+    {
+     "ref": "self-time-accounting",
+     "stance": "challenge",
+     "note": "成本按墙钟累计，而墙钟里三成是重启等待。所以 3.3 倍的单 token 成本差里有一部分不是算力效率，而是等待时间 —— 不能整份归给模型或调度。"
+    }
+   ]
+  },
+  {
+   "id": "offline-eval-lag",
+   "kind": "watch",
+   "title": "离线评测落后训练进度 5~8 步，而且两个 run 的缺口不一样",
+   "summary": "评测榜只覆盖到训练进度之前，最新那几步没有独立评测背书。pro 训练到第 24 步，DeepSWE 与 In-house Coding 停在 18 步、AutomationBench 停在 16 步，缺口 6、6、8 步；flash 训练 30 步后结束，三个榜都停在 25 步，缺口 5 步。缺口不是固定值 —— 上一轮观察时 pro 是 4 步，现在扩到 6~8 步，所以它由官方补发的节奏决定。",
+   "body": [
+    "三个离线榜（DeepSWE v1.1、In-house Coding Bench、AutomationBench v1.0.6）都要跑完整的 agent 流程再判分，比在线指标慢得多。把榜上的步号集合和训练当前步号一比，就能看到缺口。",
+    "这个缺口不是一个常数，这一点比缺口的绝对值更重要。同一份数据在 pro 走到第 19 步时缺口是 4 步，走到第 24 步时 DeepSWE 的缺口变成 6 步、AutomationBench 变成 8 步；flash 停在第 30 步时是 5 步。也就是说缺口的宽度取决于官方补发的节奏，而不是一个固定的评测周期。",
+    "官方那条公告把这件事讲得很清楚：「we have updated the latest deepswe results for flash step 12 & pro step 8. we will keep posting as the offline evaluation results come out.」——标称的步号和这个成绩什么时候真的能看到是两件事。按时间戳算，pro 第 8 步的成绩在它完成之后 5.27 小时才可读，flash 第 12 步是 3.75 小时。",
+    "所以「最近几步还在涨」这个判断目前只有在线指标 `dynsam/avg@n` 一个来源，而它是训练分布上的数字，不能替代外部评测。反过来说，也不能拿「榜没涨」当证据说最近几步没进步 —— 榜压根没测那几步。",
+    "顺带一个用法上的提醒：回放历史切面时，越早的切面榜单缺口越大，别把「那一刻还没有成绩」读成「那一刻成绩是 0」。"
+   ],
+   "facts": [
+    {
+     "label": "榜单覆盖",
+     "value": "pro 到第 18/18/16 步；flash 三个榜都到第 25 步",
+     "note": "训练已到 24 步 / 30 步（flash 已结束）"
+    },
+    {
+     "label": "缺口",
+     "value": "pro 6（DeepSWE）、6（In-house）、8（Automation）；flash 5",
+     "note": "不是固定值：上一轮 pro 还是 4 步"
+    },
+    {
+     "label": "pro DeepSWE",
+     "value": "58.41 → 67.46（第 1→18 步）",
+     "note": "+9.05"
+    },
+    {
+     "label": "flash DeepSWE",
+     "value": "48.67 → 64.90（第 1→25 步）",
+     "note": "+16.23"
+    },
+    {
+     "label": "pro In-house Coding",
+     "value": "57.54 → 63.67",
+     "note": "+6.13"
+    },
+    {
+     "label": "flash In-house Coding",
+     "value": "53.83 → 61.93",
+     "note": "+8.10"
+    },
+    {
+     "label": "pro AutomationBench",
+     "value": "46.2 → 49.8",
+     "note": "+3.60"
+    },
+    {
+     "label": "flash AutomationBench",
+     "value": "43.3 → 51.6",
+     "note": "+8.30"
+    },
+    {
+     "label": "补发延迟（公告对账）",
+     "value": "pro 第 8 步晚 5.27 小时、flash 第 12 步晚 3.75 小时",
+     "note": "由公告时间戳减去该步完成时间得到"
+    }
+   ],
+   "verify": "overview 视图底部的 benchmarks 区块列出了每一步的分数，空白的地方就是还没出成绩的步。",
+   "metrics": [
+    "dynsam/avg@n"
+   ],
+   "sources": [
+    {
+     "ref": "self-avgn-decompose",
+     "stance": "context",
+     "note": "训练侧那个数的内部结构（全对率 / 中间池占比 / 中间池质量）我们已经在本地拆开过；评测榜滞后 4 步这件事让「用评测确认训练侧读数」这条路变慢。"
+    },
+    {
+     "ref": "swebench",
+     "stance": "context",
+     "note": "这些代码评测任务的原始口径来自 SWE-bench：用 GitHub 真实 issue 做单次通过的判定。滞后 4 步时，我们能拿到的仍是这个口径的历史点。"
+    },
+    {
+     "ref": "reality-final-verifier",
+     "stance": "challenge",
+     "note": "该文的主张是「测试全过也不等于部署可接受」。这提醒我们：评测榜没跟上，只是暂时缺一个参照；即使跟上了，它也不是最终判决。"
+    },
+    {
+     "ref": "passk-inversion",
+     "stance": "challenge",
+     "note": "只看 pass@1（或者说 avg@n）会漏掉「可解范围是否收缩」。评测榜目前只给单次通过率的读数，覆盖面的变化看不到 —— 这正是评分滞后之外的第二层盲区。"
+    }
+   ]
+  },
+  {
+   "id": "entropy-rising",
+   "kind": "watch",
+   "title": "策略熵在涨，而且和成功率同向涨",
+   "summary": "两个 run 的 per-token 熵都在往上走：pro 从 0.3953 到 0.4063，flash 从 0.4133 到 0.4561。同期全对率也在涨。",
+   "body": [
+    "actor/entropy_loss 是策略在 token 上的平均熵，量的是输出分布有多平。RL 里常见的担心是熵塌缩——策略越来越自信、分布越来越尖，探索能力丧失。这两个 run 都不是这个情况。",
+    "pro 的熵在 0.3792~0.4087 之间波动，第 1 步 0.3953、第 19 步 0.4063，涨了 0.0110，不是单调的。flash 从 0.4133 涨到 0.4554（第 26 步），涨 0.0421，基本是单调抬升，幅度是 pro 的近四倍。",
+    "同期的成功率：全对率 pro 涨 8.4 个百分点、flash 涨 19.2 个百分点。熵涨和成功率涨同时发生，说明策略不是靠变窄变尖来提分，而是在保持（甚至扩大）输出多样性的同时把对的比例提上去了。",
+    "flash 的熵绝对值也比 pro 高（均值 0.4276 对 0.3942），和 flash 涨幅更大、上下文更长是一致的方向。",
+    "看板没有说明熵是否有目标值或者有没有加熵正则，所以这里只说趋势，不说它是好还是坏。真要看风险，得配合 pg_loss 和 pg_tis_clipfrac 一起——那两个指标反映更新被裁剪掉多少，熵高而裁剪率不涨，说明更新还算温和。"
+   ],
+   "facts": [
+    {
+     "label": "pro 熵",
+     "value": "0.3953 → 0.4063",
+     "note": "+0.0110，区间 0.3792~0.4087"
+    },
+    {
+     "label": "flash 熵",
+     "value": "0.4133 → 0.4554",
+     "note": "+0.0421，区间 0.4086~0.4561"
+    },
+    {
+     "label": "pro 熵均值",
+     "value": "0.3942",
+     "note": "19 步"
+    },
+    {
+     "label": "flash 熵均值",
+     "value": "0.4276",
+     "note": "25 步"
+    },
+    {
+     "label": "同期全对率",
+     "value": "pro +8.41pp / flash +17.08pp",
+     "note": "同向"
+    }
+   ],
+   "verify": "overview 上 actor/entropy_loss 和 dynsam/passrate/one 并排看。",
+   "metrics": [
+    "actor/entropy_loss",
+    "actor/pg_loss",
+    "dynsam/passrate/one"
+   ],
+   "sources": [
+    {
+     "ref": "entropy-mechanism",
+     "stance": "challenge",
+     "note": "该文给出的经验关系是 R = −a·exp(H) + b，也就是熵越高、性能越低，并主张熵坍缩才是受限的、要主动干预。方向与「熵上行、avg@n 也上行」相反，这是本条洞察最直接的边界条件。"
+    },
+    {
+     "ref": "dispo",
+     "stance": "challenge",
+     "note": "该文通过消融指出：熵是被上界裁剪还是下界裁剪推起来的，后果不同，过度上推会带来缓慢退化。所以「熵在涨」本身不能判定好坏，要看是哪一侧推的。"
+    },
+    {
+     "ref": "dapo-upper-clip",
+     "stance": "support",
+     "note": "DAPO 的 Clip-Higher 就是为了对抗熵坍缩而放宽上界裁剪，说明「熵高一点」在工程上通常被当作健康信号来追求。"
+    },
+    {
+     "ref": "spurious-rewards",
+     "stance": "challenge",
+     "note": "该文指出 clip 项会带来 clipping bias，放大预训练阶段的高先验行为。熵上行也可能只是这类偏置放大的结果，而不是探索变好。"
+    },
+    {
+     "ref": "rlvr-entropy-coverage",
+     "stance": "challenge",
+     "note": "该文的方向是熵下降导致可解覆盖变窄。把它和本条并列看：熵与覆盖的关系不是单调的，用熵单独描述「探索状态」不可靠。"
+    }
+   ]
+  },
+  {
+   "id": "pro-step19-anomaly",
+   "kind": "watch",
+   "title": "pro 第 19 步三个系统侧异常同时出现，效果指标却正常",
+   "summary": "同一步里，训练段占到了全轮最高的 62.0%，梯度范数跳到 0.03351（其余各步中位数的 6 倍），possible_leak 出现了全轮唯一一次非零值。而 avg@n、pg_loss、advantage 都很正常。",
+   "body": [
+    "actor/grad_norm 是裁剪前的全局梯度范数。pro 其余 18 步的值集中在 0.0048~0.0087，中位数 0.005625，第 19 步是 0.03351，是 6.0 倍。flash 全程在 0.0049~0.0091 之间，没有出现过类似尖峰。",
+    "同一步的系统侧数据也不寻常：timing_s/trainer_ops 是 2.04 小时、占 timing_s/step 的 62.0%，这是 pro 全轮训练段占比最高的一步（此前最高是第 8 步的 52.7%）；env/possible_leak 在这一步等于 1，其余 18 步全是 0。",
+    "但效果侧看不出问题。第 19 步的 avg@n 是 0.6334，全程第二高；pg_loss 0.00529 在正常区间；critic/advantages/mean -0.00436 也在正常范围。所以这不是「训练出问题了」，是「机器那边有点事」。",
+    "时间线上，第 19 步紧跟在一则公告之后：pro 因为专家负载不均导致的 GPU OOM 在第 17 步重启，官方说「调整了训练并行策略」。第 18、19 步是新配置下跑出来的。",
+    "一个点说明不了因果，只能说这三个异常同时出现在配置变更之后的第一步完整训练上，下一步（第 20 步）值得盯一下：如果 grad_norm 回落、训练段占比回落，那可能就是变更的短期代价；如果继续尖，就得当成趋势看。"
+   ],
+   "facts": [
+    {
+     "label": "grad_norm（pro 第 19 步）",
+     "value": "0.03351",
+     "note": "其余 18 步中位数 0.005626，6.0 倍"
+    },
+    {
+     "label": "grad_norm（flash 全程）",
+     "value": "0.0049 ~ 0.0091",
+     "note": "无尖峰"
+    },
+    {
+     "label": "训练段占比（pro 第 19 步）",
+     "value": "62.0%",
+     "note": "全轮最高，此前最高是第 8 步的 52.7%"
+    },
+    {
+     "label": "possible_leak（pro）",
+     "value": "第 19 步 = 1",
+     "note": "其余 18 步全为 0；flash 全程为 0"
+    },
+    {
+     "label": "同期 avg@n",
+     "value": "0.6334",
+     "note": "全程第二高，正常"
+    }
+   ],
+   "verify": "在 metrics 视图里搜 actor/grad_norm 看整条曲线；再搜 env/possible_leak 对照步号。回放界面切到第 19 步完成前后可以直接看到运行卡片上的训练段占比。",
+   "metrics": [
+    "actor/grad_norm",
+    "timing_s/trainer_ops",
+    "env/possible_leak"
+   ],
+   "sources": [
+    {
+     "ref": "self-grad-spike-isolated",
+     "stance": "support",
+     "note": "同一步的 pg_loss、entropy_loss、rewards/mean、new_infer/kl、avg@n、passrate/zero 全部在正常波动区间内；尖峰是被记录范围内唯一一次（5.96 倍中位数）。"
+    },
+    {
+     "ref": "simpletir",
+     "stance": "support",
+     "note": "多轮工具调用 RL 的训练不稳定被归因于低概率 token 造成「梯度范数爆炸」。这给「单点尖峰 = 异常样本」提供了机制解释。"
+    },
+    {
+     "ref": "gradient-stabilizer",
+     "stance": "context",
+     "note": "该文主张要修的是梯度范数本身（而不是全局梯度方向）。它说明工程上确实把范数尖峰当成独立问题来处理，与我们把它单列一项告警的理由一致。"
+    },
+    {
+     "ref": "monitor-cot-hacking",
+     "stance": "context",
+     "note": "该文讨论对推理过程的作弊行为做监控。`env/possible_leak` 这类告警正属于同一类「行为异常」信号，同一步出现值得并列记录。"
+    },
+    {
+     "ref": "baitbench",
+     "stance": "context",
+     "note": "该基准说明奖励攻击可以被设计成「可选捷径」来测量。它支持把 possible_leak 当成需要追问的线索，而不是当成噪声丢掉。"
+    }
+   ]
+  },
+  {
+   "id": "penalty-redistributes",
+   "kind": "structural",
+   "title": "惩罚项不改优势总量，它改的是优势在 token 之间的分配",
+   "summary": "train/adv_*_sum_pre_penalty 和 post_penalty 逐点完全相同，容易读成「惩罚项没生效」。实际上惩罚分支是把增删掉的质量按比例缩放回原值，总量守恒是设计出来的，不是没起作用。",
+   "body": [
+    "先看那个迷惑人的现象：train/adv_pos_sum_pre_penalty 与 train/adv_pos_sum_post_penalty 在两个 run 的每一步都精确相等（最大差 0），负侧同理。同时 penalty/action/ 下面四个 tag 里三个恒为 0、adv_mul_min 恒为 1。这两件事放在一起，很自然会得出「惩罚项根本没跑」的结论。",
+    "但 penalty/signed/ 下面的数据是活的。而且能验证出两条恒等关系：pos_scale ≈ 1 + pos_mass_removed / adv_pos_sum_pre_penalty（pro 最大差 5.2e-6、flash 7.9e-6），neg_scale ≈ 1 − neg_mass_added / 绝对值的 adv_neg_sum_pre_penalty（pro 6.3e-5、flash 8.2e-4）。也就是说，惩罚分支先从正侧拿掉一部分质量、往负侧加一部分，再把该符号的总量缩放回原来的值。总量守恒是它的构造方式，不是它没运行。",
+    "所以正确读法是：总量指标看不出惩罚项，要看 scale 和 mass 这几个量才知道它动了多少、动在哪一侧。penalty/action/ 那一族确实全程没被触发，但那是另一条通路，和 signed 分支是两回事。",
+    "再看这一轮实际发生了什么，两个 run 差别很大。flash 的负侧在末段集中放量：neg_mass_added 从第 1~17 步的 4.6 万~162 万（均值约 38 万）跳到第 18~24 步的 206 万~683 万（第 24 步最高 683 万），neg_hit_tokens 在第 22 步冲到 783.8 万，neg_scale 同期探到 0.970986（第 24 步，偏离 1 有 2.9 个百分点）。它的 rewards/min 从第 15 步起长期贴死在 −0.8（第 15、18~23、25 步都精确等于 −0.8）。第 25 步因为刚重启完（数据全新），这个量回落到 47.7 万，但第 26 步又升到 81.2 万——放量的形态没有结束。",
+    "pro 没有这个形态。它的 neg_mass_added 只有第 14 步冒过一次 143 万，其余各步在 3 万~33 万之间；neg_scale 最低只到 0.992055（偏离 0.79 个百分点），rewards/min 也只在第 14 步等于过 −0.8。",
+    "看板没有解释 neg_mass_added 为什么会在 flash 末段放大十倍以上，也没有解释 −0.8 这个值是不是奖励的下界。能确定的是：这是 flash 最后一个阶段在负侧发生的真实变化，而不是背景噪声——pro 有 19 步同样的观测窗口，没有出现类似的东西。"
+   ],
+   "facts": [
+    {
+     "label": "pre 与 post 优势总量",
+     "value": "逐点最大差 0",
+     "note": "pro 19 步 + flash 25 步"
+    },
+    {
+     "label": "pos_scale 恒等关系",
+     "value": "≈ 1 + pos_mass_removed / 正侧总量",
+     "note": "残差 pro 5.2e-6 / flash 7.9e-6"
+    },
+    {
+     "label": "neg_scale 恒等关系",
+     "value": "≈ 1 − neg_mass_added / 负侧总量绝对值",
+     "note": "残差 pro 6.3e-5 / flash 8.2e-4"
+    },
+    {
+     "label": "flash neg_mass_added",
+     "value": "第 1~17 步约 38 万 → 第 24 步 683 万",
+     "note": "第 18 步起放量；第 25 步回落到 47.7 万，第 26 步又到 81.2 万"
+    },
+    {
+     "label": "flash neg_scale 最低",
+     "value": "0.970986（第 24 步）",
+     "note": "偏离 1 达 2.9%"
+    },
+    {
+     "label": "flash rewards/min",
+     "value": "长期贴死 −0.8",
+     "note": "第 15、18~23、25 步精确等于 −0.8，第 26 步 −0.679"
+    },
+    {
+     "label": "pro neg_mass_added",
+     "value": "3 万 ~ 33 万（第 14 步一次 143 万）",
+     "note": "没有末段放量"
+    },
+    {
+     "label": "pro neg_scale 最低",
+     "value": "0.992055",
+     "note": "偏离 0.79%"
+    },
+    {
+     "label": "penalty/action/*",
+     "value": "三个 tag 恒 0，adv_mul_min 恒 1",
+     "note": "这条通路全程未触发"
+    }
+   ],
+   "verify": "在 metrics 视图里搜 penalty/signed 看 neg_mass_added 和 neg_scale；再搜 train/adv_neg_sum_pre 与 post 对照。把两条曲线放在同一个切面上，flash 第 18 步之后的跳变是这一轮最容易看出来的形态变化。",
+   "metrics": [
+    "penalty/signed/neg_mass_added",
+    "penalty/signed/neg_scale",
+    "penalty/signed/pos_scale",
+    "train/adv_neg_sum_pre_penalty",
+    "critic/rewards/min"
+   ],
+   "sources": [
+    {
+     "ref": "self-penalty-identity",
+     "stance": "support",
+     "note": "恒等式的核算：pos_scale ≈ 1 + 抽走的正质量 / 干预前正优势总和（残差 5.2e-6 / 7.9e-6），neg_scale ≈ 1 − 补上的负质量 / |干预前负优势总和|（6.3e-5 / 8.2e-4），所以 pre/post 总量逐点完全相等。"
+    },
+    {
+     "ref": "dapo-upper-clip",
+     "stance": "context",
+     "note": "公开方法里最接近的非对称处理：DAPO 把上下界拆开、只放宽上界，并明确保持下界不动。它作用在重要性比值上，不改变优势分布 —— 与本 run 的形态仍然不同。"
+    },
+    {
+     "ref": "dual-clip-ppo",
+     "stance": "context",
+     "note": "另一类非对称处理：只在优势为负时给目标函数加一个下界。同样是动 surrogate，不是「按符号重分配优势质量」。"
+    },
+    {
+     "ref": "gspo",
+     "stance": "challenge",
+     "note": "GSPO 主张 token 级比值方差过大、应改用序列级比值。它说明这套体系里可调的是比值与裁剪，而不是优势质量；用别的框架的直觉去解释本站的 penalty 字段容易解释错。"
+    }
+   ]
+  },
+  {
+   "id": "notices-explain-outages",
+   "kind": "note",
+   "title": "5 条公告解释了 16 次重启里的 6 次，另外宣布移除一个数据集",
+   "summary": "从 2026-09-16 17:58Z 到 09-18 03:49Z 官方发了 5 条公告，全是故障通报和一处数据集调整，没有一条是阶段性的训练结论。4 条在讲重启，2 条给出了具体原因（单节点显存、训练与判分集群之间断网、专家负载不均衡导致的 GPU OOM、某数据集的 infra 错误约 3 小时未被检出）。但全程重启次数是 pro 11 次 + flash 5 次 = 16 次，带公告的只是其中一部分。",
+   "body": [
+    "这 5 条公告本身是这块看板最难得的东西：绝大多数公开训练只会事后写一句「遇到了一些不稳定」，这里把故障的原因、影响范围和处理动作都写出来了。",
+    "但它的覆盖度不要高估。pro 与 flash 的重启次数在 `status.json` 的 `totals.restarts` 里分别是 11 和 5，而 5 条公告里只有 4 条在讲重启，按事件对齐能对上的重启是 6 次（pro 5 次、flash 1 次，复核见 `tasks/mimo-rl-training/notes/13-异步管线与机时账.md`）。剩下 10 次重启没有说明。",
+    "公告里能直接看到的数据痕迹有三处：flash 第 16、17 步在事件流里各出现两次（对应「从第 15 步重跑」）；pro 的 cyber 系列从第 15 步起变成 null（对应「从后续 pro run 移除 cyber 数据集」）；pro 第 17 步的重启公告是事后补发的，发布时间在该步完成之后。",
+    "还有一个坑：`notices.json` 的 `run` 字段全是 null，所以公告没有标明属于哪条 run，要靠正文里的措辞和事件时间自己判断。"
+   ],
+   "facts": [
+    {
+     "label": "公告条数",
+     "value": "5 条",
+     "note": "时间跨度约 34 小时"
+    },
+    {
+     "label": "涉及的 run",
+     "value": "字段 run 全部为 null",
+     "note": "都是全局公告"
+    },
+    {
+     "label": "公告解释的重启",
+     "value": "5 条里有 4 条在讲重启（pro 3 次、flash 1 次）",
+     "note": "pro 共 9 次、flash 共 4 次重启，其余没有单独公告"
+    },
+    {
+     "label": "可验证的数据痕迹",
+     "value": "flash 第 16、17 步各出现两次；pro cyber 从第 15 步起为 null",
+     "note": ""
+    }
+   ],
+   "verify": "overview 底部 notices 区块；对照 metrics 视图里 partial/cyber 相关指标的曲线断点。",
+   "metrics": [
+    "partial/cyber/dataset-9aui/avg_staleness"
+   ],
+   "sources": [
+    {
+     "ref": "mimo-rl-notices-cyber",
+     "stance": "support",
+     "note": "官方公告原文说明因 rollout 日志里出现坏形态而移除 cyber 数据集，并在同一批公告里提到网络问题。它同时是「为什么 cyber 相关序列在某一刻断掉」的直接解释。"
+    },
+    {
+     "ref": "mimo-rl-notices-restart",
+     "stance": "support",
+     "note": "官方公告逐字说明 flash 从第 15 步重跑。这解释了数据里「第 16、17 步出现两次且第二次 redo=true」的形态，也解释了 flash 第 25 步前后陈旧度与 KL 的突变。"
+    },
+    {
+     "ref": "self-time-accounting",
+     "stance": "context",
+     "note": "公告只写「发生了什么」，不写「损失了多少时间」。把公告时间戳与墙钟对齐后，pro 有 87.4% 的计时缺口落在重启后的等待上 —— 这是公告之外、只能从数据里算出来的部分。"
+    },
+    {
+     "ref": "missing-old-logits",
+     "stance": "context",
+     "note": "该文讨论异步/重启场景下旧 logits 缺失带来的语义不匹配。它给「重启那一步的指标为什么不能与相邻步直接比较」提供了一般性理由。"
+    }
+   ]
+  },
+  {
+   "id": "passrate-ratio-is-running-mean",
+   "kind": "counterintuitive",
+   "title": "`passrate_0_ratio` / `passrate_1_ratio` 是累计平均：flash 30 步严格单调递增，pro 在第 15、23 步回撤",
+   "summary": "这两个指标名字里带 ratio，看板上也是百分比，很容易被读成「这一步里全错（全对）的题占多少」。实测它们是全运行累计平均：flash 的 30 个步值里一阶差分全部为正、没有任何一次回落；pro 的 23 个一阶差分里有 21 个为正，另外两次是第 15 步从 0.0619 掉到 0.0112、第 23 步从 0.0443 掉到 0.0351。把它们当逐步比例读，会把「累计口径在缓慢收敛」误读成「这一刻质量很高」或者「突然变差」。",
+   "body": [
+    "这两个指标在 `train/passrate/` 前缀下，名字是 `passrate_0_ratio`（通过率恰好为 0 的题占比）和 `passrate_1_ratio`（恰好为 1 的题占比）。看板用百分比格式显示，很容易被当成「这一步的分布」。",
+    "判定它们是累计平均的方法不是看单个值，而是看差分。flash 的 `passrate_1_ratio` 从 0.00686 一路涨到 0.15177，29 个一阶差分全是正数、没有一次回落；如果它是逐步比例，围绕一个水平上下波动才是正常形态。pro 的情况更能说明问题：它在第 15 步从 0.0619 一下回撤到 0.0112，第 23 步又从 0.0443 回撤到 0.0351。累计平均只有在被重置时才会出现这种向下的跳变。",
+    "第 15 步恰好是公告里那次「网络连通性问题、我们重启了整个 run」发生的那一步；第 23 步没有任何公告。由于 pro 有 7 个重启步、flash 有 4 个重启步，而只有 pro 出现了两次回撤，所以「重启就重置」这个解释并不成立，回撤的触发条件目前看不出来。",
+    "实际用法很简单：不要横向比较不同步的这两个值，也不要拿它们和 `dynsam/passrate/zero`、`dynsam/passrate/one`（采样器口径的逐步占比）做差。想知道某一步的真实比例，要么看 `dynsam/passrate/zero` / `one`，要么把差分自己算出来再乘回步数。",
+    "这类「名字像比例、实际是累计量」的字段在看板上不是孤例。审计脚本对全部以 ratio / rate / frac / share 结尾的指标做了单调性扫描，符合「严格单调递增」的只有这两个（flash），符合「上行中带少量回撤」的有 pro 的两个加上几个数据集的 `clip_ratio`。也就是说这次没有发现第三个同类陷阱，但检测方法应该保留在常规校验里。"
+   ],
+   "facts": [
+    {
+     "label": "flash `passrate_1_ratio` 一阶差分符号",
+     "value": "29/29 为正",
+     "note": "0.00686 → 0.15177，严格单调；逐步比例不可能这样"
+    },
+    {
+     "label": "pro `passrate_0_ratio` 回撤点",
+     "value": "第 15 步 -0.0507、第 23 步 -0.0092",
+     "note": "其余 21 个差分均为正"
+    },
+    {
+     "label": "`passrate_0_ratio` 首末（pro / flash）",
+     "value": "pro 0.00921→0.03885；flash 0.00912→0.08296",
+     "note": "两边起点几乎一样，flash 因为步数多所以累计值更大"
+    },
+    {
+     "label": "单调的 ratio/rate/frac/share 指标数",
+     "value": "flash 2 个，pro 0 个",
+     "note": "全量扫描（去掉取值种类 <10 的），见 A3-audit-numbers.json 的 cumulative 字段"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-passrate-ratio-is-running-mean",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "zero-passrate-means-no-sample",
+   "kind": "structural",
+   "title": "ol8x 与 gtav 的精确 0 是「没有采样」，三个独立信号在 pro 7 步、flash 5 步上完全对齐",
+   "summary": "ol8x 与 gtav 两个数据集的平均通过率里有大量精确 0，此前只能标注为「疑似未上报」。这次找到三个互相独立的信号：0 值出现的步、`partial/<数据集>/1/frac` 为 null 的步、`num_accepted/step` 等于 `held` 的步。三者在两个 run、两个数据集上完全一致（pro 各 7 步、flash 各 5 步），两个数据集的 0 值步集合还逐元素相同。结论可以定为：这些 0 不是 0% 通过率，是这一步没有数据进训练。",
+   "body": [
+    "先说现象：pro 的 ol8x 和 gtav 各自有 7 个步报精确 0，步号都是 1、2、3、11、15、17、23；flash 各自 5 个，步号都是 1、3、16、25、28。两个数据集的 0 值步集合一模一样，这本身就说明问题不在数据集上。",
+    "把同一批步上的另外两个量调出来看：`partial/visual/dataset-ol8x/1/frac`（这个数据集在「陈旧 1 代」桶里的 token 占比）在这几步上是 null；`dynsam/visual/dataset-ol8x/num_accepted/step`（本步受理题数）恰好等于同前缀的 `held`（题池持有量）。受理数等于持有量意味着题池没有净消耗，占比为 null 意味着没有数据进训练——两件事都指向「这一步这个数据集空转」。审计脚本逐格核对了这三个布尔值，pro 和 flash 的四个数据集全部一致。",
+    "从时间上看，pro 的这 7 个步与 `events` 里重启事件落到的步完全重合（重启依次落在 1、2、3、11、15、17、23），flash 的 5 个步是四个重启步加上第 1 步（run 的起始步）。所以更准确的描述是：重启后的那一步，这两个数据集没有数据，而把「没数据」写成了 0。",
+    "这个 0 的实际杀伤力不小。pro 第 15 步的视觉类数据集有 6 个，按原样平均是 0.4420；把这两个 0 当作缺失剔除后是 0.6630，差 22 个百分点。第 2、17、23 步的差额分别是 20.7、20.9、23.7 个百分点。任何按类目聚合通过率的分析，只要不处理这两个 0，就会在重启步上系统性地低估视觉类。",
+    "反过来，这个三元对齐可以当成一个不依赖 `events` 的「重启步检测器」：pro 是 {1,2,3,11,15,17,23}，flash 是 {1,3,16,25,28}。它比翻 `events.json` 更贴近数据本身——`events` 是训练器进程的事件流，而这个三元组是数据上报层留下的痕迹。"
+   ],
+   "facts": [
+    {
+     "label": "ol8x / gtav 精确 0 的步（pro）",
+     "value": "各 7 步：1,2,3,11,15,17,23",
+     "note": "两个数据集的集合逐元素相同"
+    },
+    {
+     "label": "ol8x / gtav 精确 0 的步（flash）",
+     "value": "各 5 步：1,3,16,25,28",
+     "note": "四个重启步 + 起始步"
+    },
+    {
+     "label": "三信号一致率",
+     "value": "4/4 数据集，逐格 100%",
+     "note": "0 值步 = `1/frac` 为 null 步 = `step==held` 步"
+    },
+    {
+     "label": "视觉类平均通过率（pro 第 15 步）",
+     "value": "含 0 为 0.4420，剔除后 0.6630",
+     "note": "6 个视觉数据集，两个是空转步"
+    },
+    {
+     "label": "对照：其他数据集的重启步",
+     "value": "没有出现 0",
+     "note": "同样是重启步、同样 `step==held`，chat 类数据集仍报正常值，所以触发条件是这两个数据集特有的"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-zero-passrate-means-no-sample",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "partial-ntokens-scope-collapse",
+   "kind": "method",
+   "title": "旧桶的 `partial/<k>/n_tokens` 三个口径报同一个数：全局、agentic 切片、单数据集切片逐值相同",
+   "summary": "`partial/<k>/n_tokens` 是按数据新鲜度分桶的 token 计数。审计发现：pro 的桶 4~7、flash 的桶 4~9 上，全局、agentic 切片、单个数据集切片三个口径的数组逐值完全相同（包括 null 位置），而它们的 `frac` 各不相同。三个不同范围的切片报出同一个绝对计数在物理上不可能同时成立，因此旧桶的按切片 token 计数不可用。",
+   "body": [
+    "`partial/` 这一段把同一组统计按「数据从采样到被训练之间隔了几个策略版本」切成若干个桶，桶号越大数据越旧。每一桶既有 `frac`（该桶占本步 token 的权重），也有 `n_tokens`（该桶的绝对 token 数）。同一族还按切片再拆一份：`partial/agentic/<k>/...` 是 agentic 类目的，`partial/code/dataset-yfch/<k>/...` 是单个数据集的。",
+    "做两两完全相同检测时，出现了一个不该出现的簇：`partial/4/n_tokens` = `partial/agentic/4/n_tokens` = `partial/code/dataset-yfch/4/n_tokens`，pro 和 flash 都有，而且覆盖了旧桶的每一步。桶 0~3 上三者互不相同，是正常的。",
+    "为什么说这不可能同时成立：`partial/<k>/n_tokens` 是全部轨迹在该桶里的 token 数，`partial/agentic/<k>/n_tokens` 是其中 agentic 类目的那部分，`partial/code/dataset-yfch/<k>/n_tokens` 是再缩到单个数据集的部分。后两者必须是第一个的子集，除非三个集合恰好是同一个。三者相等只可能是「按切片的计数在旧桶上没有单独统计，回退成了全局值」。",
+    "一个反向证据可以确认这不是巧合：三个口径的 `frac` 并不相等。`frac` 的分母是各自切片的总量，如果三者真的是同一个集合，分母也该相同、`frac` 也该相同。分母不同而分子相同，说明分子被写成了同一个来源。",
+    "实际影响：`partial/<k>/n_tokens` 这一族的绝对值本来就对不上账（全部桶加起来只有 `perf/total_num_tokens` 的 44%~56%，原因不明），现在可以再收紧一句——在桶 ≥4 上，按切片的绝对量完全不可用。要比较「哪个类目在陈旧数据里占了多少」，只能用 `frac`；要用绝对量，只能看全局那一层。",
+    "顺带说明这次的检测方法：两两「逐值完全相同」的判定必须带上稀疏过滤，否则会得到大量假性重复。比如两个序列都只有 5 个非空值、而且那 5 个值都是 0，它们当然「完全相同」。审计脚本把「取值种类 <3、或 ≥80% 是 0、或覆盖率 <50%、或非空值少于 8 个」的序列标为稀疏，并从可信簇里剔除；pro 的 151 个簇里有 18 个是这种假阳性。"
+   ],
+   "facts": [
+    {
+     "label": "逐值相同的桶",
+     "value": "pro 桶 4,5,6,7；flash 桶 4,5,6,7,8,9",
+     "note": "pro 桶 4 覆盖 8 步，flash 桶 4 覆盖 15 步"
+    },
+    {
+     "label": "相同的三个口径",
+     "value": "`partial/<k>/`、`partial/agentic/<k>/`、`partial/code/dataset-yfch/<k>/`",
+     "note": "含 null 位置也完全一致"
+    },
+    {
+     "label": "对照：`frac` 是否相同",
+     "value": "不相同",
+     "note": "分母不同而分子相同，是「回退成全局值」的直接证据"
+    },
+    {
+     "label": "`partial` 总量占 `perf/total_num_tokens`",
+     "value": "pro 45%~55%，flash 44%~56%",
+     "note": "这一族绝对值对不上账的既有问题，本次确认仍然成立"
+    },
+    {
+     "label": "稀疏假阳性规模",
+     "value": "pro 151 簇中 18 簇，flash 15 簇",
+     "note": "做这种扫描必须加过滤，否则结论会被 0 淹没"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-partial-ntokens-scope-collapse",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "two-context-length-caps",
+   "kind": "numeric",
+   "title": "上下文长度有两档截断上限：多数指标撞 1048570（≈2²⁰），`code/dataset-4onq` 撞 262144（=2¹⁸）",
+   "summary": "`ctx_total_length/max` 反复取到 1048570，此前被当成单一硬上限。这次把 25 个按数据集拆开的同类指标全查了一遍：pro 有 5 个、flash 有 7 个反复撞 1048570；同时 pro 有 2 个、flash 有 3 个反复撞 262144，其中 `code/dataset-4onq/max` 在 pro 的 16/24 步、flash 的 25/30 步正好等于 262144。不同数据集走两套截断阈值，横向比「谁的长上下文更长」比的是阈值而不是能力。",
+   "body": [
+    "`ctx_total_length/max` 是单条轨迹的最大总长度（prompt 加生成）。看板上有一条固定展示的均值曲线，但按数据集拆开的 `max` 有 25 个，没有解读覆盖。",
+    "判「撞上限」的方法是：找出该指标出现次数最多的那个值，如果它同时就是该指标全期的最大值、出现次数 ≥3、且这个值贴着 2 的整数次幂，就判为上限。pro 命中 7 个指标，落在两档：1048570（全局 `ctx_total_length/max` 11/24 步、`ctx_total_length/agentic/max` 11/24、`code/dataset-yfch/max` 9/24 等 5 个）和 262144（`code/dataset-4onq/max` 16/24、`chat/dataset-lm3t/max` 7/24）。flash 命中 10 个，同样两档：1048570 那档 7 个，262144 那档 3 个，其中 `code/dataset-4onq/max` 25/30 步。",
+    "1048570 贴着 2²⁰=1048576，差 6；262144 正好是 2¹⁸。两个阈值相差 4 倍。`code/dataset-4onq` 的天花板是别人的四分之一，它在任何按 `max` 排序的图上都会显得「上下文最短」，但这跟模型能力无关。",
+    "还有一处比「两档」更容易踩的坑：1048570 并不是硬上限。flash 的 `ctx_total_length/max` 里有 1049640、1048610、1048690、1054990 四个值高于它，还有第 14 步的 2236430（约为它的 2.13 倍）；pro 也有 105 万以上的值。所以不能拿「这个量一定 ≤ 1048570」当数据校验规则，也不能用 `max` 去反推配置。",
+    "使用建议：比较数据集之间的长上下文行为，用 `ctx_prompt_length/*/mean` 或 `ctx_total_length/*/p90` 这类不带截断的分位，或者至少先确认两边撞的是同一档上限。`max` 这一族只适合回答「有没有撞到天花板」，不适合回答「一般有多长」。"
+   ],
+   "facts": [
+    {
+     "label": "上限档 1048570（≈2²⁰）",
+     "value": "pro 5 个指标 / flash 7 个",
+     "note": "例：全局 `ctx_total_length/max` 11/24 步（pro）、15/30 步（flash）"
+    },
+    {
+     "label": "上限档 262144（=2¹⁸）",
+     "value": "pro 2 个指标 / flash 3 个",
+     "note": "`code/dataset-4onq/max` 16/24 步（pro）、25/30 步（flash）；flash 的 chat 类数据集也在这一档"
+    },
+    {
+     "label": "超过 1048570 的取值（flash）",
+     "value": "1049640、1048610、1048690、1054990、2236430",
+     "note": "说明这不是硬上限，截断并不一致"
+    },
+    {
+     "label": "`ctx_total_length/max` 全期最大值",
+     "value": "flash 2236430（第 14 步），约为 1048570 的 2.13 倍",
+     "note": "同一指标在其余 29 步都 ≤105 万量级"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-two-context-length-caps",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "bench-mde-noise-floor",
+   "kind": "method",
+   "title": "三个离线榜的单步噪声差 3~4 倍：DeepSWE 要 4.6~6.4 分才算真变化，115 个单步变化里只有 1 个经得起多重比较",
+   "summary": "用趋势残差估单点噪声 σ，按 MDE=2.77σ 算「相邻两步差多少才值得当真」：DeepSWE 为 pro 4.56 / flash 6.43 分，In-house 1.55 / 1.68，Automation 2.20 / 2.70，三个榜的尺子差 3~4 倍。115 个单步变化里朴素检验 9 个显著，按榜×run 做 Holm 校正后只剩 1 个（In-house/pro 第 16→18 步 +1.99 分），换成「是否偏离趋势」则 0 个。最大的单步跌幅也只有 −6.05 分。",
+   "body": [
+    "相邻两步的分数差由两部分组成：趋势该给的涨幅，和测量本身的噪声。要判断一次掉分值不值得当真，得先把趋势扣掉。本文用 Theil–Sen 稳健趋势的残差标准差作为单点噪声 σ_pt（而不是直接用相邻差分的标准差——当序列存在负自相关时后者会系统性高估，DeepSWE/flash 的残差一阶自相关是 −0.461，相邻差分口径给出 7.80 分的 MDE，比残差口径的 6.43 分还大）。",
+    "结论一：三个榜不是同一把尺子。DeepSWE 的 MDE 是 In-house Coding Bench 的 3~4 倍。同一个 −2 分的单步变化，在 DeepSWE 上是纯噪声，在 In-house 上已经越过噪声门槛。跨榜比较「涨了多少分」之前必须先报各自的 MDE。",
+    "结论二：这份看板上绝大多数单步变化不可分辨。115 个变化里，朴素 5% 检验有 9 个显著；按每个 (榜, run) 内部做 Holm-Bonferroni 校正后只剩 1 个：In-house Coding / pro 第 16→18 步 +1.99 分（原始 p=0.0019，Holm 阈值 0.05/16=0.0031）。而且这一步的显著性有一半来自它是跨 2 步的变化——趋势本身贡献了 +0.78 分，扣掉后残差只有 1.53σ（p=0.126）。",
+    "结论三：反推的「等效题目数」。假设榜分是「Q 道题 × 每题 3 次独立采样」的平均通过率、各题难度同质，则由 σ²=p(100−p)/N 反推出 DeepSWE 约 150~290 道题、In-house 约 2200~2540 道、AutomationBench 约 880~1330 道。这解释了为什么 In-house 曲线比 DeepSWE 平滑得多。但同一份题集上 pro 与 flash 的反推值在 DeepSWE 上差 1.94 倍，说明这个反推至少有一半误差来自非采样噪声，只能当「等效独立题目数的下界」用。",
+    "可迁移的做法：任何「指标 A 掉了 X」的说法，先问两个数——σ 是多少、一共比较了几次。只有 |Δ| > 2.77σ 且通过了该序列的多重比较校正，才值得写进结论。本文脚本把这套判定做成了一张 115 行的完整表（`A3-bench-judgement-table.md`），每一行都带 z、p、判定和是否通过 Holm。"
+   ],
+   "facts": [
+    {
+     "label": "MDE(95%) —— DeepSWE v1.1",
+     "value": "pro 4.56 分 / flash 6.43 分",
+     "note": "n=17 / 23；MDE=1.96·σ_pt·√2，σ_pt 取 Theil–Sen 残差 SD（1.59 / 2.25）"
+    },
+    {
+     "label": "MDE(95%) —— In-house Coding Bench",
+     "value": "pro 1.55 分 / flash 1.68 分",
+     "note": "n=17 / 23；σ_pt=0.56 / 0.49。三个榜里噪声最小"
+    },
+    {
+     "label": "MDE(95%) —— AutomationBench v1.0.6",
+     "value": "pro 2.20 分 / flash 2.70 分",
+     "note": "n=16 / 25；σ_pt=0.79 / 0.97"
+    },
+    {
+     "label": "单步变化判定",
+     "value": "115 个变化 → 朴素 9 个显著（涨 8 跌 1）→ Holm 校正后 1 个 → 相对趋势 + Holm 后 0 个",
+     "note": "三条榜 × 两条 run，含 5 处跨 2 步的变化；Holm 在每个 (榜, run) 组内做，组内 15~24 次比较"
+    },
+    {
+     "label": "最大单步跌幅",
+     "value": "DeepSWE/flash 第 10→11 步 −6.05 分，偏离趋势 −6.56 分，z=−2.00，未校正 p=0.0456",
+     "note": "该序列 Holm 阈值 0.05/22=0.0023；且它是 115 个变化里的最大值，属事后挑选"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-mde",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "bench-cross-run-alignment-flips",
+   "kind": "numeric",
+   "title": "pro 与 flash 谁领先完全取决于对齐口径：按步号 pro 领先 22/24，按成本 flash 全部领先，按 token 又是 pro 领先 4.6~6.8 分",
+   "summary": "按步号 pro 全面领先：avg@n 的 24 个共同步里 pro 高 22 次，DeepSWE 16/16。按累计成本对齐则翻转，flash 在每个共同成本点都领先，均值 avg@n +2.80pp、DeepSWE +2.48 分、Automation +3.71 分；按累计 token 又翻回去，20B 时 DeepSWE pro 63.53 / flash 58.90。两条 run 成本速率恒定为 2:1，flash 每步烧的 token 更多，优势在单位成本而非样本效率。",
+   "body": [
+    "「哪个 run 更强」这个问题在这份数据上没有唯一答案，因为两条 run 同时在三个维度上以不同速率前进：步号、token、钱。三种对齐方式给出三种结论，而且都不是错的——它们回答的是不同的问题。",
+    "按步号（问「同样的训练轮数，谁学得多」）：pro 领先。`dynsam/avg@n` 24 个共同步 pro 高 22 次；DeepSWE 与 In-house 在全部共同步上都是 pro 高。flash 只在两处反超——第 24 步的 `avg@n`（0.6155 vs 0.5964，正好是 pro 末段回落那一步），以及 AutomationBench 第 15 步前后（51.2 vs 50.7，而 51.2 是 flash 自己该序列的最高点）。",
+    "按累计成本（问「同样的钱，谁学得多」）：flash 领先，而且没有一个例外。$0.6M 时 `avg@n` 0.600 vs 0.618、DeepSWE 63.23 vs 65.68、In-house 60.92 vs 62.24、AutomationBench 46.93 vs 52.22。因为 flash 的 `cost/rate_per_s`（成本速率）全程恒定为 2.855/s，pro 是 5.71/s，比值精确 2.000；又因为两条 run 的速率都不随时间变，按成本对齐与按墙钟对齐是同一件事。",
+    "按累计 token（问「同样的数据量，谁学得多」）：pro 反而领先。20B token 时 DeepSWE pro 63.53 / flash 58.90，30B 时 64.49 / 57.73。这与 flash 的生成长度涨得更猛（×2.13 vs pro ×1.68）一致：flash 每一步烧掉更多 token，但换来的分数增长更少。",
+    "所以「flash 是不是只是跑得快」的准确回答是：不是「快」，是「每个 token 便宜」。它的优势完全建立在 MoE 激活参数更小带来的单位 token 成本优势上（每 10 亿 token 成本只有 pro 的三成），而不是每 token 的学习效率更高。用哪个口径取决于决策问题：要选模型能力就看同步号或同 token；要算投入产出比就看同成本。把三个口径混着用，就会得出互相矛盾的结论。"
+   ],
+   "facts": [
+    {
+     "label": "按步号谁领先",
+     "value": "`avg@n` 24 个共同步 pro 高 22 次；DeepSWE 16/16、In-house 15/15、AutomationBench 11/16 为 pro 高",
+     "note": "共同步 = 两条 run 在该步都有读数的步号"
+    },
+    {
+     "label": "按累计成本谁领先（flash−pro）",
+     "value": "`avg@n` +2.80pp（+0.94~+4.90）；DeepSWE +2.48；In-house +1.45；Automation +3.71；flash 在全部共同成本点领先",
+     "note": "成本 = rate_per_s × (axis.walls[step−1] − run_start)，逐点线性插值到每 $0.1M；共同成本区间 $0.2M~$0.6M（DeepSWE/In-house/Automation）、$0.2M~$0.8M（avg@n）"
+    },
+    {
+     "label": "按累计 token 谁领先",
+     "value": "20B token：DeepSWE pro 63.53 / flash 58.90；30B：64.49 / 57.73",
+     "note": "token 用 series.json 的 perf/total_num_tokens 逐步求和，与 status.totals.tokens_cum 精确相等"
+    },
+    {
+     "label": "成本速率",
+     "value": "pro 5.71/s，flash 2.855/s，比值 2.000，全程无跳变",
+     "note": "status.json 的 cost.rate_per_s；同种机器下它是机器数的读数"
+    },
+    {
+     "label": "累计量",
+     "value": "pro 24 步 / 56.0B token / 93.3 小时；flash 30 步 / 81.4B token / 81.8 小时",
+     "note": "墙钟 = 最后一步完成时刻 − run_start"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-cross-run",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "bench-flash-stop-plateau-model-dependent",
+   "kind": "counterintuitive",
+   "title": "flash 停在第 30 步算不算饱和取决于信哪个模型：分段模型说平台 0.648（已到顶），Gompertz 说 0.742（还差 9.8 个百分点、还要 38 步）",
+   "summary": "对 flash 的 avg@n 拟合四种饱和模型，三个可识别模型的平台是分段线性 0.648（CI [0.633, 0.660]，把最后一步 0.6435 包住）、逻辑斯蒂 0.727、Gompertz 0.742。最不依赖形状假设的分段模型说「正好停在平台上」，另两个说「还差 8.4~9.8pp、还需 29~38 步」。模型间跨度 9.3pp，是其单步 MDE 的 3 倍，而 AICc 极差小于 2。最后两步 0.6623→0.6435 的回落（−1.88pp）在噪声内。",
+   "body": [
+    "这个问题看起来是「数据够不够」的问题，实际是「模型选择决定结论」的问题。四种模型在这条序列上的 AICc 差距全部小于 2（Gompertz −270.81、逻辑斯蒂 −270.79、指数 −270.80、分段 −267.08），按常规判据属于「没有区别」；但它们的平台预测差了 9.3 个百分点。",
+    "分段模型（`y = min(α+βx, P)`）是四种里唯一不需要假设「曲线长什么样」的：它只假设「先直线涨，到某一步变成常数」，断点由网格搜索定。它给出的平台 0.6483 与最后一步 0.6435 只差 0.47pp，95% CI [0.6331, 0.6598] 把最后一步包住——按它的读法，flash 恰好停在平台上。",
+    "Gompertz 与逻辑斯蒂则要求曲线在整个区间里满足特定的弯折形状，它们在数据末端仍然向上弯，因此把平台推到 0.727~0.742，并且这两个平台值的 95% CI **整体位于最后一步之上**（Gompertz 下界 0.685 > 0.6435）。按它们的读法，flash 停下时还有 8.4~9.8pp 没走完，需要再走 28.9~37.6 步（CI 分别为 [10.5, 84.7] 与 [13.8, 116.6] 步）。指数模型在这条序列上直接不可识别（CI 上界 1.19，超过 1.0 这个物理上限）。",
+    "支持「已经走平」的独立证据是有的：第 23~30 步 `avg@n` 净变化只有 +0.87pp，而按全程斜率（+0.48pp/步）这 8 步「应该」涨 3.37pp，差 −2.5pp（z≈−0.66）；最后 5 步净变化 +0.55pp 对预期 +1.93pp（z=−0.48）。方向一致，但都不显著。相邻的三个榜在同期也都在走平（DeepSWE 净 +0.89、In-house +1.01、AutomationBench +1.20）。",
+    "诚实的结论是「不能排除，也不支持」：分段模型支持（1/3），两个平滑模型不支持（2/3）。如果一定要给倾向，我会站在分段模型这一边，因为它不依赖曲线形状假设，且 AICc 并不比另外两个差；但这是判断不是数据结论。**用这份数据无法回答「再多训 5 步能不能买到超过 3pp 的 avg@n」**，因为 flash 末段趋势斜率的 95% CI 是 [−0.93, +1.36] pp/步，同时兼容「还在涨」和「在跌」。"
+   ],
+   "facts": [
+    {
+     "label": "flash avg@n 饱和平台（可识别模型）",
+     "value": "分段 0.6483 [0.6331, 0.6598]；逻辑斯蒂 0.7271 [0.6792, 0.8948]；Gompertz 0.7415 [0.6847, 0.9745]；指数不可识别（[0.691, 1.190]）",
+     "note": "n=30，最后一步 0.6435（第 30 步），峰值 0.6623（第 29 步）；参数区间用残差 bootstrap 500 次"
+    },
+    {
+     "label": "模型间平台跨度",
+     "value": "9.3pp（仅计可识别模型）；AICc 极差 < 2",
+     "note": "flash 自身单步 MDE 是 3.08pp，跨度是它的 3 倍；AICc：Gompertz −270.81 / 指数 −270.80 / 逻辑斯蒂 −270.79 / 分段 −267.08"
+    },
+    {
+     "label": "还需步数到 90%",
+     "value": "Gompertz +37.6 [13.8, 116.6]；逻辑斯蒂 +28.9 [10.5, 84.7]；分段 −6.1（早已走完）",
+     "note": "以第一步 0.5137 到平台这段涨幅的 90% 为目标，从第 30 步起算"
+    },
+    {
+     "label": "末段走平的量级",
+     "value": "第 23~30 步净 +0.87pp（全程斜率预期 +3.37pp，z=−0.66）；最后 5 步净 +0.55pp（预期 +1.93pp，z=−0.48）",
+     "note": "均不显著；噪声按残差 σ_pt=1.11pp 与步数开方估"
+    },
+    {
+     "label": "最后两步",
+     "value": "0.6623（第 29 步，全程最高）→ 0.6435（第 30 步），−1.88pp",
+     "note": "小于单步 MDE 3.08pp，属噪声内；不能据此说模型变差"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-saturation",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "bench-inhouse-slower-than-external",
+   "kind": "structural",
+   "title": "外部榜比自家榜涨得更快：DeepSWE 的斜率比 In-house 高 0.176/0.177 分每步，两条 run 一致且配对置信区间都排除 0",
+   "summary": "在两条 run 各自的共同步号上做配对比较：pro 的 In-house 斜率 +0.384、DeepSWE +0.560，差 −0.176（95% CI [−0.355, −0.041]）；flash 的 In-house +0.328、DeepSWE +0.506，差 −0.177（[−0.266, −0.042]）。两个独立 run 给出几乎相同的差值，方向都是外部榜涨得更快——若「过拟合自家题」成立应看到相反方向。但这不能证明评测集干净。",
+   "body": [
+    "「边训边测是否导致过拟合」可以拆成一个可观测的问题：自家题（In-house Coding Bench，题目不公开、来自自家）的进步速度，和外部题（DeepSWE v1.1，行业公开基准）相比，是更快还是更慢。",
+    "答案在两个 run 上都是「外部题更快」，而且两个差值几乎一模一样（−0.176 与 −0.177）。这不是抽样巧合的典型形态——两个 run 用同一套 recipe、但模型规模与机器配比完全不同，却给出同一个差值，说明它更可能反映两个榜本身的性质（题目难度分布、天花板位置）而不是某个 run 的偶发行为。",
+    "另有一条相关的观察：在线 `dynsam/avg@n` 与榜分之间的 gap（在线读数 − 固定测试集分数）在 AutomationBench 上显著扩大（pro +0.178 点/步、flash +0.160 点/步，CI 均排除 0），在 In-house 上收窄（flash +0.197，CI [0.099, 0.298]），DeepSWE 上基本不动。也就是说「在线读数越来越不代表真实能力」这件事只在 AutomationBench 上成立，在自家题上反而是反的。",
+    "必须说清这个结论的边界。第一，它是「没有看到过拟合迹象」，不是「证明了没有过拟合」——看板里没有任何一条关于测试题是否出现在训练数据里的信息。第二，flash 的 DeepSWE 起点（48.67）比 In-house（53.83）低 5.16 分，起点低本身就可能涨得快；虽然 pro 的两个起点几乎相同（58.41 vs 57.54）也出现了同样的斜率差，但这份数据无法把天花板效应彻底排除。",
+    "要判定污染，还需要看板之外的东西：测试集逐题身份与训练语料的可检索索引（做 n-gram / 近似重复 / canary 检测）、逐题成绩而不是汇总分（现在的总分把「少数特定题从 0/3 变成 3/3」平均掉了）、一份确认从未进入训练的平行题集做对照、以及判分链路的运行时日志（只能排除「运行时泄露」）。外部文献也支持「只看分数看不出污染」：一篇综述 55 项研究的系统综述明确写「没有任何检测方法在所有污染层级、访问设定与训练阶段上一致可靠」，并指出 RL/后训练阶段的污染审计才刚刚开始成熟；另一篇 ICLR 2026 的论文更进一步发现，一次简短的 GRPO 训练就能大幅掩盖污染检测所依赖的信号，机理是 PPO 式重要性采样与裁剪——这意味着「用训练后的模型行为反推数据是否被污染」在 RL 之后基本失效。"
+   ],
+   "facts": [
+    {
+     "label": "In-house − DeepSWE 斜率差",
+     "value": "pro −0.176 分/步 [−0.355, −0.041]；flash −0.177 [−0.266, −0.042]",
+     "note": "在各自 run 的共同步号上做配对 bootstrap 4000 次；pro 16 个共同步、flash 23 个"
+    },
+    {
+     "label": "净变化对照",
+     "value": "pro：In-house +6.13 vs DeepSWE +9.05；flash：In-house +8.10 vs DeepSWE +16.23",
+     "note": "同共同步区间；两个榜都是 0~100 分制，可直接比斜率"
+    },
+    {
+     "label": "在线与离线榜的 gap 斜率",
+     "value": "Automation pro +0.178 [0.023, 0.303]、flash +0.160 [0.076, 0.274]（显著扩大）；In-house flash +0.197 [0.099, 0.298]（显著收窄）；DeepSWE pro −0.163 [−0.313, 0.021]（不显著）",
+     "note": "gap = dynsam/avg@n×100 − 榜分，单位百分点；Theil–Sen 斜率 + bootstrap 4000 次"
+    },
+    {
+     "label": "起点差异（反驳点）",
+     "value": "flash：DeepSWE 48.67 vs In-house 53.83（低 5.16 分）；pro：58.41 vs 57.54（几乎相同）",
+     "note": "天花板效应能解释 flash 的一部分，但解释不了 pro 上同样出现的斜率差"
+    },
+    {
+     "label": "外部文献",
+     "value": "Nourbakhsh 等（GEM 2026）：55 篇综述，无方法在所有污染层级/访问设定/训练阶段一致可靠，膨胀估计 6%~40%；Wang 等（ICLR 2026）：一次简短 GRPO 训练即可大幅掩盖污染检测信号",
+     "note": "ACL Anthology 2026.gem-main.50；arXiv:2510.02386"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-gap",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "a3-no-simpson-in-passrate",
+   "kind": "structural",
+   "title": "总体通过率 pro 涨的 3.54pp 里，数据配比只贡献 −0.27pp：这轮成绩提升不是靠把权重挪到简单题上刷出来的",
+   "summary": "担心「平均分涨了只是因为训练越来越多拿简单题来考」。把总体通过率按各数据集受理题数 num_accepted/step 加权重构，做三项 shift-share 分解：pro 总变化 +3.544pp = 自身变好 +3.813 + 配比 +0.162 + 交互 −0.431，配比相关合计 −0.269pp；flash +9.149pp = +8.307 + 0.008 + 0.835，配比相关 +0.843pp。成绩提升九成以上来自各数据集自己变好，换 held 权重结论不变。",
+   "body": [
+    "要问的问题很具体：总体的通过率曲线是各数据集的加权平均，而权重（每步从每个数据集受理多少题）本身在变。如果权重系统性地挪向更容易的数据集，总体曲线就会在没有真实进步的情况下往上走——这就是辛普森悖论在时间序列上的形态。",
+    "做法是三项 shift-share 分解，三项之和精确等于总变化：ΔA = Σ s_d(0)·Δp_d（各数据集自己变好，按基准配比计价）+ Σ Δs_d·p_d(0)（配比挪动，按基准成绩计价）+ Σ Δs_d·Δp_d（交互项）。之所以不用「固定配比曲线之差」单独下结论，是因为那个差恰好等于「配比项 + 交互项」，会把「挪过去的那些数据集同期也在变好」混进配比里。两种口径本文都算，结论一致。",
+    "pro 面板是首末两步都有通过率且权重大于 0 的 22 个数据集（25 个减去 cyber、gtav、ol8x：cyber 末步缺失，gtav/ol8x 首值疑似未上报）。总变化 +3.544pp = +3.813（107.6%）+ 0.162 + (−0.431)，配比相关合计 −0.269pp。flash 面板 23 个，总变化 +9.149pp = +8.307（90.8%）+ 0.008 + 0.835，配比相关合计 +0.843pp（+9.2%）。两个 run 都没有出现「提升主要靠换数据」的形态。",
+    "稳健性做了四档：权重换成 num_accepted/held（题池持有量）时 pro 变 −0.936pp、flash +0.933pp；把 gtav/ol8x 的 0 当真实值（面板 24/25）时 pro −0.814pp、flash +0.878pp；等权时配比项恒为 0（构造使然）；只取 cyber 时代的前 14 步时 pro 是 +0.149pp。四种口径下配比相关项都不超过 1pp。",
+    "真正让方向不同的是交互项，而它的符号在两个 run 上相反：pro 把流量从改善最快的 code/dataset-m1dt 上撤走（份额 11.4%→8.3%，−3.09pp，同期通过率 +14.10pp），给了略微退步的 code/dataset-obg8（+3.21pp 份额，通过率 −5.97pp）；flash 恰好相反，把 +3.18pp 份额加给了涨得最多的 code/dataset-yfch（通过率 +34.99pp）。所以 pro 的配比效应是轻微低估进步，flash 是轻微高估。",
+    "读别的「总体」指标时要复现这套检查，尤其是那些看起来纯模型行为的量。本文同口径作用在生成长度上，配比效应从 9% 跳到 23%（见另一条候选洞察）。"
+   ],
+   "facts": [
+    {
+     "label": "pro 总体通过率三项分解",
+     "value": "+3.544pp = +3.813 + 0.162 − 0.431",
+     "note": "面板 22 个数据集（25 − cyber − gtav − ol8x），权重 dynsam/<cat>/dataset-<id>/num_accepted/step，单位 pp"
+    },
+    {
+     "label": "flash 总体通过率三项分解",
+     "value": "+9.149pp = +8.307 + 0.008 + 0.835",
+     "note": "面板 23 个数据集（25 − gtav − ol8x），同口径"
+    },
+    {
+     "label": "配比相关项占各自总变化",
+     "value": "pro −7.6% / flash +9.2%",
+     "note": "配比项 + 交互项；换 held 权重、0 当真实值、只取前 14 步四种口径下绝对值都 ≤1pp"
+    },
+    {
+     "label": "冻结第 1 步配比的末值差",
+     "value": "pro +0.27pp / flash −0.06pp",
+     "note": "固定第 1~3 步均值或前半段均值，差的绝对值 ≤0.30pp"
+    },
+    {
+     "label": "权重份额最大的两笔动作（pro）",
+     "value": "m1dt −3.09pp（通过率 +14.10pp）／ obg8 +3.21pp（通过率 −5.97pp）",
+     "note": "份额按 num_accepted/step 归一化；两笔方向相反，合成配比项为负"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-composition",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "a3-length-total-composition-dirty",
+   "kind": "counterintuitive",
+   "title": "同一套权重下，「生成长度总体在涨」有 8.3%（pro）到 23.4%（flash）只是流量挪到了本来就写得长的数据集",
+   "summary": "同一个「总体」，成绩那条几乎干净，长度这条脏三倍。把三项分解搬到 ctx_response_length/mean：pro 生成长度总增长 +58110 token = 自身变长 +53293（91.7%）+ 配比 +2292 + 交互 +2525，配比相关合计 +4818（8.3%）；flash +94262 = +72195（76.6%）+ 5765 + 16302，配比相关 +22067（23.4%）。flash 这块主要在 code/dataset-yfch 一个数据集上。",
+   "body": [
+    "「总体的生成长度在涨」这句话隐含一个假设：涨的是模型写得越来越长，而不是训练越来越多地喂本来就需要长回答的题。这两件事在数据里可以分开：把每个数据集的 ctx_response_length/mean 按同一个 num_accepted/step 加权，再做三项分解。",
+    "pro：+58110.07 token = +53292.50（91.7%）+ 2292.20 + 2525.37，配比相关合计 +4817.56（8.3%）。flash：+94262.49 = +72194.99（76.6%）+ 5765.12 + 16302.38，配比相关合计 +22067.50（23.4%）。固定第 1 步配比的末值差与这个数字一致（pro 实际 123135.88 vs 固定 118318.32，差 −4817.56；flash 161226.88 vs 139159.38，差 −22067.50）。",
+    "flash 的交互项之所以那么大，主要来自 code/dataset-yfch 一个点：它的平均生成长度 416513 token，是全场第 1（pro 也差不多，358130），权重份额从 2.10% 涨到 5.28%（+3.18pp），而它同期通过率涨了 +34.99pp。拿到更多流量的是一个本来就写得很长的数据集，而且它同时也在变好——这一项只能靠交互项接住。",
+    "对照着看更有意思的是：成绩那条线的配比相关项在两个 run 上是 −0.269pp 和 +0.843pp（占总变化 −7.6% / +9.2%），而长度这条线是 +4818 / +22067（8.3% / 23.4%）。同一套权重、同一批数据集、同一个分解式，长度的构成效应是成绩的 2~3 倍。",
+    "实践含义：读「整体回答变长了」这类结论时，必须先把权重挪动剔掉再下判断。这也解释了为什么「长度」类结论特别容易和「模型行为」类结论混在一起——它不是纯粹的模型行为，它是「模型行为 × 数据配比」的加权混合。"
+   ],
+   "facts": [
+    {
+     "label": "pro 生成长度总量分解",
+     "value": "+58110.07 = +53292.50 + 2292.20 + 2525.37 token",
+     "note": "面板 22 个数据集，权重 num_accepted/step；配比相关合计 +4817.56，占 8.3%"
+    },
+    {
+     "label": "flash 生成长度总量分解",
+     "value": "+94262.49 = +72194.99 + 5765.12 + 16302.38 token",
+     "note": "面板 23 个数据集；配比相关合计 +22067.50，占 23.4%"
+    },
+    {
+     "label": "固定配比末值差（长度）",
+     "value": "pro −4817.56 token / flash −22067.50 token",
+     "note": "冻结第 1 步配比；与实际曲线末值比较，符号与配比相关项一致"
+    },
+    {
+     "label": "flash 最大的交互来源",
+     "value": "code/dataset-yfch：份额 2.10%→5.28%，通过率 +34.99pp",
+     "note": "该数据集平均生成长度 416513 token 为全场第 1"
+    },
+    {
+     "label": "成绩 vs 长度的构成效应",
+     "value": "通过率 8.3% 以内（pro 为负）／长度 8.3%~23.4%",
+     "note": "同一套权重、同一分解式、同两个 run"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-composition-length",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "a3-restart-coupled-reporting-gap",
+   "kind": "method",
+   "title": "两个数据集的通过率精确 0 和采样器结转链断裂，落在同一批步上：第 1 步加全部「重启后的首个上报步」",
+   "summary": "visual/dataset-gtav 与 ol8x 的通过率里有精确 0。与重启事件对齐后：pro 的 0 在第 1、2、3、11、15、17、23 步（各 7 次），事件推出的「重启后首个上报步」是 3、11、15、17、23，只多链首两步；flash 的 0 在 1、3、16、25、28，重启步是 16、25、28。同期 critic score 正常，同一批步上 held = step + carryover(t−1) 也整片断裂。这些 0 是重启耦合缺报。",
+   "body": [
+    "两类「数据可疑」的现象过去是分开记的：一条是 notes/09 里「gtav/ol8x 的 0 可能是未上报哨兵」，另一条是中文指标解读里「held 恒等式在重启那一步会断」。把两条放在一起按步对齐后，它们指的是同一件事。",
+    "先看 0。pro 的重启事件时间戳落在第 2/3 步之间、第 10/11 步之间、第 14/15 步之间、第 16/17 步之间、第 22/23 步之间，对应的「重启后第一个上报步」是 3、11、15、17、23。gtav 与 ol8x 的精确 0 正好出现在 1、2、3、11、15、17、23——是这批步的超集，只多了第 1 步和第 2 步。flash 的重启受影响步是 16、25、28（另有第 16、17 步是重跑步），而 0 出现在 1、3、16、25、28，同样是超集，只多了第 1 和第 3 步。",
+    "再看 held。检验式 held(t) = step(t) + carryover(t−1)，容差 5% 相对误差：pro 在 422/565 个（数据集 × 步）上成立（74.69%），断链步是 2、3、11、15、17、23；flash 在 629/725 上成立（86.76%），断链步是 3、16、25、28。断链不是零散的——pro 第 11 步 25 个数据集全断、第 15 步 24/24、第 17 步 24/24。这是步级事件（结转链被重置），不是数据集级噪声。",
+    "两条现象的步集合几乎一样（pro 的 held 断链步 2,3,11,15,17,23 与 0 的出现步完全相同；flash 的 3,16,25,28 是 0 的出现步去掉第 1 步），说明它们共享同一个原因：重启会把上报链路重置。",
+    "为什么同一时刻 critic 分是正常的？因为 critic/visual/<ds>/score/mean 走的是另一条上报路径，没被重置。这恰好是最有用的判据：同一实体、同一步，一条指标族是 0、另一条正常，就不是「真的 0」，而是缺报。",
+    "实践含义有两条：一是 gtav/ol8x 的这 14 个（pro）和 10 个（flash）观测点必须从趋势和相关性统计里剔掉，否则会把「重启」读成「通过率掉到 0」；二是别拿 held 这个关系式去校验数据完整性，它在重启步必然失败。"
+   ],
+   "facts": [
+    {
+     "label": "精确 0 出现的步",
+     "value": "pro 1,2,3,11,15,17,23（各 7 次）／ flash 1,3,16,25,28（各 5 次）",
+     "note": "数据集为 visual/dataset-gtav 与 visual/dataset-ol8x，两条完全同步"
+    },
+    {
+     "label": "重启受影响步（由 events 的 restart 时间戳与 axis.walls 对齐）",
+     "value": "pro 3,11,15,17,23 ／ flash 16,25,28",
+     "note": "精确 0 的步集合是其超集，多出的只有第 1 步（pro 还有第 2 步）"
+    },
+    {
+     "label": "同期 critic score 是否正常",
+     "value": "gtav 0.53~0.57 ／ ol8x 0.60~0.67",
+     "note": "pro 与 flash 在这些步上 critic/<cat>/dataset-<id>/score/mean 都是常规值，证明通过率的 0 不是真实测量"
+    },
+    {
+     "label": "held = step + carryover(t−1) 成立率",
+     "value": "pro 74.69%（422/565）／ flash 86.76%（629/725）",
+     "note": "容差 5%；断链步 pro 2,3,11,15,17,23、flash 3,16,25,28，每个断链步上几乎全部数据集同时断"
+    },
+    {
+     "label": "数据集层恒为 0 的指标族",
+     "value": "actor/*/dataset-*/ppo_kl 与 pg_clipfrac，pro 542 个值、flash 690 个值全部为 0",
+     "note": "这两族不可用于任何推断；可用的只有 pg_tis_clipfrac（非零，最大 pro 2.216e-3、flash 2.598e-3）"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-restart-gap",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "a3-dataset-ranking-reproducible",
+   "kind": "numeric",
+   "title": "换一个模型重训，25 个数据集的涨幅排序仍然复现：pro 与 flash 的 Δpp 秩相关 ρ=0.582（n=25，p=0.0023）",
+   "summary": "如果数据集层的强弱只是噪声，两个独立 run 不该给出相似排序。实测 pro 与 flash 在全部 25 个数据集上的首末通过率变化秩相关 ρ=0.582，n=25，p=0.0023（双尾 0.05 临界 0.396）。共同的大涨家是 m1dt（+14.10/+17.78pp）、x7wh（+6.27/+15.36）、jzd3（+15.36/+13.00）、ve5o（+8.36/+13.37）；共同的不涨家是 bvg7、v7yx、5610。这条同时是「配比不是主因」的旁证。",
+   "body": [
+    "数据集层的异质性结论只有在可复现时才有意义。pro 与 flash 是两个不同规模的模型、跑了 24 步和 30 步、重启时间点也不一样，如果数据集之间的差别只是采样噪声，两者的排序应该互不相关。",
+    "实测：把每个数据集「最后一个有值步 − 第一个有值步」的通过率变化（pp）拿出来，对 25 个数据集做 Spearman 秩相关，得到 ρ=0.582，n=25，p=0.0023。这个样本量下双尾 0.05 的临界 |ρ| 是 0.396，实测值明显超过。",
+    "共同的大涨家：code/dataset-m1dt（pro +14.10pp、flash +17.78pp，两个 run 的回归斜率分别 0.611 和 0.615 pp/步）、code/dataset-x7wh（+6.27 / +15.36）、visual/dataset-jzd3（+15.36 / +13.00）、visual/dataset-ve5o（+8.36 / +13.37）、code/dataset-zg6q（+3.35 / +8.31）。共同的不涨家：code/dataset-bvg7（−2.84 / −1.41）、code/dataset-v7yx（−9.17 / −4.50）、general/dataset-5610（−1.60 / −3.06）、chat/dataset-8kb6（+2.72 / −4.16，flash 上明确下滑）。",
+    "这不代表每个数据集都一致。pro 涨得最多的 visual/dataset-jzd3 在 flash 上起点更低（36.12%）但同样涨（+13.00pp）；反过来 code/dataset-4onq 在 pro 上掉 10.14pp、flash 上却涨 9.26pp，是两 run 分歧最大的一个。ρ=0.582 说的是整体排序，不是逐点一致。",
+    "这条对下一步的用处是：数据集层的强弱可以作为稳定的分层依据去做更细的归因（例如「为什么 chat 类整轮抬不起来」），而不必担心它只是单次训练的偶然。它同时也是「配比换数据刷分」这个解释的旁证：如果总分提升主要来自把流量挪给容易的数据集，两个 run 的排序不会这么一致。"
+   ],
+   "facts": [
+    {
+     "label": "跨 run 秩相关",
+     "value": "ρ = 0.582，n = 25，p = 0.0023",
+     "note": "变量为各数据集「末值−首值」的通过率变化（pp）；双尾 0.05 临界 |ρ|=0.396"
+    },
+    {
+     "label": "两个 run 共同的大涨家",
+     "value": "m1dt +14.10/+17.78pp；x7wh +6.27/+15.36pp；jzd3 +15.36/+13.00pp；ve5o +8.36/+13.37pp",
+     "note": "格式为 pro/flash；均取自 train/passrate/avg_passrate/<cat>/dataset-<id>"
+    },
+    {
+     "label": "两个 run 共同的不涨家",
+     "value": "bvg7 −2.84/−1.41pp；v7yx −9.17/−4.50pp；5610 −1.60/−3.06pp；8kb6 +2.72/−4.16pp",
+     "note": "同口径"
+    },
+    {
+     "label": "两 run 分歧最大的数据集",
+     "value": "code/dataset-4onq：pro −10.14pp / flash +9.26pp",
+     "note": "说明 ρ=0.582 是整体排序一致，不是逐点一致"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-crossrun",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "effective-dof-is-twelve",
+   "kind": "structural",
+   "title": "看板 2000 个指标的有效自由度是 11～13；挑 15 个指标就能复现 83% 的总方差",
+   "summary": "pro 的 1389 个可分析指标各自标准化后，相关矩阵的参与率 (Σλ)²/Σλ² = 11.21，flash = 12.99（截到同样的 24 步是 12.12）。解释 80% 方差 pro 需要 14 个主成分、flash 需要 17（截 24 步也是 14）。换成“最少读几个指标”的口径，用方差贪心前向选择挑 15 个根级聚合指标即可解释 82.8% 的总方差、挑 20 个到 94.5%。看板上绝大多数曲线确实是在重复讲同一件事，但重复的是命名口径，不是独立信息。",
+   "body": [
+    "主成分分析是把很多条曲线重新组合成互相不相关的新曲线。如果 2000 个指标真的各说各话，方差会平摊到很多成分上；如果它们其实只在说几件事，头几个成分就会吃掉大部分方差。参与率把整条特征值谱压成一个数，回答“等效独立信号数”。",
+    "实测：pro PC1 占 21.0%、PC2 占 14.6%、PC3 占 7.0%，前五累计 53.1%，要覆盖 80% 需要 14 个成分；参与率 11.21。flash 是 18.6% / 14.8% / 6.4%，n80=17，参与率 12.99。两个数字不能直接比：flash 有 30 个时间点、pro 只有 24 个，点数越多能分辨的成分越多。把 flash 截到前 24 步后，它的 n80 也是 14、参与率降到 12.12。",
+    "换一个更实用的问法：最少读几个指标就能复现整块看板？用方差贪心前向选择（每一步挑让剩余方差掉得最多的那个指标）在 pro 的 285 个“根级聚合指标”（不带数据集 id、不带新鲜度桶号、不带 harness 字母）里选：5 个到 51.0%、10 个到 68.7%、15 个到 82.8%、20 个到 94.5%。用全量 1389 个候选选也只多 0.7 个百分点（83.5%）。前两名是 `ctx_total_length/agentic/mean`（平均总上下文长度）和 `partial/agentic/0/frac`（最新鲜桶的 token 占比），两个人就占了 33 个百分点。",
+    "这件事在看板上的读法：不要因为某个指标不在头部图表里就以为漏了信息。没被这 15 个方向覆盖的约 1370 个指标合起来只贡献不到 5% 的方差。反过来说，这 15 个方向之外如果出现异动，那才是真正的新信息。",
+    "必须带口径引用：参与率 11.2、n80=14、贪心 15 个到 83% 是三个不同问题的答案，互相不矛盾但不能混用。所有数字在六种缺失处理口径（覆盖率 0.8/0.95/1.0 × 线性插值/均值填充）下变化不超过 0.2 个百分点，指标 bootstrap（B=200）给的参与率 90% 区间是 [10.81, 11.56]（pro）。"
+   ],
+   "facts": [
+    {
+     "label": "参与率（有效自由度）",
+     "value": "pro 11.21、flash 12.99、flash 截 24 步 12.12",
+     "note": "指标各自 z-score 后 d×N 矩阵的相关矩阵特征值；参与率 = (Σλ)²/Σλ²；pro d=1389/N=24、flash d=1465/N=30"
+    },
+    {
+     "label": "解释 80% / 90% 方差所需成分数",
+     "value": "pro 14 / 18；flash 17 / 22（flash 截 24 步 14 / 19）",
+     "note": "n80 受时间点数上限影响，跨 run 比较必须对齐步数"
+    },
+    {
+     "label": "贪心前向选择累计解释方差（k=5/10/15/20）",
+     "value": "pro 根级池 51.0% / 68.7% / 82.8% / 94.5%；全量池 51.1% / 69.2% / 83.5% / 94.8%；flash 全量池 47.7% / 62.5% / 74.6% / 85.0%",
+     "note": "口径：每一步选“自身残差方向的 Rayleigh 商”最大的候选指标，累计量 = Σ_d(去除已选子空间后的方差损失)/(d·N)"
+    },
+    {
+     "label": "稳健性",
+     "value": "六种缺失口径下 pro PC1 21.0～21.1%、参与率 11.18～11.21；Spearman 口径参与率 pro 11.38 / flash 13.87；bootstrap 参与率 pro [10.81, 11.56]",
+     "note": "B=200 重采样指标；Spearman 是把每个指标先换成秩再标准化"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-effective-dof-is-twelve",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "copies-are-names-not-signals",
+   "kind": "counterintuitive",
+   "title": "77% 的指标是同一个指标的切片副本，但任意两个指标的 |ρ| 中位数只有 0.19",
+   "summary": "把键只差“切片段”（数据集 id / harness 字母 / 新鲜度桶 / 类别）的指标归成一组，pro 有 101 组覆盖 1072/1389 = 77.2% 的指标、flash 103 组覆盖 79.1%。但组内平均 |ρ| 的中位数只有 0.260（pro）/ 0.282（flash）。全量看，任意两指标 |ρ| 的中位数是 0.187，|ρ|≥0.9 的指标对只占 0.41%。“2000 个指标”主要是命名口径乘出来的：既不是 2000 份独立测量，也不是 2000 份完全重复的测量。",
+   "body": [
+    "看板上同一个量会按维度拆开记很多遍：`penalty/stage_credit_group/harness/harness-{A,B,C,D}/<metric>` 是同一套 74 个判分指标在 4 个 harness 上各记一遍（pro 共 296 个）；`critic/<cat>/dataset-<id>/{rewards,score,advantages,returns}/{min,max,mean}` 是同一批统计量在每个数据集上各记一遍；`partial/<k>/*` 是同一批量按数据新鲜度分成 8 个桶；`<metric>/<cat>/dataset-<id>/...` 是再按数据集拆一层。",
+    "把这些“只差切片”的键归组后，pro 的 1389 个可分析指标里有 1072 个（77.2%）落在某个 ≥3 成员的副本组里。这一层解释了“为什么有 2000 个指标”。",
+    "但副本之间并不高度同步。全量 |ρ| 的中位数只有 0.187（flash 0.167），|ρ|≥0.9 的对占 0.41%，≥0.98 的占 0.08%。副本组内部也一样：`train/passrate/avg_passrate/<cat>/dataset-<id>` 组内平均 |ρ| 只有 0.199，`critic/<cat>/dataset-<id>/rewards/mean` 0.226，`ctx_total_length/<cat>/dataset-<id>/min` 0.257。真正同步的只有采样器计数 `dynsam/<cat>/dataset-<id>/num_accepted/step`（24 个副本平均 |ρ| = 0.723）和上下文长度均值（0.606，但去趋势后掉到 0.232，说明那点相关几乎全是共同趋势）。",
+    "还有一层“死指标”：1944 个原始指标里有 294 个是零方差常数，其中 224 个恒等于 0，几乎全是 `pg_clipfrac` / `ppo_kl` / `pg_tis_clipfrac_*` 家族（`actor/<cat>/dataset-<id>/pg_clipfrac` 和 `ppo_kl` 各 22 个）。它们无法标准化，必须从任何多元分析里剔除；看板上它们是一条贴着 0 的直线。",
+    "实用结论有两条。第一，横着比 2000 个指标没有意义，先按族归并再看。第二，“两个指标相关 0.6”这种话在这块看板上经常没有信息量——先看它是不是同一个族的切片副本，再去掉共同趋势（pro 逐指标去线性趋势后 |ρ| 中位数从 0.187 降到 0.169）。"
+   ],
+   "facts": [
+    {
+     "label": "切片副本组覆盖率",
+     "value": "pro 101 组覆盖 1072/1389 = 77.2%；flash 103 组覆盖 1159/1465 = 79.1%",
+     "note": "组定义：键归一化后（dataset-xxxx→dataset-<id>、harness-X→harness-<x>、partial/<数字>/→partial/<k>/、类别段→<cat>）相同，且成员 ≥3"
+    },
+    {
+     "label": "任意两指标 |ρ| 的分布",
+     "value": "pro 中位 0.187、四分位 [0.088, 0.328]；|ρ|≥0.90 占 0.41%、≥0.95 占 0.18%、≥0.98 占 0.08%",
+     "note": "d=1389 的 0.96M 个指标对；flash d=1465，中位 0.167、≥0.90 占 0.40%"
+    },
+    {
+     "label": "副本组内平均 |ρ| 中位数",
+     "value": "pro 0.260、flash 0.282",
+     "note": "组内所有配对的 |ρ| 平均，再对组取中位"
+    },
+    {
+     "label": "零方差常数指标",
+     "value": "pro 294 个（其中 224 个恒等于 0）/ flash 277 个（202 个恒等于 0）",
+     "note": "占原始 1944 / 1974 的 15.1% / 14.0%；常数无法 z-score，多元分析必须剔除"
+    },
+    {
+     "label": "去趋势后的 |ρ| 中位数",
+     "value": "pro 0.187 → 0.169；flash 0.167 → 0.153",
+     "note": "逐指标对步序号做最小二乘回归取残差；共同趋势对整体相关水平的贡献很小"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-copies-are-names-not-signals",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "trend-control-which-relations-survive",
+   "kind": "method",
+   "title": "控制步序号后，长度与通过率的相关从 0.77 归零，而数据陈旧度与全局 KL 从 0.92 升到 0.94",
+   "summary": "同一块看板上，两类“明显的相关”在去掉共同时间趋势后命运相反。生成长度与 `dynsam/avg@n` 从 0.766 掉到 −0.013（pro）、0.920 掉到 −0.140（flash），是纯粹的共同趋势；数据陈旧度与全局 KL 从 0.923 升到 0.941（pro）、0.866 升到 0.892（flash），关系不仅没缩水还略强。策略熵与通过率的水平相关是正的，控制趋势后变号（0.578 → −0.620）。判断一块看板上的相关能不能信，先做这一步。",
+   "body": [
+    "做法很直接：把两条序列各自对“第几步”做最小二乘回归，只留残差，再算 Pearson。这一步剥掉的是“时间在往前走、两个量都跟着走”造成的那部分相关。样本只有 24 / 30 个点，偏相关的噪声不小（标准误约 0.2），所以只读那些变化幅度远超噪声的对。",
+    "归零的那一类以长度为代表：`ctx_response_length/mean`（本步平均生成长度）与 `dynsam/avg@n`（平均通过率主指标）pro 从 0.766 到 −0.013、flash 从 0.920 到 −0.140；总长度与通过率同理（0.764 → −0.017）。`timing_s/step`（本步墙钟耗时）与总长度从 0.733 到 −0.301。这与 `notes/09-生成长度相关性分析.md` 用一阶差分得到的结论一致（那边 pro 差分后 −0.063），换了残差法再证一次。",
+    "活下来的那一类以数据陈旧度为代表：`partial/avg_staleness`（本步数据的平均陈旧度，隔了几个策略版本）与 `train_infer_diff/new_infer/kl`（推理引擎与训练器的 log-prob 分歧）pro 0.923 → 0.941、flash 0.866 → 0.892。这条关系是由“桶占比 × 桶 KL”的加权结构决定的（`insights.json` 的 `kl-is-a-mix` 已有拆解），偏相关只是补充了一条：它不是时间趋势造成的伪相关。",
+    "最反直觉的是策略熵：`actor/entropy_loss` 与 `dynsam/avg@n` 的水平相关是正的（pro 0.578、flash 0.889），控制步序号后变成负的（−0.620 / −0.395）。也就是“熵和成绩同向涨”是时间造成的；在同一个训练阶段附近比较，熵更高的那几步成绩反而更差。样本量小，这个负号不要当定论。",
+    "方法上的可迁移结论：这块看板上大部分指标都在随训练推进单调漂移，所以任何两个指标的水平相关都会偏高。要判断关系真假，控制步序号（或用一阶差分）是必要步骤，而不是可选项。反过来说，一对指标的相关能扛过这一步，才值得往下挖机制。"
+   ],
+   "facts": [
+    {
+     "label": "生成长度 ~ `dynsam/avg@n`（原始 / 控制步序号后）",
+     "value": "pro 0.766 → −0.013；flash 0.920 → −0.140",
+     "note": "n=24 / 30 个有效点；控制变量 = 步序号（0-based），残差再算 Pearson"
+    },
+    {
+     "label": "`partial/avg_staleness` ~ 全局 KL（原始 / 控制后）",
+     "value": "pro 0.923 → 0.941；flash 0.866 → 0.892",
+     "note": "同一口径；这条关系扛过趋势控制"
+    },
+    {
+     "label": "`actor/entropy_loss` ~ `dynsam/avg@n`（原始 / 控制后）",
+     "value": "pro 0.578 → −0.620；flash 0.889 → −0.395",
+     "note": "控制趋势后变号；24/30 个点的偏相关标准误约 0.2，符号方向一致但强度不稳"
+    },
+    {
+     "label": "两条 run 不一致的对",
+     "value": "`timing_s/trainer_ops` ~ 总长度：pro 0.845 → 0.150，flash 0.974 → 0.922；`critic/rewards/mean` ~ 通过率：pro 0.898 → 0.614，flash 0.929 → 0.220",
+     "note": "同一对指标在两条 run 上偏相关差很多，引用时不要只报一条 run"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-trend-control-which-relations-survive",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "regimes-are-ops-not-model",
+   "kind": "structural",
+   "title": "指标空间的“阶段”是运维造成的：最大变点落在重启那一步，位移 3 步内退回 0.97",
+   "summary": "在 PC1-3 坐标上做变点检测，pro 与 flash 的最大变点都在第 15 步（位置统计量 19.1 / 24.9），而 pro 的重启正好在第 15 步墙钟（差 0 小时）、flash 的重启在第 16 步（差 0 小时）。关键判据是回退比：跳完 3 步后新水平回到原水平的 0.97（pro）/ 0.93（flash）——模型能力提升不会 3 步退货，这是管线被重置的瞬时冲击。去趋势后剩下的持续台阶，动的是 env/active、长度截断率、新鲜度桶占比这些管线量，不是效果量。",
+   "body": [
+    "区分“模型状态变了”和“运维把管线重置了”有一个简单判据：看跳完之后回不回来。模型学到新东西形成的台阶会保持住；重启把队列和缓存冲掉造成的跳变会在几步内回到原走势。把这个“回退比”和变点位置对运维事件的时间对齐一起看，就能定性。",
+    "pro 原始 PC1-3 坐标上最强的位置统计量在第 15 步（19.1），重启正好落在第 15 步的墙钟边界（差 0 小时），位移 1.94 个标准差，回退比 0.97（几乎完全退回）。主导变化的族是 `train/passrate/*` 和 `train/harness/harness-D-pw/training/{rollouts,trained_rollout_share}`——都是“本步处理了多少条轨迹、通过率算到哪一步”，典型的管线量。",
+    "flash 同构：最大统计量在第 15 步（24.9），重启在第 16 步（差 0 小时），回退比 0.93，主导族是 `ctx_total_length/<cat>/max`、`ctx_response_length/<cat>/max`（被截断的最长轨迹）与 `dynsam/infra_error/seq_rate`（基础设施错误率）。",
+    "去趋势后（把每个指标对步序号的线性趋势去掉、重新标准化再做变点检测）剩下的持续台阶指向数据集增删与版本切换：pro 第 23 步位移 2.56，最近重启同在第 23 步、版本切到 `3-5513.22.12.23` 只差 1.09 小时，动的是 `env/active`、`env/<cat>/shared/active`（活跃环境数）和长度截断率；flash 第 25 步位移 1.89（重启同一步、版本差 2.4 小时），动的是 `env/total_error` 与 `partial/<cat>/avg_staleness`。",
+    "还有一个更硬的证据：指标集本身在换。pro 有 218 个指标中途停止上报、232 个中途才开始上报，绝大多数是 `partial/<cat>/<id>/<k>/{frac,n_tokens}` 这种新鲜度桶指标——桶 1/2/3 只有在数据足够陈旧时才存在（桶 1 最早第 2 步、桶 2 第 5 步、桶 3 第 6 步）。看板上的“新指标出现”本身就是管线状态，不是模型状态。",
+    "一个反例要一起报：把去趋势位置统计量按“是否在重启步及其后 2 步内”分组，flash 是重启附近中位 5.92 对其它 2.36（重启确实制造位移），pro 却是 2.42 对 3.44（重启附近位移更小）。pro 有 11 次重启但只落在 5 个步边界（第 3、11、15、17、23 步），重启太密，反而不构成“更特殊的步”。所以“阶段=运维”这条结论在 pro 上是靠“最大变点+回退比+变的是管线量”三条证据支撑的，不能简化为“重启越多位移越大”。"
+   ],
+   "facts": [
+    {
+     "label": "最大变点的位置与对齐",
+     "value": "pro 第 15 步（统计量 19.1，重启差 0h）；flash 第 15 步（24.9，重启在第 16 步差 0h）",
+     "note": "PC1-3 坐标（各自标准化）上的无惩罚两段均值差统计量，位置 p 表示“第 p 步与第 p+1 步之间断开”"
+    },
+    {
+     "label": "回退比（位移在 3 步内退回多少）",
+     "value": "pro 0.97、flash 0.93",
+     "note": "= ‖后 3 步之后的长期均值 − 后 3 步均值‖ / ‖变点位移‖；≈1 表示完全退回（运维瞬时冲击），≈0 表示台阶保持"
+    },
+    {
+     "label": "去趋势后持续台阶的对齐",
+     "value": "pro 第 23 步位移 2.56（重启同步、版本差 1.09h，主导 env/active 与 clip_ratio）；flash 第 25 步位移 1.89（重启同步、版本差 2.4h，主导 env/total_error 与 avg_staleness）",
+     "note": "版本切换时刻取自 tags.json 的 versions[].at"
+    },
+    {
+     "label": "重启附近的位移量（去趋势位置统计量中位数）",
+     "value": "flash 5.92（n=9）对其它 2.36（n=18）；pro 2.42（n=12）对 3.44（n=9）",
+     "note": "重启步号来自 status.json 的 events（kind=restart）按 axis.walls 映射；pro 11 次重启落在 5 个步边界，flash 5 次落在 3 个"
+    },
+    {
+     "label": "指标集增删",
+     "value": "pro 中途停止上报 218 个、中途开始上报 232 个；tags.json 的 versions[].n 从 2019 变到 2029",
+     "note": "tags.json 的 last_seen 全等于文件写入时刻，无法由此识别移除；移除只能从序列 null 缺口与公告推断"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-regimes-are-ops-not-model",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "progress-fields-are-derived-not-live",
+   "kind": "counterintuitive",
+   "title": "看板的三个「步内进度」字段全是派生值：progress 最大误差 0 秒、expected 是最近 3 步的中位数、gen_frac 是上一步的生成占比且整步冻结",
+   "summary": "看板上四个能看出「这一步走到哪了」的字段，实测只有 since 和 phase 是实时观测。progress 精确等于 min(1, since/expected)，27 个同步点误差为 0；expected 精确等于最近 3 个已完成步上报耗时的中位数，进入当前步后冻结；gen_frac 等于上一步的生成占比，整步不变。用 progress 判断「还要多久」会在最慢那几步骗你最多：pro 第 15 步进度打到 1.0 后又跑了 3465 秒，占该步 26.9%。",
+   "body": [
+    "口径不写清楚的时候，人会自动假设屏幕上的每个数字都是「当下这一刻的观测」。这三个字段不是。progress 不是独立算出来的，它就是 since ÷ expected 再截断到 1；expected 也不是对这一步的预测，而是拿最近三个已经跑完的步的上报耗时取中位数，然后在整个步的生命周期里不再更新；gen_frac 更彻底，它描述的是上一步生成占了多大比例，本步从头到尾都是同一个数。",
+    "核对方法是把它们和 series.json 里已经完成的上报值对减，而不是看它们怎么随时间变化。progress：把 timeline.jsonl 每一行的 since ÷ expected 算出来和 progress 字段比，两条 run 共 27 个采集点，最大绝对误差 0。expected：对每一行取「已完成到第 k 步」时最近 3 步的上报耗时中位数，27/27 完全相等（误差小于 0.05 秒）。gen_frac：对每一行取「上一步的 outer_gen ÷ 上一步的上报耗时」，27/27 相等（误差小于 1e-3）。",
+    "这带来的第一个实际后果是 gen_frac 根本不能用来回答「这一步生成到几成了」。它在本步内是常量，你把它画成曲线也是一条水平线。要判断生成阶段结束没有，只能看 phase 字段从 rollout 翻成 training，而实测这个翻转与上报的 outer_gen 有几百到一千多秒的出入（flash 第 20 步：phase 在 since 3617.9~4824.0 之间翻转，上报 outer_gen = 4932.0 秒）。",
+    "第二个后果更贵：expected 是后视的，步耗时在单调变长时它追不上。因为 progress = since/expected，「progress 到 100%」这件事发生的时刻也会提前。pro 第 15 步在 since = 9416.4 秒时 progress 就是 1.0000，但那一步实际上报 12881.6 秒——最后 3465.2 秒（26.9%）全程显示进度 100% 且 phase = training。flash 第 20 步同理，钉在 100% 的时长是 1376.8 秒（13.6%）。拿这个进度去安排巡检、去判断「能不能插一个评测」，会系统性踩空。",
+    "第三个后果是它对偏乐观的方向并不是「永远」。只用非重启步统计，pro 的 17 步里 expected 偏乐观 8 步、偏悲观 9 步，中位数 +0.13%（几乎无偏）；flash 的 25 步里偏乐观 16 步，中位数 −1.57%。真正的规律是「分布很宽、两端都到三成，而乐观那一侧的大误差集中在步长上台阶的步上」：pro 最乐观的三步是 −11.3% / −10.7% / −10.3%，flash 是 −21.5% / −13.9% / −13.6%。所以正确的判断是「expected 中位数可信，尾部的乐观方向不可信」，而不是「expected 系统性偏乐观」——后者是我自己初稿写错、复算后改掉的一个判断。",
+    "可迁移的做法：拿到任何一块看板，先把「观测量」和「派生量」分开。判据很简单——把候选派生公式代进去，如果误差为 0，那这个字段就不携带新信息，别在它上面建告警；再对「预测类」字段（expected、ETA、剩余时间）做一次分布检查，看它的误差是双尾还是有方向，方向性误差在负载上台阶时最危险。"
+   ],
+   "facts": [
+    {
+     "label": "progress = min(1, since/expected)",
+     "value": "27/27 采集点，最大绝对误差 0",
+     "note": "两条 run 的 timeline.jsonl 全部 27 行；口径：同一行内的 since 除以 expected"
+    },
+    {
+     "label": "expected = 最近 3 个已完成步上报耗时的中位数",
+     "value": "pro 27/27、flash 27/27 命中（误差 < 0.05 s）",
+     "note": "例：pro 第 15 步的 expected 9416.42 = median(9063.0, 9416.4, 10491.6)"
+    },
+    {
+     "label": "gen_frac = 上一步 outer_gen ÷ 上一步上报耗时",
+     "value": "27/27 命中（误差 < 1e-3），且整步内为常量",
+     "note": "例：flash 第 20 步全程 0.4144 = 3632.2 ÷ 8765.3（上一步 s19）"
+    },
+    {
+     "label": "progress 钉在 1.0 的时长",
+     "value": "pro s15 3465.2 s（占该步 26.9%）／flash s20 1376.8 s（13.6%）",
+     "note": "精确值 = 上报耗时 − expected；只要 expected 偏乐观，这段时间就是「假 100%」"
+    },
+    {
+     "label": "expected 误差分布（仅非重启步）",
+     "value": "pro 中位 +0.13%、范围 −11.3%~+31.2%（n=17）；flash 中位 −1.57%、范围 −21.5%~+32.2%（n=25）",
+     "note": "中位几乎无偏，问题在尾部；大偏乐观集中在步长上台阶的步"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "restart-gap-is-mostly-discarded-work",
+   "kind": "structural",
+   "title": "重启造成的「时间缺口」不等于停机：flash 第 16 步缺的 5.63 小时里 3.96 小时是跑完又作废的重算，真正的恢复等待只有 0.09 小时",
+   "summary": "timing_s/step 不含重启时间这件事已经有人说过，但把缺口直接当「等待」会算错账。缺口能精确拆成三样：上一步完成到最后一次恢复的跨度、恢复后到步计时器启动的开销、被整步丢弃的重算。第三样在 flash 有一次可证实的事件：第 16、17 步各完成过一次又被 redo 重跑，合计 3.96 小时，折 $40,728，而这一步真正的恢复等待只有 0.09 小时。另有一条可直接用的常数：恢复开销 pro 每次 740~800 秒、flash 每次 328~367 秒。",
+   "body": [
+    "缺口 = 真实步耗时（axis.walls 相邻之差）− 上报耗时（timing_s/step）。它有一个精确的恒等式：缺口 =（上一步完成 → 最后一次恢复运行）+（最后一次恢复运行 → 本步完成 − 本步上报耗时）。两条 run 的 11 个缺口步全部逐位对上，误差小于 0.001 秒。等式右边第二项就是「新进程起来了、但步计时器还没开始」的开销，可以精确量出，而且非常稳定。",
+    "先把这个常数记住：pro 每次 740.3~799.9 秒（12.3~13.3 分钟），flash 每次 328.3~367.0 秒（5.5~6.1 分钟）。按各自的费率，一次重启光是这段看不见的开销就是 pro 约 $4,300、flash 约 $980。它的成因数据里没写，量级上像是加载权重、重建数据管线一类动作。",
+    "等式右边第一项「上一步完成 → 最后一次恢复运行」是混合项，里面既有崩溃前被丢弃的进度、也有崩溃到恢复的停机。因为 events.json 里的 restart 时间戳是**新进程恢复运行的时刻**（依据：timeline 的 restarted_at 等于它，且 step.since 从它起算，逐点吻合到 1 秒内），崩溃时刻不可观测，所以这一项在 pro 的全部 11 次重启上分不开。",
+    "flash 第 16 步是唯一能分开的样本。events.json 里第 16、17 步各出现两次、第二次带 redo=true，公告 n-b60f90 写着 we restarted the flash run from step 15。用相邻 step 事件的时间戳之差可以算出这两步第一次跑完分别用了 6641.6 秒和 7623.8 秒，合计 14265.4 秒 = 3.96 小时，全部作废。同一步的缺口是 20277.7 秒，其中恢复开销只有 332.1 秒，剩下 5680.2 秒是「最后一次完成到恢复之间」的跨度。所以这一步缺的 5.63 小时里，可证实的白烧算力是 3.96 小时，真正的恢复等待是 0.09 小时——差了 40 倍。",
+    "把重跑本身也算进去，这一次故障的代价是：被作废的 14265.4 秒 + 重跑消耗的 18193.1 秒（第 16、17 步重跑后的上报值）= 32458.5 秒的额外机器时间；相对「从没出过事」的反事实，多花的墙钟是 24202 秒 = 6.72 小时，按 flash 费率 $2.855/秒是 $69,097。",
+    "可迁移的判断规则：看到「停机/故障时间」这个口径，先问它统计的是墙钟还是计费。重启的墙钟损失里，恢复开销是常数项（可以直接乘次数拿到下限），被丢弃的重跑是条件项（只有带 redo 标记或版本回退的事件才能证明），两者在账单上完全一样贵，但在优化上完全不同——前者要缩短启动路径，后者要改的是「让中间结果可续跑、不用整步重来」。把两者混成一个「等待时间」，会让你把预算花在错误的地方。"
+   ],
+   "facts": [
+    {
+     "label": "缺口恒等式",
+     "value": "缺口 = (上一步完成→最后一次恢复) + (恢复→本步完成 − 上报)，11 个缺口步误差 < 0.001 s",
+     "note": "口径：pro 7 步 / flash 4 步；real = axis.walls 相邻之差"
+    },
+    {
+     "label": "恢复开销（每次最后一次重启）",
+     "value": "pro 740.3~799.9 s／flash 328.3~367.0 s",
+     "note": "= (本步完成 − 最后一次重启恢复时刻) − 本步上报耗时；折 $4,300 / $980"
+    },
+    {
+     "label": "flash 第 16 步被整步作废的空烧算力",
+     "value": "14265.4 s = 3.96 h = $40,728",
+     "note": "s16 6641.6 s + s17 7623.8 s，两者都完成过一次又被 redo 重跑（events.json）"
+    },
+    {
+     "label": "flash 第 16 步的真实恢复等待",
+     "value": "332.1 s（占该步缺口 20277.7 s 的 1.6%）",
+     "note": "该步缺口 66.5% 来自「上一步完成→恢复」跨度（含 3.96 h 已验证的作废重算）"
+    },
+    {
+     "label": "这次故障的额外墙钟代价",
+     "value": "24202 s = 6.72 h ≈ $69,097（flash）",
+     "note": "实际 s16+s17 窗口 38467.4 s 减去反事实 14265.4 s"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report-2",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "staleness-follows-restart-clock-not-load",
+   "kind": "counterintuitive",
+   "title": "avg_staleness 是重启时钟不是负载表：与「距上次重启步数」秩相关 0.944，与真实步耗时只有 −0.235",
+   "summary": "直觉上「步变长 → 轨迹跑不完 → 数据变旧」应该成立，实测这条链断在中间。变长是真的，变旧也是真的（flash 第 24 步有 9 个陈旧度桶，约 84% 的 token 来自 1 个版本以前），但两者之间没有关联：avg_staleness 与真实步耗时的秩相关只有 pro −0.235、flash −0.070，而与「距上次重启的步数」是 +0.944 / +0.885，桶个数与段内步数的秩相关是 1.000 / 0.998。这个指标是重启时钟，不是负载表。",
+   "body": [
+    "先把机械恒等排除掉：avg_staleness 精确等于 Σ(k × frac_k)，逐点验算最大误差小于 1e-7。所以它本身不是独立观测量，只是陈旧度桶配比的加权和，配比一变它就变。这在判断因果之前必须先说清楚。",
+    "再看它由什么决定。把每一步的「距上次重启已经过了几步」（段内位置）算出来，与 avg_staleness 做秩相关：pro +0.944、flash +0.885。与桶个数相关：pro +0.944、flash +0.880。而桶个数与段内位置的秩相关是 pro 1.000、flash 0.998——也就是说，**重启之后每推进一步就多一个桶，没有例外**。pro 每次重启后桶数从 1 数到 8，flash 从 1 数到 10。",
+    "同一组样本里，avg_staleness 与真实步耗时的秩相关是 pro −0.235、flash −0.070，与平均生成长度是 −0.177 / +0.031，与本步训练 token 是 −0.226 / +0.045。全是零附近或者轻微负相关。如果「步变长让数据变旧」成立，这里应该是显著正相关。",
+    "所以 avg_staleness 画出来是一串锯齿，每个齿的起点是重启（把管线清零、全部数据换成最新鲜的），齿的高度是这一段里攒了几个版本。pro 的三个齿峰是 1.82（第 9 步，第 11 步复位）、1.21（第 14 步，第 15 步复位）、1.29（第 22 步，第 23 步复位）；flash 是 1.89（第 15 步，第 16 步复位）、2.18（第 24 步，第 25 步复位），末段爬到 1.19 时 run 结束。**重启越频繁，这个指标看起来越「健康」，而它其实只是被清零得更勤。**",
+    "这不是说陈旧度不重要。「数据很旧」这件事本身量级很大：flash 第 24 步 84% 的 token 来自至少一个版本以前，pro 第 9 步是 80.3%。而且「步变长」与「沙箱被占得更久」这两件事能在另一条链上对上：用 Little 定律反推的沙箱平均存活时间，pro 从 1.198 小时（第 3–10 步）涨到 1.793 小时（第 17–22 步），flash 从 1.705 小时涨到 2.168 小时，与生成长度上涨同向。所以正确的说法是：长轨迹确实在系统里制造压力，但压力体现在沙箱占用时间上，不体现在陈旧度上。",
+    "可迁移的判断规则：任何「延迟型」指标，先找它的清零事件。清零由外部事件（重启、回滚、人为重置）触发的指标，它的方差主要来自清零频率；要测负载对它的真实影响，必须在两个清零事件之间的段内做回归，而且要把「段内位置」当作必须控制的混杂变量。直接拿它和负载指标做全样本相关，会得到方向完全相反的结论。"
+   ],
+   "facts": [
+    {
+     "label": "avg_staleness = Σ k × frac_k",
+     "value": "逐点最大绝对误差 < 1e-7（pro 24 步 / flash 30 步）",
+     "note": "机械恒等，先排除，避免把配比变化读成机制变化"
+    },
+    {
+     "label": "段内相关（仅非重启步）",
+     "value": "与段内位置 pro +0.944 / flash +0.885；与桶数 +0.944 / +0.880；与真实步耗时 −0.235 / −0.070",
+     "note": "Spearman；pro n=17、flash n=25；桶数 vs 段内位置 = 1.000 / 0.998"
+    },
+    {
+     "label": "陈旧度桶数上限",
+     "value": "pro 8 个（k=0..7）／flash 10 个（k=0..9）",
+     "note": "上限由两次重启之间的最长跨度决定，不是由负载决定"
+    },
+    {
+     "label": "最旧一步的数据配比",
+     "value": "flash s24：bucket0 frac 0.1607，即 83.9% 的 token 来自 ≥1 个版本以前；pro s9：80.3%",
+     "note": "口径：1 − partial/0/frac"
+    },
+    {
+     "label": "Little 定律反推的沙箱平均存活时间",
+     "value": "pro 1.198 → 1.793 h；flash 1.705 → 2.168 h（随段单调变长）",
+     "note": "L = env/active 均值，λ = 自复位以来累计创建沙箱数 ÷ 复位以来墙钟；只用段长 ≥3 步的段"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report-3",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "no-backpressure-in-the-trace-layer",
+   "kind": "numeric",
+   "title": "背压计数器在两个 run、54 个步观测上全部恒为 0：这一层没有堵，长尾也没在这一层留下痕迹",
+   "summary": "train/trace 下六个溢出型计数器（背压等待次数与秒数、孤儿解析、写失败、终止冲突）在 pro 24 步和 flash 30 步上全部为 0，324 个观测点无一非零。排空等待 drain_wait_seconds 最大 8.23 秒，结果写出 outcome_write_seconds 最大 1.60 秒，这一层从没把生产者挡住过。结论是负面的但可直接用：优化预算不该花在这里。",
+   "body": [
+    "背压是排队溢出最直接的读数：有界队列写不进去，生产者会被挡住，而「被挡住」一定会被计数。所以判断「是不是这一层堵」，看的是溢出计数器的非零次数，而不是利用率或队列长度。train/trace 这一族提供的正是这种计数器，而且看板把它拆得很细：等待次数、等待秒数（和、最大值）、孤儿解析、写失败、终止冲突。",
+    "实测结果非常干净：pro 的 24 步、flash 的 30 步里，这六项全部等于 0，一次都没有非零。附带的两项也都在秒级：drain_wait_seconds 在 pro 是 1.29~8.23 秒、flash 是 2.55~5.87 秒；outcome_write_seconds 在 pro 是 0.46~1.60 秒、flash 是 0.52~0.85 秒。把这两个数放到 6,850~14,000 秒的步耗时旁边，量级是万分之一到千分之一。",
+    "有一个量需要注意但不必过度解读：late_finishes 不是 0，pro 在 0~47 之间（中位 0，只在第 4、7、8、9、10、21、22 步非零），flash 在 0~210 之间（中位 14，30 步里有 17 步非零）。它是「迟到的完成」计数，但看板没给定义，也没有配套的等待秒数，所以只能记一笔：flash 的迟到完成比 pro 多，与该 run 有两次整步重跑（第 16、17 步）和更长的上下文一致，但这是巧合级的一致，不能当结论。",
+    "另一个值得记录的时间巧合：train/trace/records 在 pro 第 17 步从 1.63e6 跳到 3.27e6，几乎是精确翻倍，同一时刻 writer_seconds_sum 从约 5,000 秒升到约 8,000 秒。第 17 步正是那次「专家负载不均衡导致 GPU OOM、调整训练并行策略」的重启所在的步。这看起来像是并行度调整顺带把 trace 写入的并行度也改了，但看板没有这两个字段的定义，本文只作为线索记录。",
+    "为什么值得单独写一条「什么都没发现」：在这类系统里，「吞吐被长尾吃掉」是最常见的叙事，而它必然会在某一层留下背压计数。这一层没留下，说明写入侧的缓冲够大或者长尾被并发吸收了（env/active 在两万到三万八的沙箱上跑，写入是异步的）。正确的推论是「别在这里优化」，不是「没有长尾」。",
+    "可迁移的判断规则：判断堵点用两条一起看——溢出计数器的非零次数，以及排空/等待时间的量级。全 0 加秒级等待等于「这一层有余量」；一旦等待进入分钟级或溢出计数非零，才是真背压。反过来，利用率高不等于堵，利用率低也不等于没堵。"
+   ],
+   "facts": [
+    {
+     "label": "背压类计数器非零次数",
+     "value": "0（pro 24 步 × 6 项 + flash 30 步 × 6 项 = 324 个观测点）",
+     "note": "backpressure_waits / backpressure_wait_seconds_sum / _max / orphan_resolves / failed_writes / terminal_conflicts"
+    },
+    {
+     "label": "drain_wait_seconds 最大值",
+     "value": "pro 8.23 s（最小 1.29 s）／flash 5.87 s（最小 2.55 s）",
+     "note": "相对 6,850~14,000 s 的步耗时是万分之一量级"
+    },
+    {
+     "label": "outcome_write_seconds 最大值",
+     "value": "pro 1.60 s／flash 0.85 s",
+     "note": "结果写出的单次耗时"
+    },
+    {
+     "label": "late_finishes",
+     "value": "pro 0~47（中位 0，仅第 4、7、8、9、10、21、22 步非零）／flash 0~210（中位 14，17 步非零）",
+     "note": "看板未给定义，无配套等待秒数，只作记录"
+    },
+    {
+     "label": "records 在 pro s17 的跳变",
+     "value": "1.63e6 → 3.27e6（约翻倍），同期 writer_seconds_sum 5,000 → 8,000 s",
+     "note": "与 s17 的并行策略调整同期，但字段无定义，只作线索"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report-4",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "reward-ceiling-pinned",
+   "kind": "counterintuitive",
+   "title": "奖励的上限从第 1 步就被钉死在 1：max 在 pro 24/24 步、flash 30/30 步精确等于 1，涨的只有中段",
+   "summary": "critic/score/max 在 pro 24/24 步、flash 30/30 步只有一个取值 1.000，「奖励向少数高分样本集中」不可能发生。critic/score/mean 从 0.5522 涨到 0.5963（pro，r=0.904）、0.5167 到 0.6005（flash，r=0.939），变化全在分布中段。下限才分化：pro 的 mean−min 从 1.2593 收到 0.7384，flash 从 1.3139 扩到 1.4005（p=0.003）。",
+   "body": [
+    "看板上 critic/score/max 和 critic/rewards/max 是同一个量（逐点最大绝对差 0），它是「这一步训练 batch 里得分最高的那条轨迹」。直觉上会以为训练推进 → 好样本变多 → max 抬升，但数据给的答案更简单：max 从第一步起就是 1.000，24 步（pro）和 30 步（flash）里一次都没变。这说明奖励函数有硬上界，而且模型在第一步就已经能触到它。",
+    "所以任何关于「奖励分布形状变化」的讨论，在本数据里都只能落在 max 以下。把 max−mean 和 mean−min 分开看：max−mean 在两个 run 都显著下降（pro 0.4478→0.4037，r=−0.904，p=1.4e-9；flash 0.4833→0.3995，r=−0.939，p=1.8e-14）——这是 mean 上升的结果，不是 max 下降（max 恒 1）。mean−min 才是真正携带方向的量：pro 1.2593→0.7384（最差样本在追上均值，r=0.159，p=0.46 不显著但幅度大），flash 1.3139→1.4005（最差样本掉得更远，r=0.523，p=0.003）。",
+    "数据集级看，这个分化更清楚：pro 的 23 个有数据的数据集里 18 个的 score/min 首末值都是 0，flash 只有 7 个；pro 有 3 个数据集（code/bvg7、code/yfch、cyber/9aui）的 score/min 至少一次贴到 −0.8，flash 有 6 个（bvg7、obg8、v7yx、yfch、zg6q、cyber/9aui）。也就是说全局 score/min 那个 −0.8 的地板，在 flash 上是被多个数据集反复触发的常态，在 pro 上是少数数据集的偶发。",
+    "读图规则：看到 critic/score/max 先查它是不是常数。本数据里它是唯一的常数（nDistinct=1），而 critic/advantages/max 不是（pro 11 个不同取值、flash 13 个）。把「max 抬升」当成奖励集中度的证据，必须先排除「max 已贴在上界」这个可能——一旦贴上界，max 的量就不再携带任何信息，全部信息在 mean 和 min 上。",
+    "另外注意 critic/score/min 的跨数据集不可加性：pro 第 14 步全局 min=−0.8000，而同期绝大多数数据集的 min 是 0.000，−0.8 只来自 cyber/dataset-9aui（它本身只上报到第 14 步）。全局 min 是跨 23 个数据集取最小，其跳变基本由单个数据集的单步决定，不要用它代表任何子集。"
+   ],
+   "facts": [
+    {
+     "label": "critic/score/max 全程取值",
+     "value": "pro 24/24 步 = 1.000；flash 30/30 步 = 1.000（nDistinct=1）",
+     "note": "与 critic/rewards/max 逐点最大绝对差 0；A3-reward-numbers.json → runs.<run>.groups.globalReward[\"critic/score/max\"]"
+    },
+    {
+     "label": "critic/score/mean 首→末（趋势）",
+     "value": "pro 0.5522→0.5963（r=0.904, p=1.4e-9）；flash 0.5167→0.6005（r=0.939, p=1.8e-14）",
+     "note": "与 critic/rewards/mean 逐点相等（最大绝对差 0）；n=24 / n=30"
+    },
+    {
+     "label": "score/mean − score/min 首→末（趋势）",
+     "value": "pro 1.2593→0.7384（r=0.159, p=0.46 不显著）；flash 1.3139→1.4005（r=0.523, p=0.003）",
+     "note": "与 avg@n 的相关：pro r=−0.265（p=0.21）、flash r=−0.386（p=0.035），均为不显著或弱"
+    },
+    {
+     "label": "得分贴地板 −0.8 的步占比",
+     "value": "pro 2/24 = 8.3%；flash 10/30 = 33.3%",
+     "note": "score/min ≤ −0.5 的步占比：pro 37.5%、flash 80.0%；A3-reward-numbers.json → runs.<run>.shape.global"
+    },
+    {
+     "label": "数据集级 score/min 首末值为 0 的个数 / 贴到底板的个数",
+     "value": "pro 18/23 首末为 0，3 个贴过 −0.8（bvg7、yfch、cyber/9aui）；flash 7/23 首末为 0，6 个贴过 −0.8（bvg7、obg8、v7yx、yfch、zg6q、cyber/9aui）",
+     "note": "贴底板判定 |score/min + 0.8| < 1e-12；A3-reward-numbers.json → runs.<run>.shape.perDatasetSummary.<ds>.scoreMin.atFloorShare"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-reward-ceiling-pinned",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "pool-shrink-netted-out",
+   "kind": "numeric",
+   "title": "可训练池收缩在 flash 上抵消了 58% 的全对率收益：0.1659 的池占比损失换 0.1700 的全对率贡献",
+   "summary": "用 avg@n = p1 + M·m 分解：flash 的可训练池 M 从 0.7188 掉到 0.5528，全对率从 0.1208 涨到 0.2907。Δavg@n=+0.1298 拆成全对率 +0.1700、池收缩 −0.0983、池内提升 +0.0582（残差 0），池收缩吃掉全对率收益的 58%；pro 池子几乎没动（0.6759→0.6545），分解为 +0.0236/−0.0125/+0.0207。pro 的 avg@n 第 20 步见顶 0.6431 后回落到 0.5964。",
+   "body": [
+    "动态采样的规则是丢掉全对和全错的 prompt——这两类在组内减基线后优势恒为 0，不产生梯度。所以模型越强、全对率越高，可训练的池子就越小。这件事在本数据里可以精确量化，因为看板同时给了 p0（dynsam/passrate/zero）和 p1（dynsam/passrate/one），而 avg@n 满足 avg@n = p1 + M·m（M = 1−p0−p1），可以逐点反解出池内平均通过率 m。",
+    "flash 是这件事的教科书案例：M 从 0.7188 掉到 0.5528，少了 16.6 个百分点；全对率从 0.1208 涨到 0.2907（翻 2.4 倍）；池内通过率从 0.5467 涨到 0.6382。把 Δavg@n=+0.1298 拆成三项后，池收缩贡献 −0.0983，正好吃掉全对率贡献 +0.1700 的 58%。pro 那边完全不同：M 只从 0.6759 到 0.6545，全对率从 0.1779 到 0.2014，池收缩只扣掉 0.0125。",
+    "这里要纠正一个容易搞反的因果方向。「池子收缩导致 avg@n 增速放缓」听上去顺，但算术上池收缩是 Δavg@n 里的一个负项，它让 avg@n 更低、而不是让斜率更小。增速放缓是另一件事，而且在本数据里两个 run 都测不出来：把 avg@n 的逐点增量对增量序号回归，pro r=−0.305（p=0.16）、flash r=−0.076（p=0.69）。pro 看起来更像「见顶后回落」——第 20 步 0.6431 是全程最高，之后四步掉到 0.5964（−7.3%），后 11 个增量的均值为负。",
+    "真正值得警惕的是「上升空间被自己吃掉」：flash 还剩 55% 的可训练池，pro 还剩 65%，如果全对率继续按当前速度涨，M 会先触底，届时 avg@n 会趋近 1 但训练信号先枯竭。看这个风险的直接读数是 M 与 avg@n 的关系——水平相关在两个 run 都强（pro r=−0.852 p=1.3e-7、flash r=−0.957 p=1.2e-16），去趋势后 pro 仍显著（r=−0.650，p=5.9e-4）而 flash 不显著（r=−0.199，p=0.29），说明 flash 的这条关系主要是共同趋势。",
+    "一个必须说清的口径：train/passrate/passrate_0_ratio 与 passrate_1_ratio 看起来像「全错率/全对率」，但它们的分母是进了训练 batch 的轨迹，而 dynsam/passrate/* 的分母是被测量的候选池。两者数值差一个量级（pro 的 p0 是 0.0092→0.0389 对 0.1462→0.1440），不能互相换算，也不能用 train/passrate 那一对做本节这个分解。"
+   ],
+   "facts": [
+    {
+     "label": "可训练池 M = 1 − dynsam/passrate/zero − dynsam/passrate/one",
+     "value": "pro 0.6759→0.6545（−0.0213，−3.2%）；flash 0.7188→0.5528（−0.1659，−23.1%）",
+     "note": "A3-reward-numbers.json → runs.<run>.poolDecomposition.first/last/delta；n=24 / n=30"
+    },
+    {
+     "label": "Δavg@n 三项分解（全对率 / 池收缩 / 池内提升）",
+     "value": "pro +0.0236 / −0.0125 / +0.0207（合 +0.0318）；flash +0.1700 / −0.0983 / +0.0582（合 +0.1298）",
+     "note": "交互残差 0；公式 Δavg@n = Δp1 + m̄·ΔM + M̄·Δm，m̄ 与 M̄ 取首末均值"
+    },
+    {
+     "label": "池内平均通过率 m（由 avg@n = p1 + M·m 反解）",
+     "value": "pro 0.5723→0.6035；flash 0.5467→0.6382",
+     "note": "每一都能逐点解出，见 poolDecomposition.rows"
+    },
+    {
+     "label": "avg@n 增量的斜率检验",
+     "value": "pro 前半均 +0.0049 / 后半均 −0.0025（r=−0.305, p=0.16）；flash +0.0054 / +0.0035（r=−0.076, p=0.69）",
+     "note": "两个 run 的「增速放缓」都不显著；pro 的 avg@n 第 20 步见顶 0.6431 后回落至 0.5964"
+    },
+    {
+     "label": "M 与 avg@n 的相关",
+     "value": "水平 pro r=−0.852（p=1.3e-7）、flash r=−0.957（p=1.2e-16）；去趋势 pro r=−0.650（p=5.9e-4）、flash r=−0.199（p=0.29）",
+     "note": "两条序列都随时间单调，水平相关虚高；去趋势后 flash 不显著"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pool-shrink-netted-out",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "grader-tightens-not-loosens",
+   "kind": "structural",
+   "title": "判分没有变松：五维档位分 24 步从 4.4051 降到 4.2902（r=−0.874），后处理乘子同步下降，而判完率与失败率全程持平",
+   "summary": "判分漏斗形状没变：groups_total、groups_judged 趋势全不显著（p≥0.37），失败占受理比 pro 3.52%→4.16%（p=0.61），end2end_success_rate 常态 0.94~0.97。但判分给分的尺子在收紧：五维档位分等权均值 pro 从 4.4051 降到 4.2902（r=−0.874），flash 从 4.3919 到 4.3108。「超过参考解」比例 select_above_gold_share 在 pro 完全持平（r=−0.003）。",
+   "body": [
+    "要回答「判分在变松还是变紧」，先把两件事分开：判分流水线的产能/健康度，和判分给出的分数。前者可以用计数类指标直接验，后者要用判分自己的绝对分和后处理系数。",
+    "产能侧完全没有变化。groups_total 的 pro 均值 1811（n=24）、flash 1750（n=30），对步号的 r 分别是 −0.192（p=0.37）和 −0.004（p=0.98）；groups_judged 同理（pro r=−0.094, p=0.66；flash r=0.053, p=0.78）。判完率（groups_judged / groups_attempted）pro 均值 0.9498、flash 0.9594，全程无趋势。失败、跳过、过期这一族里，groups_failed_pass1/pass2、groups_skipped_unbalanced、groups_skipped_empty_inputs、judge_aux_missing_rollouts、keep_mass_capped、rollouts_masked、select_r2_capped_rate、dev_neg_turns、select_r3_gold_fails 在两个 run 全部恒为 0；groups_expired_unjudged 在 pro 全程 0 或 1，在 flash 连这个 tag 都没有。pro 的 end2end_success_rate 唯一一次低点是第 14 步 0.7662，与前一条公告（训练集群与判分部署之间网络不通）在时序上吻合，是单步基础设施事件。",
+    "给分侧则是另一幅图。五个档位维度 A/B/E/P/S 的均值在两个 run 全部为负号，其中 pro 的 E（r=−0.955, p=4.6e-13）、B（r=−0.927）、A（r=−0.787）、S（r=−0.640）都显著，flash 的 B（r=−0.710）、E（r=−0.628）显著。等权平均后 pro 从 4.4051 降到 4.2902（−0.1150），flash 从 4.3919 到 4.3108（−0.0811）。与此同时 select_factor_mean 从 0.8319 降到 0.8033（pro），select_renorm_k_mean 从 1.1852 升到 1.2179，select_renorm_capped_rate 从 0.0346 升到 0.0639（r=0.574, p=0.003）。这三条方向一致：判分在被乘上更小的因子、需要更强的重归一化补偿、更多次触及重归一化上限。",
+    "所以「判分放水」这个假说在这份数据里找不到支持证据。反过来说，「模型真的超过了参考解」也没有证据——select_above_gold_share 在 pro 上 24 步完全持平（r=−0.003, p=0.99），在 flash 上的弱上升（0.3018→0.3261，水平 r=0.377, p=0.040）在一阶差分（r=−0.341, p=0.071）和去趋势（r=−0.058, p=0.76）下都不成立。要区分「能力提升」和「判分放松」，这份看板能提供的最强证据是「判分的绝对分在往紧的方向走」，而「超过参考解」这个判定本身在平坦或噪声里，两种解释都无法排除。",
+    "一个容易被忽略的口径事实：select_above_gold_share 与 select_v4/select_above_gold_share 逐点完全相等（最大绝对差 0），而 select_v4_nogold 下没有这个字段。也就是说「超过参考解」只在有 gold 的那条判分路上计算——这是它的分母口径，不是全局比例。"
+   ],
+   "facts": [
+    {
+     "label": "五维档位分等权均值（A/B/E/P/S）首→末",
+     "value": "pro 4.4051→4.2902（r=−0.874, p=2.5e-8）；flash 4.3919→4.3108（r=−0.482, p=0.007）",
+     "note": "A3-reward-numbers.json → runs.<run>.constancy.scoreRubricMean；五维分别为 select_score_{A,B,E,P,S}_mean"
+    },
+    {
+     "label": "判分漏斗规模趋势",
+     "value": "groups_total pro r=−0.192（p=0.37）、flash r=−0.004（p=0.98）；groups_judged pro r=−0.094（p=0.66）、flash r=0.053（p=0.78）",
+     "note": "均值 pro 1811 / 794，flash 1750 / 786；n=24 / n=30"
+    },
+    {
+     "label": "判分失败与过期",
+     "value": "select_groups_failed/groups_attempted pro 3.52%→4.16%（r=0.109, p=0.61）、flash 4.01%→3.64%（r=0.020, p=0.93）；groups_expired_unjudged pro 全程 0~1（均值 0.29），flash 无此 tag",
+     "note": "groups_failed_pass1/pass2、groups_skipped_*、judge_aux_missing_rollouts、keep_mass_capped、rollouts_masked、select_r2_capped_rate、dev_neg_turns、select_r3_gold_fails 两 run 全恒 0"
+    },
+    {
+     "label": "后处理乘子与重归一化",
+     "value": "select_factor_mean pro 0.8319→0.8033（r=−0.767, p=1.2e-5）、flash 0.8338→0.8038（r=−0.407, p=0.026）；select_renorm_k_mean pro 1.1852→1.2179（r=0.854, p=1.1e-7）；乘积均值 pro 0.985、flash 0.981",
+     "note": "两者不是精确互逆，存在 1.5%~1.9% 的系统性缺口"
+    },
+    {
+     "label": "select_above_gold_share 首→末",
+     "value": "pro 0.3185→0.3182（r=−0.003, p=0.99 持平）；flash 0.3018→0.3261（水平 r=0.377 p=0.040；一阶差分 r=−0.341 p=0.071；去趋势 r=−0.058 p=0.76）",
+     "note": "与 select_v4/select_above_gold_share 逐点相等（差 0），说明只在有 gold 的判分路上计算"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-grader-tightens-not-loosens",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  },
+  {
+   "id": "grader-disagreement-60pct-rising",
+   "kind": "structural",
+   "title": "判分探针不一致率在 0.586~0.606 的高位且显著上升，但同期「确认出错」的复核标红数在下降",
+   "summary": "select_probe_disagree_rate 高位且显著上行：pro 均值 0.6059（0.5748→0.6331，p=2.1e-4），flash 均值 0.5857（0.5460→0.6018，p=1.4e-5）。外网「判分器不一致率 60% 且在上升」的读数在这一族能找到对应项，量级与方向都对得上。但同期更接近「确认出错」的复核计数在下降：select_r2_flagged 占判完组 pro 0.3212→0.2080（p=3.2e-5），flash 0.3129→0.2200。",
+   "body": [
+    "select_probe_disagree_rate 是这份看板里唯一直接命名「判分器内部不一致」的指标。它没有官方定义，从命名和数据形态看，是判分时用多条判定路径（探针）求证同一批样本、统计结论打架的比例。pro 24 步的均值 0.6059、flash 30 步 0.5857，都在「六成」上下，且都对步号显著上升。",
+    "把外网的读数逐条对照：量级对得上（0.586~0.606 vs 「60%」），方向对得上（两个 run 的 p 值分别是 2.1e-4 和 1.4e-5），存在性也对得上（这不是一个需要拼凑的指标，看板直接给）。所以那条外部读数在本数据里是可核对的。",
+    "但不能直接读成「判分崩了」。同一批步上，需要多轮复核才能确认的计数在下降：select_r2_flagged 占判完组的比例 pro 从 0.3212 降到 0.2080（r=−0.743），flash 从 0.3129 到 0.2200（r=−0.706）；select_process_severe（被判「过程严重问题」）占判完组的比例 flash 从 0.0533 降到 0.0188（r=−0.545, p=0.002）。同时 select_r1_masked 占判完组的比例在上升（pro 0.3822→0.4716, r=0.675；flash 0.3058→0.4515, r=0.542）。也就是说：第一轮就出现更多分歧、更多样本需要遮罩，但需要走到第二轮复核才被标红的更少。",
+    "这个组合最合理的读法是「任务变难/样本更贴边」，而不是「判分质量恶化」——但这是推断，不是数据直接证明。看板没有给 probe_disagree 的定义，所以不能把「不一致」等同于「判错」：同一道题有多个合理解法，探针分歧是必然的。",
+    "还有一个方法学上的警告必须写出来：probe_disagree vs step 是「单一序列 vs 时间」，没有可去趋势的对象，24/30 个点上的单调趋势天然容易出显著结果。当把 probe_disagree 拿去和 avg@n 做相关时，水平相关看起来强（pro r=0.645、flash r=0.667），一阶差分后 pro 变成 −0.241（p=0.27）、flash 变成 −0.380（p=0.042，显著为负）。所以「判分分歧随成绩上升而上升」这个读法在本数据里不成立；能成立的只有「这条读数本身在漂移」。"
+   ],
+   "facts": [
+    {
+     "label": "select_probe_disagree_rate 首→末（均值，趋势）",
+     "value": "pro 0.5748→0.6331（0.6059），r=0.687, p=2.1e-4；flash 0.5460→0.6018（0.5857），r=0.704, p=1.4e-5",
+     "note": "A3-reward-numbers.json → runs.<run>.groups.graderQuality；n=24 / n=30"
+    },
+    {
+     "label": "与 avg@n 的相关（三个口径）",
+     "value": "水平 pro r=0.645（p=6.7e-4）、flash r=0.667（p=5.7e-5）；一阶差分 pro r=−0.241（p=0.27）、flash r=−0.380（p=0.042）；去趋势 pro r=0.180（p=0.40）、flash r=−0.090（p=0.64）",
+     "note": "水平相关由共同趋势造成；差分口径下 flash 符号翻转"
+    },
+    {
+     "label": "复核标红占比（count / groups_judged）",
+     "value": "select_r2_flagged pro 0.3212→0.2080（r=−0.743, p=3.2e-5）、flash 0.3129→0.2200（r=−0.706, p=1.3e-5）",
+     "note": "归一化率由脚本自建：derived/select_r2_flagged_per_judged_group；官方无对应 rate 字段"
+    },
+    {
+     "label": "其他不一致代理指标",
+     "value": "select_process_severe/groups_judged flash 0.0533→0.0188（r=−0.545, p=0.002）；select_tier_mismatch/groups_judged pro 0.3576→0.3192（r=−0.430, p=0.036）；select_r1_masked/groups_judged pro 0.3822→0.4716（r=0.675, p=2.9e-4）",
+     "note": "select_rank_invalid、select_rank_score_conflict、select_regression_flagged 的归一化率在两个 run 都无显著趋势"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-grader-disagreement-60pct-rising",
+     "stance": "support",
+     "note": "本条洞察的核算依据；复算口径与关键数字见引文"
+    }
+   ]
+  }
+ ]
+}

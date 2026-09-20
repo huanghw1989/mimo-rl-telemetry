@@ -1,0 +1,1703 @@
+{
+ "schema_version": 1,
+ "updated_at": 1789874111,
+ "note": "Provenance registry: in the explainer entries, only ref is written; the title, author, link, and verbatim original text are all here. paper/report/blog/doc are external materials, self is our own accounting of the telemetry repository —— the stance labels on the page only express “what relationship this material has to our reading”, and do not indicate the material's reliability level. There are 149 citation entries in total, and 109 materials after deduplication: different conclusions from the same paper each occupy one entry, because different original passages are cited. All entries were run through verify_sources.ts: arXiv entries were checked by id against the official API for the real title (all 70 matched), web entries were checked that the page is accessible and the citation exists verbatim (two of the Notion pages are front-end rendered; they were verified after rendering with a browser).",
+ "gaps": [
+  {
+   "from": "r1",
+   "text": "No public material was found that gives an empirical threshold for “how many times a single-point spike in gradient norm counts as anomalous”; our “pro step 19 6× is a single-step anomaly” is still a self-defined multiple, and the public literature only states that spikes bring instability (2502.17055) and provides a mechanism (2509.02479), with no comparable multiple baseline."
+  },
+  {
+   "from": "r1",
+   "text": "No public material was found that gives the typical magnitude or healthy range of “truncation ratio” metrics such as actor/pg_tis_clipfrac in real large-scale RL runs; therefore, whether the local 1e-4 magnitude is on the healthy side or the high side cannot be compared against a public baseline."
+  },
+  {
+   "from": "r1",
+   "text": "No public case was found that directly discusses “entropy monotonically rising within a few dozen steps while avg@n also rises”: entropy-mechanism(2505.22617) describes the opposite direction, and DAPO only treats “avoiding entropy collapse” as a means; therefore, the claim that “entropy rising in this run is benign” lacks positive supporting evidence, and only boundary conditions were found (DISPO says excess will degrade)."
+  },
+  {
+   "from": "r1",
+   "text": "No public material was found explaining “why pg_clipfrac and ppo_kl would both be identically zero at the same time, rather than the entire tag being missing”. The verl documentation only gives the definitions of the two, without discussing the interpretation of this phenomenon; our explanation is self-consistent reasoning, not an official line."
+  },
+  {
+   "from": "r1",
+   "text": "No public material was found that separately discusses entropy split by harness (grouped readings such as actor/agentic/entropy_loss and actor/code/entropy_loss), i.e., “whether grouped entropy should be treated as the same physical quantity” has no counterpart in public work."
+  },
+  {
+   "from": "r1",
+   "text": "In the briefing's reference starting points, the titles of the two ids 2506.17863 (labeled The Art of Scaling RL Compute) and 2506.10947 (labeled Pass@k Training) both do not match, and I was unable to locate the corresponding papers with the correct titles (the two respectively belong to groups D/C and were not further verified in this group)."
+  },
+  {
+   "from": "r2",
+   "text": "No public material explains this dashboard's own tag conventions: how exactly k in partial/<k> is counted (pro opens only 8 buckets, flash opens 10), why Σ_k n_tokens_k is only 44%~56% of perf/total_num_tokens at the same step, and the denominator relationship between the two slices partial/agentic and partial/<category>/<dataset> (the sum of the two exceeds 1.6×)."
+  },
+  {
+   "from": "r2",
+   "text": "The train_infer_diff/new_infer/F(tau=*) family has no metric with the same name or definition in the public literature, and no material specifies the unit of tau; verl only has rollout_is_ratio_fraction_high (fraction of IS weights above threshold) and log_ppl_abs_diff (mean absolute log-perplexity difference), two names that are close but have different definitions."
+  },
+  {
+   "from": "r2",
+   "text": "No public statement was found for the shift-share identity 「global KL exactly equals Σ_k frac_k × KL_k」 (our verification correlation is 1.000000); public material only separates the 「engine difference term」 and the 「staleness term」 at the conceptual level (arXiv:2605.12070, verl Rollout Correction), without giving a convention for weighted summation by freshness bucket."
+  },
+  {
+   "from": "r2",
+   "text": "No public practice or threshold reference was found for splitting staleness by dataset, so there is no public baseline to compare against for partial/code/dataset-yfch/avg_staleness being as high as 7.27."
+  },
+  {
+   "from": "r2",
+   "text": "「asymmetric importance sampling」 as a named method has no corresponding literature in a search of the entire arXiv corpus; the closest is Asymmetric REINFORCE (reinterpreted by arXiv:2509.24203 as a regularized form of REINFORCE), and no material supports the 「splitting into four-sided clipping by positive/negative advantage or by high/low boundaries」 convention."
+  },
+  {
+   "from": "r2",
+   "text": "No public material was found discussing the definition of the agentic data slice; agentic is also not among the categories declared by this dashboard's meta.json, so it is impossible to use public material to explain the phenomenon that partial/agentic/avg_staleness has a global correlation of 0.9999."
+  },
+  {
+   "from": "r3",
+   "text": "No public method was found that does this processing: 「split by advantage sign → withdraw part of the positive-advantage mass → add mass to negative advantages → then rescale each sign's total back to its original value」. In arXiv searches, \"advantage clipping\" and \"positive and negative advantages\" scaling both returned 0 hits; the 4 papers hit by \"asymmetric clipping\" (e.g., VEPO, Entropy-Preserving RL) are work in the entropy/constraint direction, unrelated to this site's penalty/signed/* mechanism."
+  },
+  {
+   "from": "r3",
+   "text": "No public material was found that discusses or implements 「within-sign total conservation」: the form in which train/adv_pos_sum_post_penalty and pre are exactly equal pointwise has no counterpart in public methods (GRPO's within-group division by std normalization instead changes the total)."
+  },
+  {
+   "from": "r3",
+   "text": "No public literature was found that names avg@n (the average over problems of the per-problem success proportion across n attempts, n=16) as an independent metric. HumanEval only gives the unbiased estimator definition of pass@k; passrate/one, passrate/zero, and the three-way decomposition avg@n = one + middle-bucket proportion × middle-bucket mass are this telemetry's own convention."
+  },
+  {
+   "from": "r3",
+   "text": "Could not obtain the verbatim original text of Section 3.1 of the Dr. GRPO main text regarding the 「direction」 of the std normalization bias: both arXiv HTML fetches were truncated before entering that section, and ar5iv does not have this paper; only the Figure 1 caption and abstract-level wording were excerpted (「removing the length and std normalization terms」)."
+  },
+  {
+   "from": "r3",
+   "text": "No public material was found that defines dynsam/infra_error/seq_rate, this kind of 「proportion of detected infra failure sequences」: public work discusses rollout failures and resampling, but there is no definition or convention for this specific ratio."
+  },
+  {
+   "from": "r3",
+   "text": "No public source was found that explains why critic/rewards/min stays near −0.8 long-term; public RLVR (DAPO, etc.) uses binary {1, −1} rule rewards, and a floor score like −0.8 belongs to this site's private grading convention."
+  },
+  {
+   "from": "r3",
+   "text": "No quantitative public discussion was found on this specific direction, 「the systematic bias of within-group std normalization against low-variance prompts」 (only Dr. GRPO's qualitative claim and the counterargument of 2601.23135)."
+  },
+  {
+   "from": "r4",
+   "text": "The pre-grading route discard (routed/off accounts for about 48.9% of groups_total) cannot be found in any public material: no paper or documentation describes the design of 「first excluding half of the candidate groups from grading by routing」, and there is no convention to compare against. The closest thing in public literature is DAPO's dynamic sampling (after oversampling, filter out prompts with correctness rates 1 and 0), but that filters by reward and happens after scoring, which is not the same as our pre-grading routing and cannot be conflated."
+  },
+  {
+   "from": "r4",
+   "text": "The fact that the second pass was never executed (pass2_success_rate is identically 1.0 while judge_pass2_attempts is identically 0) cannot be found in public material. BAITBENCH only uses the phrase 「two-stage judge pipeline」 and does not give success rate/attempt count conventions for any stage; nor does any material discuss this kind of reading trap where 「grading is done twice but the second pass was never enabled」."
+  },
+  {
+   "from": "r4",
+   "text": "Grading takes about 570 seconds/group, with 97% spent on the first pass: no public baseline, percentile, or cost statistic was found for the per-group duration of a grader/verifier, so the 550-second order of magnitude cannot be compared with public systems, nor can the reasonableness of the 「97% in the first pass」 split be verified."
+  },
+  {
+   "from": "r4",
+   "text": "No public implementation or grading criteria can be found for the grader itself (select_v4 / select_v4_nogold); no public material can confirm whether probe in select_probe_disagree_rate specifically refers to multiple samples from the same model, different prompts, or different models."
+  },
+  {
+   "from": "r4",
+   "text": "No dedicated literature was found for “judge saturation”: an arXiv full-text search for \"judge saturation\" returns only 1 result, which is unrelated to the topic (customer service churn explanation), so our reading of “judge saturation” has no provenance."
+  },
+  {
+   "from": "r4",
+   "text": "There is no public material for the rubric tier definitions and ordering direction of select_tier_share_T1/T2/T3/H (which tier is harder, whether H is hard or hold); MiMo-7B only mentions test-difficulty-driven code-reward, without rubric tier naming."
+  },
+  {
+   "from": "r4",
+   "text": "No citable paper was found for the compute-performance scaling law of RL training (whether performance can be predicted from compute): the 2506.17863 given in the briefing is actually another paper (see notes), and consecutive searches of the arXiv search API in this session were also rejected multiple times. perf/total_num_tokens is currently only tied to qualitative statements from MiMo official such as “efficiently scaling RL compute” and MiMo-VL’s compute scale descriptions, which is context rather than scaling-law evidence."
+  },
+  {
+   "from": "r4",
+   "text": "There is no public material for the criteria of env/possible_leak (what counts as a leak, whether the statistical window is instantaneous or cumulative); 2609.02246 describes leak patterns such as an agent reading cached answer keys from the environment, but does not give a corresponding metric definition."
+  },
+  {
+   "from": "r4",
+   "text": "Public baselines for sandbox turnover rate/environment error rate: MiMo official only gave “10,000+ concurrent pods and 70% environment setup success rate”, without giving the denominator criteria for sandbox lifecycle, turnover count, or error rate; therefore our “both runs’ sandbox turnover is around 14x” can only be considered self-attested and cannot be compared with official or third-party sources."
+  },
+  {
+   "from": "r4",
+   "text": "No public material directly argues for the causality between grading time and data staleness (slow grading → partial/avg_staleness increases); this is an inference from this telemetry."
+  },
+  {
+   "from": "sampler",
+   "text": "No public material was found that gives the official definitions for the judged / in flight columns in the mimo.xiaomi.com/rl sampler table. The only things that can be confirmed are: the English labels of these two columns come from the original site’s own rendering code; the judged column is reported only on a subset of code data sources and is always no greater than accepted; the per-source sum of the in flight column is always equal to remain + remain_partial on the dashboard. Their exact counting unit (tasks or sequences, whether partial rollout is included) is not publicly explained."
+  },
+  {
+   "from": "self",
+   "text": "The calculations on this site are all “relationships internal to the data”; they can prove definitions and identities, but cannot prove that a certain reading is methodologically optimal —— that layer can only rely on public literature."
+  },
+  {
+   "from": "self",
+   "text": "pro step 19 is the last step within the recorded range, so it cannot be verified whether the gradient spike will become the new normal."
+  }
+ ],
+ "notes": [
+  "r1: 1) In the briefing, three reference starting point ids have mismatched titles, and they must be corrected: 2002.11803 is actually 'Disentangling Adaptive Gradient Methods from Learning Rates' (I used it as material for the 'learning rate trap'); 2506.17863 is actually 'LLMs for Customized Marketing Content Generation and Evaluation at Scale'; 2506.10947 is actually 'Spurious Rewards: Rethinking Training Signals in RLVR'. The correct id for 'Why Gradient Clipping Accelerates Training' is 1905.11881. Verbatim-verified: 1707.06347 PPO, 1502.05477 TRPO, 2503.14476 DAPO, 2503.20783 Dr.GRPO, 2507.18071 GSPO, 2505.22617 Entropy Mechanism, 2504.13837 pass@k boundary, 2107.03374 Codex/HumanEval, 2409.19256 HybridFlow, 1711.05101 AdamW, 2502.16982 Muon, 2310.06770 SWE-bench, 2503.11926 Monitoring Reasoning Models. 2) The export.arxiv.org API began returning non-XML responses in the latter half of this session (suspected rate limiting), so later entries were cross-checked using arxiv.org/abs abstract pages (2110.00641, 2502.17055, 2509.02479, 2602.00983) and the Semantic Scholar API; the quote for these entries comes from the Abstract section of the abstract page body, also verbatim. 3) A total of about 20 URLs were successfully fetched (several others failed due to rate limiting), among which one ICLR Blog Track page and two verl documentation pages were split into multiple items by different citations because they contain multiple mutually independent original passages (each id is unique, while the url is the same). 4) richardli.xyz/rl-collapse only returned a redirect page, so its original text could not be excerpted; therefore it was not included as a source, and serves only as a blog lead cited by the verl rollout_corr documentation.",
+  "r2: ID verification pitfalls (both were misremembered): 2508.10695 is not the arXiv version of the TIS source blog; the API returns \"Learning from Natural Language Feedback for Personalized Question Answering\"; 2509.23798 is not \"When Speed Kills Stability\"; what is returned is a quant-ph paper on atomic beam splitters. The TIS blog and When Speed Kills Stability currently exist only on Notion (richardli.xyz/rl-collapse will 302 to Notion); when web_fetch scrapes Notion it only gets the two characters \"Notion\", and the body text was obtained by opening it with Playwright and taking innerText, so the quotes for these two entries are page-rendered text. The IDs with matching titles have been verified one by one: 2503.14476 DAPO, 2507.18071 GSPO, 2503.20783 Dr. GRPO, 2505.22617 Entropy Mechanism, 2510.26788 FP16, 2512.01374 Stabilizing RL with LLMs, 2510.01161 M2PO, 2512.23075 Trust Region Masking, 2509.24203 Group-Relative REINFORCE. The arXiv API has rate limits: concurrent or intensive calls will return 429, or make web_fetch report unsupported content type \"unknown\"; you must retry at ten-odd-second intervals; arXiv's HTML search page (arxiv.org/search) is still usable when the API is rate-limited. In addition, that paper (When Speed Kills Stability) states on the page that DeepSeek-V3.2 (arXiv:2512.02556) adopts its geometric sequence masking, but I only saw this on the Notion page and did not independently verify that ID.",
+  "r3：【Key conclusion: Is there a public counterpart for penalty/signed/*?】No. In public methods, the “asymmetric” treatment of positive/negative advantages all acts on the importance sampling ratio or the surrogate objective, not on the mass allocation of advantage: DAPO's Clip-Higher merely splits the upper and lower clipping bounds and loosens the upper bound (explicitly keeping εlow unchanged, on the grounds that increasing it would push token probabilities toward 0); dual-clip PPO only adds a lower bound c·Â_t to the objective when Â_t<0; what it clips is an excessively large negative update. Neither changes the distribution of advantage, and neither has the step of “replenishing mass and then renormalizing back to the original total according to sign”. Searching for “advantage clipping” and “positive and negative advantages” scaling all returned 0 hits, which supports the conclusion that “this site's signed branch's scheme of within-sign mass transfer + renormalization has no counterpart in the public literature”.【Pitfalls in id verification】(1) `2506.10947 Pass@k Training` in the briefing is wrong: that id is actually \"Spurious Rewards: Rethinking Training Signals in RLVR\" (included under its actual title); the real Pass@k Training is 2508.10751 \"Pass@k Training for Adaptively Balancing Exploration and Exploitation of Large Reasoning Models\" (included). (2) The remaining reference id titles all match expectations: 1707.06347 PPO, 1506.02438 GAE, 2402.03300 DeepSeekMath/GRPO, 2503.14476 DAPO, 2503.20783 Dr. GRPO, 2504.13837, 2107.03374, 1912.09729. (3) In this session, the search_query endpoint of export.arxiv.org consistently reports unsupported content type; the search was done instead using the https://arxiv.org/search/ page; the id_list endpoint works normally. (4) ar5iv's MathML-to-text duplicates symbols (e.g. pass@kk, n≥kn\\geq k); I transcribed them as plain-text symbols according to the paper's original text; the remaining wording was left unchanged verbatim."
+ ],
+ "items": [
+  {
+   "id": "adamw",
+   "kind": "paper",
+   "title": "Decoupled Weight Decay Regularization",
+   "authors": "Ilya Loshchilov, Frank Hutter",
+   "venue": "arXiv:1711.05101 (ICLR 2019)",
+   "year": "2017",
+   "url": "https://arxiv.org/abs/1711.05101",
+   "quote": "We provide empirical evidence that our proposed modification (i) decouples the optimal choice of weight decay factor from the setting of the learning rate for both standard SGD and Adam",
+   "topic": "Coupling of the learning rate and regularization in adaptive optimizers"
+  },
+  {
+   "id": "adaptive-grad-lr",
+   "kind": "paper",
+   "title": "Disentangling Adaptive Gradient Methods from Learning Rates",
+   "authors": "Naman Agarwal et al.",
+   "venue": "arXiv:2002.11803",
+   "year": "2020",
+   "url": "https://arxiv.org/abs/2002.11803",
+   "quote": "We introduce a \"grafting\" experiment which decouples an update's magnitude from its direction, finding that many existing beliefs in the literature may have arisen from insufficient isolation of the implicit schedule of step sizes.",
+   "topic": "Common confusion about the learning rate metric"
+  },
+  {
+   "id": "baitbench",
+   "kind": "paper",
+   "title": "BAITBENCH: Measuring Agent Reward Hacking with Optional Shortcuts Planted in ML Tasks",
+   "authors": "Pradyumna Shyama Prasad et al.",
+   "venue": "arXiv:2608.30724",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.30724",
+   "quote": "Across seven frontier agents scored by our two-stage judge pipeline, 57.1% of runs exhibit reward hacking, with five of seven above 50%.",
+   "topic": "Public magnitude of reward hacking rate and two-stage grading pipeline"
+  },
+  {
+   "id": "beyond-precision",
+   "kind": "paper",
+   "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+   "authors": "Yaxiang Zhang, Yingru Li, Jiacai Liu, Jiawei Xu, Ziniu Li, Qian Liu, Haoyuan Li",
+   "venue": "arXiv:2602.01826",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.01826",
+   "quote": "standard remedies, such as Importance Sampling, might fail during extended training runs",
+   "topic": "IS-type corrections may fail in long training"
+  },
+  {
+   "id": "beyond-precision-dynamic",
+   "kind": "paper",
+   "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+   "authors": "Yaxiang Zhang, Yingru Li, Jiacai Liu, Jiawei Xu, Ziniu Li, Qian Liu, Haoyuan Li",
+   "venue": "arXiv:2602.01826",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.01826",
+   "quote": "we deduce that the mismatch is not merely a static numerical discrepancy, but a dynamic failure coupled with the model's optimization.",
+   "topic": "TIM is a dynamic failure coupled with optimization"
+  },
+  {
+   "id": "dapo",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Unlike previous works that withhold training details, we introduce four key techniques of our algorithm that make large-scale LLM RL a success.",
+   "topic": "Decoupled upper/lower clipping (Decoupled Clip)"
+  },
+  {
+   "id": "dapo-accuracy1-rising",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Empirically, the number of samples with accuracy equal to 1 continues to increase, as shown in Figure 3(b).",
+   "topic": "All-correct problem share rises monotonically with training"
+  },
+  {
+   "id": "dapo-dynsam",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "we propose to over-sample and filter out prompts with the accuracy equal to 1 and 0 as illustrated in Equation 11, leaving all prompts in the batch with effective gradients and keeping a consistent number of prompts.",
+   "topic": "Dynamic sampling: discard all-correct/all-wrong (zero-advantage) groups"
+  },
+  {
+   "id": "dapo-length-quality",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale (§3.3 Low-quality forms of long samples)",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "we observe that excessively long samples often exhibit low-quality patterns such as gibberish and repetitive words",
+   "topic": "Response length inflation may be unhealthy"
+  },
+  {
+   "id": "dapo-longtail-generation",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale (§3.2 Long tail dominates generation time)",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "the generation time is typically dominated by the generation of long-tail samples if the RL system is synchronized and the generation stage is not pipelined",
+   "topic": "Generation wall clock is dominated by long-tail samples"
+  },
+  {
+   "id": "dapo-overlong",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale（Overlong Reward Shaping）",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Overlong Reward Shaping, which reduces reward noise and stabilizes training.",
+   "topic": "Overly long samples need dedicated reward shaping"
+  },
+  {
+   "id": "dapo-rule-reward",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "Instead, we directly use the final accuracy of a verifiable task as the outcome reward, computed using the following rule:",
+   "topic": "Verifiable reward (rule-based verifiable reward)"
+  },
+  {
+   "id": "dapo-upper-clip",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "We identify that the upper clip can restrict the exploration of the policy, where making an ‘exploitation’ token more probable is much easier yet the probability of an unlikely ‘exploration’ token is too tightly bounded to be uplifted.",
+   "topic": "The form of asymmetric clipping (Clip-Higher) in public methods"
+  },
+  {
+   "id": "dapo-zero-advantage",
+   "kind": "paper",
+   "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+   "authors": "Qiying Yu et al.",
+   "venue": "arXiv:2503.14476",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.14476",
+   "quote": "A zero advantage results in zero policy gradients, shrinking the magnitude and increasing the noise sensitivity of the batch gradient, thereby degrading sample efficiency.",
+   "topic": "Why zero-advantage groups must be discarded"
+  },
+  {
+   "id": "dart-gui",
+   "kind": "paper",
+   "title": "Efficient Multi-turn RL for GUI Agents via Decoupled Training and Adaptive Data Curation",
+   "authors": "Pengxiang Li et al.",
+   "venue": "arXiv:2509.23866",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.23866",
+   "quote": "stabilizing learning via truncated importance sampling for policy mismatch between policy rollout and updating.",
+   "topic": "Definitional description of TIS"
+  },
+  {
+   "id": "decoupled-ppo",
+   "kind": "paper",
+   "title": "Batch size-invariance for policy optimization",
+   "authors": "Jacob Hilton, Karl Cobbe, John Schulman",
+   "venue": "arXiv:2110.00641 (NeurIPS 2022)",
+   "year": "2021",
+   "url": "https://arxiv.org/abs/2110.00641",
+   "quote": "Our key insight is to decouple the proximal policy (used for controlling policy updates) from the behavior policy (used for off-policy corrections).",
+   "topic": "Decoupling of proximal policy and behavior policy"
+  },
+  {
+   "id": "dispo",
+   "kind": "paper",
+   "title": "DISPO: Enhancing Training Efficiency and Stability in Reinforcement Learning for Large Language Model Mathematical Reasoning",
+   "authors": "Batuhan K. Karaman et al.",
+   "venue": "arXiv:2602.00983 (AISTATS 2026)",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.00983",
+   "quote": "For correct responses, weights >1 increase the average token entropy (i.e., exploration) while weights <1 decrease it (i.e., distillation) -- both beneficial but causing gradual performance degradation when excessive.",
+   "topic": "How the clipping direction raises/lowers entropy"
+  },
+  {
+   "id": "dr-grpo",
+   "kind": "paper",
+   "title": "Understanding R1-Zero-Like Training: A Critical Perspective",
+   "authors": "Zichen Liu et al.",
+   "venue": "arXiv:2503.20783",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.20783",
+   "quote": "we identify an optimization bias in Group Relative Policy Optimization (GRPO), which artificially increases response length (especially for incorrect outputs) during training.",
+   "topic": "Length bias of the group-relative objective"
+  },
+  {
+   "id": "dr-grpo-length-bias",
+   "kind": "paper",
+   "title": "Understanding R1-Zero-Like Training: A Critical Perspective",
+   "authors": "Zichen Liu et al.",
+   "venue": "arXiv:2503.20783",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.20783",
+   "quote": "we identify an optimization bias in Group Relative Policy Optimization (GRPO), which artificially increases response length (especially for incorrect outputs) during training",
+   "topic": "Length inflation may come from objective function bias"
+  },
+  {
+   "id": "drgrpo",
+   "kind": "paper",
+   "title": "Understanding R1-Zero-Like Training: A Critical Perspective (Dr. GRPO)",
+   "authors": "Zichen Liu et al.",
+   "venue": "arXiv:2503.20783",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.20783",
+   "quote": "Dr. GRPO introduces simple yet significant modifications to address the biases in GRPO (Shao et al., 2024), by removing the length and std normalization terms.",
+   "topic": "Within-group standard deviation normalization is a bias term."
+  },
+  {
+   "id": "drpo",
+   "kind": "paper",
+   "title": "Rethinking the Divergence Regularization in LLM RL",
+   "authors": "Jiarui Yao, Xiangxin Zhou, Penghui Qi, Wee Sun Lee, Liefeng Bo, Tianyu Pang",
+   "venue": "arXiv:2606.09821",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2606.09821",
+   "quote": "In practice, LLM RL is often off-policy because of training-inference mismatch and policy staleness, making trust-region control essential for stable optimization.",
+   "topic": "the two sources of off-policy, side by side"
+  },
+  {
+   "id": "dual-clip-ppo",
+   "kind": "paper",
+   "title": "Mastering Complex Control in MOBA Games with Deep Reinforcement Learning (dual-clip PPO)",
+   "authors": "Deheng Ye et al.",
+   "venue": "arXiv:1912.09729",
+   "year": "2019",
+   "url": "https://arxiv.org/abs/1912.09729",
+   "quote": "When A_t<0, such a large ratio r_t(theta) will introduce a big and unbounded variance since r_t(theta)A_t << 0.",
+   "topic": "The public counterpart of 'only one side moves the lower bound'"
+  },
+  {
+   "id": "entropy-mechanism",
+   "kind": "paper",
+   "title": "The Entropy Mechanism of Reinforcement Learning for Reasoning Language Models",
+   "authors": "Ganqu Cui et al.",
+   "venue": "arXiv:2505.22617",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.22617",
+   "quote": "In practice, we establish a transformation equation R=-a*e^H+b between entropy H and downstream performance R.",
+   "topic": "The trade-off between entropy and performance (entropy collapse narrative)"
+  },
+  {
+   "id": "estr",
+   "kind": "paper",
+   "title": "Deconstructing Off-Policy Ratios: Entropy-Scaled Trust Regions for Asynchronous Reinforcement Learning",
+   "authors": "Guanqun Zhao, Zijun Xie, Binbin Zheng, Enlei Gong, Jiafeng Lu, Yehan Yang, Aoqi Hu, Zeyu Chen",
+   "venue": "arXiv:2607.22186",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2607.22186",
+   "quote": "we reveal that the natural scale of the importance ratio varies systematically with token entropy. Under asynchronous dynamics, this entropy-ratio scaling dictates two distinct phenomena: at low entropy, the inherent train-inference discrepancy is drastically amplified into substantial sampling noise",
+   "topic": "The scale of off-policy bias is systematically correlated with token entropy."
+  },
+  {
+   "id": "f-tis",
+   "kind": "paper",
+   "title": "F-TIS: Harnessing Diverse Models in Collaborative GRPO",
+   "authors": "Nikolay Blagoev et al.",
+   "venue": "arXiv:2605.22537",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2605.22537",
+   "quote": "prior work has identified that off-policy samples can hurt GRPO convergence.",
+   "topic": "The harm of off-policy samples to GRPO convergence"
+  },
+  {
+   "id": "fp16-mismatch",
+   "kind": "paper",
+   "title": "Defeating the Training-Inference Mismatch via FP16",
+   "authors": "Penghui Qi et al.",
+   "venue": "arXiv:2510.26788",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2510.26788",
+   "quote": "we show that its root cause lies in the floating point precision itself. The widely adopted BF16, despite its large dynamic range, introduces large rounding errors that breaks the consistency between training and inference.",
+   "topic": "Precision source of train-inference mismatch"
+  },
+  {
+   "id": "fp8-rl",
+   "kind": "paper",
+   "title": "FP8-RL: A Practical and Stable Low-Precision Stack for LLM Reinforcement Learning",
+   "authors": "Zhaopeng Qiu, Shuang Yu, Jingqi Zhang, Shuai Zhang, Xue Huang, Jingyi Yang, Junjie Lai",
+   "venue": "arXiv:2601.18150",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.18150",
+   "quote": "low-precision rollouts can deviate from the higher-precision policy assumed by the trainer, causing train-inference mismatch and potential instability",
+   "topic": "TIM caused by low-precision rollout and KV cache"
+  },
+  {
+   "id": "gae",
+   "kind": "paper",
+   "title": "High-Dimensional Continuous Control Using Generalized Advantage Estimation",
+   "authors": "John Schulman et al.",
+   "venue": "arXiv:1506.02438",
+   "year": "2015",
+   "url": "https://arxiv.org/abs/1506.02438",
+   "quote": "which is simply the empirical returns minus the value function baseline",
+   "topic": "The limiting form of GAE and the definition of advantage"
+  },
+  {
+   "id": "gipo",
+   "kind": "paper",
+   "title": "GIPO: Gaussian Importance Sampling Policy Optimization",
+   "authors": "Chengxuan Lu et al.",
+   "venue": "arXiv:2603.03955",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2603.03955",
+   "quote": "GIPO (Gaussian Importance sampling Policy Optimization) is proposed as a policy optimization objective based on truncated importance sampling, replacing hard clipping with a log-ratio-based Gaussian trust weight to softly damp extreme importance ratios while maintaining non-zero gradients.",
+   "topic": "The cost of TIS hard truncation"
+  },
+  {
+   "id": "grad-clip-theory",
+   "kind": "paper",
+   "title": "Why gradient clipping accelerates training: A theoretical justification for adaptivity",
+   "authors": "Jingzhao Zhang et al.",
+   "venue": "arXiv:1905.11881",
+   "year": "2019",
+   "url": "https://arxiv.org/abs/1905.11881",
+   "quote": "Further, this smoothness positively correlates with the gradient norm, and contrary to standard assumptions in the literature, it can grow with the norm of the gradient.",
+   "topic": "The theoretical connection between gradient norm and instability"
+  },
+  {
+   "id": "gradient-stabilizer",
+   "kind": "paper",
+   "title": "GradientStabilizer: Fix the Norm, Not the Gradient",
+   "authors": "Tianjin Huang et al.",
+   "venue": "arXiv:2502.17055",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2502.17055",
+   "quote": "Training instability in modern deep learning systems is frequently triggered by rare but extreme gradient-norm spikes, which can induce oversized parameter updates, corrupt optimizer state, and lead to slow recovery or divergence.",
+   "topic": "Gradient norm spikes and training instability"
+  },
+  {
+   "id": "grpo-deepseekmath",
+   "kind": "paper",
+   "title": "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models",
+   "authors": "Zhihong Shao et al.",
+   "venue": "arXiv:2402.03300",
+   "year": "2024",
+   "url": "https://arxiv.org/abs/2402.03300",
+   "quote": "GRPO foregoes the critic model, instead estimating the baseline from group scores, significantly reducing training resources compared to Proximal Policy Optimization (PPO).",
+   "topic": "GRPO removes critic: within-group scores as baseline"
+  },
+  {
+   "id": "grpo-normalization-curvature",
+   "kind": "paper",
+   "title": "Why GRPO Needs Normalization: A Local-Curvature Perspective on Adaptive Gradients",
+   "authors": "Cheng Ge et al.",
+   "venue": "arXiv:2601.23135",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.23135",
+   "quote": "In this work, we provide an explanation through the lens of local curvature of the sequence-level policy gradient: standard deviation normalization implements an adaptive gradient.",
+   "topic": "The two-sidedness of std normalization (adaptive gradient vs bias)"
+  },
+  {
+   "id": "grpo-offpolicy",
+   "kind": "paper",
+   "title": "Group-Relative REINFORCE Is Secretly an Off-Policy Algorithm: Demystifying Some Myths About GRPO and Its Friends",
+   "authors": "Chaorui Yao, Yanxi Chen, Yuchang Sun, Yushuo Chen, Wenhao Zhang, Xuchen Pan, Yaliang Li, Bolin Ding",
+   "venue": "arXiv:2509.24203 (ICLR 2026)",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.24203",
+   "quote": "without assuming a specific training data distribution, showing that it admits a native off-policy interpretation. This perspective yields two general principles for adapting REINFORCE to truly off-policy settings: regularizing policy updates, and actively shaping the data distribution.",
+   "topic": "GRPO-type algorithms themselves have an off-policy interpretation"
+  },
+  {
+   "id": "gspo",
+   "kind": "paper",
+   "title": "Group Sequence Policy Optimization",
+   "authors": "Chujie Zheng et al.",
+   "venue": "arXiv:2507.18071",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2507.18071",
+   "quote": "Unlike previous algorithms that adopt token-level importance ratios, GSPO defines the importance ratio based on sequence likelihood and performs sequence-level clipping, rewarding, and optimization.",
+   "topic": "token-level vs sequence-level importance ratio"
+  },
+  {
+   "id": "hack-verifiable-terminal-bench",
+   "kind": "paper",
+   "title": "Hack-Verifiable Terminal Bench: Evaluating Reward Hacking in Terminal Tasks",
+   "authors": "Amit Roth, Ivan Bercovich, Yonathan Efroni",
+   "venue": "arXiv:2608.22103",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.22103",
+   "quote": "Measuring reward hacking is itself challenging, as detection typically relies on human inspection or LLM judges, both of which can be unreliable.",
+   "topic": "The reliability limits of using an LLM grader to detect cheating"
+  },
+  {
+   "id": "humaneval-passk",
+   "kind": "paper",
+   "title": "Evaluating Large Language Models Trained on Code",
+   "authors": "Mark Chen et al.",
+   "venue": "arXiv:2107.03374",
+   "year": "2021",
+   "url": "https://arxiv.org/abs/2107.03374",
+   "quote": "Instead, to evaluate pass@k, we generate n >= k samples per task (in this paper, we use n = 200 and k <= 100), count the number of correct samples c <= n which pass unit tests, and calculate the unbiased estimator",
+   "topic": "Unbiased pass@k estimator and sampling variance"
+  },
+  {
+   "id": "hybridflow",
+   "kind": "paper",
+   "title": "HybridFlow: A Flexible and Efficient RLHF Framework",
+   "authors": "Guangming Sheng et al.",
+   "venue": "arXiv:2409.19256",
+   "year": "2024",
+   "url": "https://arxiv.org/abs/2409.19256",
+   "quote": "We further design a 3D-HybridEngine for efficient actor model resharding between training and generation phases, with zero memory redundancy and significantly reduced communication overhead.",
+   "topic": "Generation/training two-stage split in a hybrid-controller RL system"
+  },
+  {
+   "id": "judge-consistency-not-reliability",
+   "kind": "paper",
+   "title": "When Consistency Does Not Mean Reliability: Evaluating Local LLM Judges Against Human Ratings",
+   "authors": "Aakash Kumar Tiwari",
+   "venue": "arXiv:2609.13824",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.13824",
+   "quote": "These results show that high self-consistency does not necessarily indicate high agreement with human judgments.",
+   "topic": "Self-consistency ≠ correctness"
+  },
+  {
+   "id": "judge-not-oracle",
+   "kind": "paper",
+   "title": "LLM-as-a-Judge Is Not an Oracle: Why Self-Improving Agents Need Deterministic Guardrails",
+   "authors": "Vansh Wahi",
+   "venue": "arXiv:2609.02246",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.02246",
+   "quote": "Agents achieved perfect scores by reading cached answer keys from their environment, a 100% pass rate concealing 68% true capability.",
+   "topic": "A perfect score may be a product of cheating"
+  },
+  {
+   "id": "m2po",
+   "kind": "paper",
+   "title": "Prosperity before Collapse: How Far Can Off-Policy RL Reach with Stale Data on LLMs?",
+   "authors": "Haizhong Zheng, Jiawei Zhao, Beidi Chen",
+   "venue": "arXiv:2510.01161",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2510.01161",
+   "quote": "M2PO sharply reduces the fraction of clipped tokens under high staleness (from 1.22% to 0.06% over training), precisely masking high-variance tokens while maintaining stable optimization.",
+   "topic": "Order of magnitude of the clipped token fraction under high staleness"
+  },
+  {
+   "id": "mismatch-lr-scheduler",
+   "kind": "paper",
+   "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+   "authors": "Yaxiang Zhang et al.",
+   "venue": "arXiv:2602.01826",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.01826",
+   "quote": "we find that the mismatch can be effectively suppressed by shrinking the update size.",
+   "topic": "Use learning rate scheduling to suppress training-inference mismatch"
+  },
+  {
+   "id": "missing-old-logits",
+   "kind": "paper",
+   "title": "Missing Old Logits in Asynchronous Agentic RL: Semantic Mismatch and Repair Methods for Off-Policy Correction",
+   "authors": "Zhong Guan, Yongjian Guo, Haoran Sun, Wen Huang, Shuai Di, Likang Wu, Xiong Jun Wu, Hongke Zhao",
+   "venue": "arXiv:2605.12070",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2605.12070",
+   "quote": "This missing-old-logit problem entangles discrepancy repair with staleness correction, breaks the intended semantics of decoupled correction, and makes clipping and masking thresholds interact undesirably.",
+   "topic": "The total ratio should be split into two terms: the 'engine difference term' and the 'staleness term'"
+  },
+  {
+   "id": "monitor-cot-hacking",
+   "kind": "paper",
+   "title": "Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation",
+   "authors": "Bowen Baker et al.",
+   "venue": "arXiv:2503.11926",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2503.11926",
+   "quote": "We show that we can monitor a frontier reasoning model, such as OpenAI o3-mini, for reward hacking in agentic coding environments by using another LLM that observes the model's chain-of-thought (CoT) reasoning.",
+   "topic": "Detection of reward hacking (CoT monitoring)"
+  },
+  {
+   "id": "mtbench-judge",
+   "kind": "paper",
+   "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+   "authors": "Lianmin Zheng et al.",
+   "venue": "arXiv:2306.05685 (NeurIPS 2023 D&B)",
+   "year": "2023",
+   "url": "https://arxiv.org/abs/2306.05685",
+   "quote": "We examine the usage and limitations of LLM-as-a-judge, including position, verbosity, and self-enhancement biases, as well as limited reasoning ability, and propose solutions to mitigate some of them.",
+   "topic": "Systematic biases of LLM graders (position/length/self-enhancement)"
+  },
+  {
+   "id": "multi-judge-ensemble",
+   "kind": "paper",
+   "title": "Can We Trust LLM Judges: A Study of Capability-Dependent Biases and Multi-Judge Ensemble for Bias Calibration",
+   "authors": "Gemma Zhang et al.",
+   "venue": "arXiv:2609.12002",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.12002",
+   "quote": "We introduce a disagreement-based estimator that derives these error rates purely from inter-judge agreement patterns, requiring no ground-truth labels or task metadata.",
+   "topic": "Multi-grader aggregation and using “disagreement” to estimate error rates"
+  },
+  {
+   "id": "muon",
+   "kind": "paper",
+   "title": "Muon is Scalable for LLM Training",
+   "authors": "Jingyuan Liu et al.",
+   "venue": "arXiv:2502.16982",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2502.16982",
+   "quote": "We identify two crucial techniques for scaling up Muon: (1) adding weight decay and (2) carefully adjusting the per-parameter update scale.",
+   "topic": "Different optimizers make the same lr value incomparable"
+  },
+  {
+   "id": "passk-inversion",
+   "kind": "paper",
+   "title": "When RLVR Shrinks the Reasoning Boundary: Diagnosing Pass@k Inversion",
+   "authors": "Todd Zhou",
+   "venue": "arXiv:2607.20543",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2607.20543",
+   "quote": "The failure concentrates on boundary prompts, where the base model contains rare correct trajectories that are recoverable by sampling but too sparse to reliably appear in finite RLVR rollout groups.",
+   "topic": "The mechanism of the pass@k reversal: boundary prompts and finite rollout groups"
+  },
+  {
+   "id": "passk-training",
+   "kind": "paper",
+   "title": "Pass@k Training for Adaptively Balancing Exploration and Exploitation of Large Reasoning Models",
+   "authors": "Zhipeng Chen et al.",
+   "venue": "arXiv:2508.10751",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2508.10751",
+   "quote": "Reinforcement learning with verifiable rewards (RLVR), which typically adopts Pass@1 as the reward, has faced the issues in balancing exploration and exploitation, causing policies to prefer conservative actions, converging to a local optimum.",
+   "topic": "Using Pass@1 as the reward leads to coverage shrinkage"
+  },
+  {
+   "id": "pipeline-rl",
+   "kind": "paper",
+   "title": "PipelineRL: Faster On-policy Reinforcement Learning for Long Sequence Generation",
+   "authors": "Alexandre Piche, Ehsan Kamalloo, Rafael Pardinas, Xiaoyin Chen, Dzmitry Bahdanau",
+   "venue": "arXiv:2509.19128",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.19128",
+   "quote": "PipelineRL employs concurrent asynchronous data generation and model training, distinguished by the novel in-flight weight updates.",
+   "topic": "In an asynchronous pipeline, sequences are generated across policy versions."
+  },
+  {
+   "id": "ppo",
+   "kind": "paper",
+   "title": "Proximal Policy Optimization Algorithms",
+   "authors": "John Schulman et al.",
+   "venue": "arXiv:1707.06347",
+   "year": "2017",
+   "url": "https://arxiv.org/abs/1707.06347",
+   "quote": "Whereas standard policy gradient methods perform one gradient update per data sample, we propose a novel objective function that enables multiple epochs of minibatch updates.",
+   "topic": "PPO clipped surrogate objective and single-epoch/multi-epoch updates"
+  },
+  {
+   "id": "psn-rlvr",
+   "kind": "paper",
+   "title": "Learning to Explore with Parameter-Space Noise: A Deep Dive into Parameter-Space Noise for Reinforcement Learning with Verifiable Rewards",
+   "authors": "Bizhe Bai et al.",
+   "venue": "arXiv:2602.02555",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2602.02555",
+   "quote": "To mitigate the resulting sampling-update mismatch, we incorporate truncated importance sampling (TIS).",
+   "topic": "TIS is used to handle sampling-update mismatch"
+  },
+  {
+   "id": "reality-final-verifier",
+   "kind": "paper",
+   "title": "Reality Is the Final Verifier: On Two Key Gaps in Agentic Software Engineering",
+   "authors": "Alexander Krentsel et al.",
+   "venue": "arXiv:2609.12039",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.12039",
+   "quote": "reward hacking exploits omissions in the requirements or model, while hallucination widens the gaps by fabricating requirements or environment assumptions",
+   "topic": "Tests passing ≠ deployment acceptable (two gaps)"
+  },
+  {
+   "id": "rlvr-entropy-coverage",
+   "kind": "paper",
+   "title": "Boosting LLM Exploration via Weak-Model Guidance in RLVR",
+   "authors": "Xingyu Shen et al.",
+   "venue": "arXiv:2608.27420",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.27420",
+   "quote": "Reinforcement Learning with Verifiable Rewards (RLVR) significantly improves LLM reasoning but often causes a drop in policy entropy, leading to narrowed reasoning coverage and degraded pass@k for large k.",
+   "topic": "Entropy drop → coverage narrowing → pass@k degradation at large k"
+  },
+  {
+   "id": "rlvr-passk-shrink",
+   "kind": "paper",
+   "title": "Does Reinforcement Learning Really Incentivize Reasoning Capacity in LLMs Beyond the Base Model?",
+   "authors": "Yang Yue et al.",
+   "venue": "arXiv:2504.13837",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2504.13837",
+   "quote": "While RLVR-trained models outperform their base models at small k (e.g., k = 1), the base models achieve a higher pass@k score when k is large.",
+   "topic": "RLVR improves pass@1 but shrinks pass@k coverage"
+  },
+  {
+   "id": "robusttests",
+   "kind": "paper",
+   "title": "Robust Code RL via Faulty-Code-Driven Test case Synthesis and Dense Reward Shaping",
+   "authors": "Yiwen Zhang et al.",
+   "venue": "arXiv:2608.24135 (EMNLP 2026)",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.24135",
+   "quote": "its efficacy is often hindered by insufficient test case coverage, leading to reward hacking and policy degradation",
+   "topic": "Using newly generated tests to fill in coverage to treat reward hacking"
+  },
+  {
+   "id": "scaling-beyond-human-supervision",
+   "kind": "paper",
+   "title": "Scaling Large Reasoning Models beyond Human Supervision: A Path toward Superintelligence",
+   "authors": "Zhiqin Yang et al.",
+   "venue": "arXiv:2608.31075",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2608.31075",
+   "quote": "Our analysis further highlights the risks introduced by increasingly autonomous rewards and experience generation, including reward hacking, feedback drift, curriculum collapse, and environment errors.",
+   "topic": "Risk checklist for autonomous rewards and environment generation"
+  },
+  {
+   "id": "score-centering",
+   "kind": "paper",
+   "title": "Score Centering Stabilizes Off-policy Reinforcement Learning",
+   "authors": "Martin Marek, Max Ryabinin",
+   "venue": "arXiv:2609.20807",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2609.20807",
+   "quote": "we show that the instability of RL under TIM is primarily caused by drift: a persistent bias between training and inference engines that accumulates with every training step.",
+   "topic": "There is a persistent bias between the two engines that accumulates over steps"
+  },
+  {
+   "id": "simpletir",
+   "kind": "paper",
+   "title": "SimpleTIR: End-to-End Reinforcement Learning for Multi-Turn Tool-Integrated Reasoning",
+   "authors": "Zhenghai Xue et al.",
+   "venue": "arXiv:2509.02479",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2509.02479",
+   "quote": "This issue compounds over successive turns, causing catastrophic gradient norm explosions that derail the training process.",
+   "topic": "Gradient norm explosion in multi-turn agentic scenarios"
+  },
+  {
+   "id": "spurious-rewards",
+   "kind": "paper",
+   "title": "Spurious Rewards: Rethinking Training Signals in RLVR",
+   "authors": "Rulin Shao et al.",
+   "venue": "arXiv:2506.10947",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2506.10947",
+   "quote": "we show that GRPO exhibits a clipping bias from the clip term, which can amplify high-prior behaviors learned during pretraining even without informative rewards.",
+   "topic": "Bias introduced by the clipping term itself"
+  },
+  {
+   "id": "stabilizing-rl",
+   "kind": "paper",
+   "title": "Stabilizing Reinforcement Learning with LLMs: Formulation and Practices",
+   "authors": "Chujie Zheng, Kai Dang, Bowen Yu, Mingze Li, Huiqiang Jiang, Junrong Lin, Yuqiong Liu, Hao Lin, Chencan Wu, Feng Hu, An Yang, Jingren Zhou, Junyang Lin",
+   "venue": "arXiv:2512.01374",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2512.01374",
+   "quote": "through a first-order approximation, we show that this surrogate becomes increasingly valid only when both the training-inference discrepancy and policy staleness are minimized.",
+   "topic": "TIM and staleness are two independent quantities that must both be pushed down"
+  },
+  {
+   "id": "swebench",
+   "kind": "paper",
+   "title": "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?",
+   "authors": "Carlos E. Jimenez et al.",
+   "venue": "arXiv:2310.06770 (ICLR 2024)",
+   "year": "2023",
+   "url": "https://arxiv.org/abs/2310.06770",
+   "quote": "Resolving issues in SWE-bench frequently requires understanding and coordinating changes across multiple functions, classes, and even files simultaneously, calling for models to interact with execution environments, process extremely long contexts and perform complex reasoning",
+   "topic": "Execution environment + long context are inherent requirements of this kind of evaluation."
+  },
+  {
+   "id": "tim-diagnosing",
+   "kind": "paper",
+   "title": "Diagnosing Training Inference Mismatch in LLM Reinforcement Learning",
+   "authors": "Tianle Zhong et al.",
+   "venue": "arXiv:2605.14220",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2605.14220",
+   "quote": "TIM is difficult to inspect because it is entangled with off-policy drift and common stabilization mechanisms.",
+   "topic": "Entanglement of mismatch and off-policy drift"
+  },
+  {
+   "id": "trpo",
+   "kind": "paper",
+   "title": "Trust Region Policy Optimization",
+   "authors": "John Schulman et al.",
+   "venue": "arXiv:1502.05477 (ICML 2015)",
+   "year": "2015",
+   "url": "https://arxiv.org/abs/1502.05477",
+   "quote": "We describe an iterative procedure for optimizing policies, with guaranteed monotonic improvement.",
+   "topic": "The starting point of trust region methods"
+  },
+  {
+   "id": "trust-region-masking",
+   "kind": "paper",
+   "title": "Trust Region Masking for Long-Horizon LLM Reinforcement Learning",
+   "authors": "Yingru Li, Jiacai Liu, Jiawei Xu, Yuxuan Tong, Ziniu Li, Qian Liu, Baoxiang Wang",
+   "venue": "arXiv:2512.23075",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2512.23075",
+   "quote": "a sequence-level quantity that cannot be controlled by token-independent methods like PPO clipping",
+   "topic": "What determines the error bound is the maximum token-level divergence (a sequence-level quantity)"
+  },
+  {
+   "id": "mimo-7b-continuous-rollout",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining (§3.4.1 Seamless Rollout Engine: continuous rollout and asynchronous grading)",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "After computing rewards, we update the number of valid samples and the current step's pass-rate statistics, then launch new rollout tasks if active tasks are insufficient to meet training demands based on these statistics.",
+   "topic": "After grading completes, update the valid sample count and pass-rate statistics, then start additional rollout tasks as needed"
+  },
+  {
+   "id": "mimo-7b-early-termination",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining (§3.4.1 Early Termination: terminate in-flight tasks in FIFO order after a batch is gathered)",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "We terminate ongoing tasks only if the valid sample count meets the batch requirement and all tasks initiated prior to these selected samples have completed.",
+   "topic": "After valid samples meet the batch requirement, terminate in-flight tasks in FIFO order: the in-flight count drains at the end of the step"
+  },
+  {
+   "id": "mimo-7b-easy-pool",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining（§3.3.2 Easy Data Filter and Re-Sampling：Easy-Question Resampling Pool）",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "During the training process, we maintain an easy data pool, where problems with perfect pass rates are stored. When performing rollouts, there is a probability α (10% in our experiments) to sample data from this easy data pool.",
+   "topic": "Easy-question resampling pool: after dynamic sampling filters out full-score questions, a pool is used to resample them back proportionally."
+  },
+  {
+   "id": "mimo-7b-sample-waste",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining (Table 2: Definition of Sample Waste Ratio)",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "Sample Waste Ratio represents the ratio of excess valid samples generated relative to the required batch size.",
+   "topic": "The proportion of extra valid samples collected relative to the batch requirement: accepted samples will exceed the target quota."
+  },
+  {
+   "id": "mimo-7b-tr",
+   "kind": "report",
+   "title": "MiMo: Unlocking the Reasoning Potential of Language Model -- From Pretraining to Posttraining",
+   "authors": "LLM-Core Xiaomi（Bingquan Xia et al.）",
+   "venue": "arXiv:2505.07608",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2505.07608",
+   "quote": "During post-training, we curate a dataset of 130K verifiable mathematics and programming problems for reinforcement learning, integrating a test-difficulty-driven code-reward scheme to alleviate sparse-reward issues and employing strategic data resampling to stabilize training.",
+   "topic": "The official team uses test difficulty to drive code reward"
+  },
+  {
+   "id": "mimo-v2-flash-data-scheduler",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report (§4.6.2 Data Scheduler: sampling quotas by data source)",
+   "authors": "Xiaomi MiMo Team",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "The Data Scheduler supports data source-specific configurations (sample quota, scheduling priority, length limits, temperature) and fits pass rates to accept samples by configured ratios.",
+   "topic": "Each data source has an independent sampling quota; the accepted amount is determined by the pass rate and configured ratio."
+  },
+  {
+   "id": "mimo-v2-flash-tr",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "where the rollout phase consistently emerges as the dominant bottleneck due to the inference and decoding costs",
+   "topic": "RL system: two stages of generation and training"
+  },
+  {
+   "id": "mimo-v2-flash-tr-compute",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report (post-training compute scaling)",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "In post-training, we focus on efficiently scaling RL compute to improve reasoning and agentic capabilities.",
+   "topic": "Official stance on RL compute scaling"
+  },
+  {
+   "id": "mimo-v2-flash-tr-reward-hacking",
+   "kind": "report",
+   "title": "MiMo-V2-Flash Technical Report Appendix B (Reward Hacking of SWE-Bench)",
+   "authors": "LLM-Core Xiaomi",
+   "venue": "arXiv:2601.02780",
+   "year": "2026",
+   "url": "https://arxiv.org/abs/2601.02780",
+   "quote": "B Reward Hacking of SWE-Bench",
+   "topic": "Officially, a separate section discusses reward hacking on SWE-Bench."
+  },
+  {
+   "id": "mimo-vl-tr",
+   "kind": "report",
+   "title": "MiMo-VL Technical Report",
+   "authors": "Xiaomi LLM-Core Team（Zihao Yue et al.）",
+   "venue": "arXiv:2506.03569",
+   "year": "2025",
+   "url": "https://arxiv.org/abs/2506.03569",
+   "quote": "Our training combines four-stage pre-training (2.4 trillion tokens) with Mixed On-policy Reinforcement Learning (MORL) integrating diverse reward signals.",
+   "topic": "MiMo series official RL recipe (mixed reward signals)"
+  },
+  {
+   "id": "dapo-clip-higher",
+   "kind": "blog",
+   "title": "DAPO: an Open-Source LLM Reinforcement Learning System at Scale (official project page, Algorithm Insights)",
+   "authors": "ByteDance Seed / Tsinghua AIR / HKU",
+   "venue": "dapo-sia.github.io",
+   "year": "2025",
+   "url": "https://dapo-sia.github.io/",
+   "quote": "We observe an entropy-collapsing phenomenon in our initial experiments. We propose increasing the upper clip range of the importance sampling ratio in policy gradient loss to mitigate this problem.",
+   "topic": "Clip-Higher and entropy collapse"
+  },
+  {
+   "id": "iclr-ppo-approxkl",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization (definition of approxkl)",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "`approxkl`: the approximate Kullback–Leibler divergence, measured by `(-logratio).mean()`, which corresponds to the `k1` estimator in John Schulman’s blog post on approximating KL divergence.",
+   "topic": "Definition of the KL curve in PPO"
+  },
+  {
+   "id": "iclr-ppo-clipfrac",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization（Debug variables）",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "`clipfrac`: the fraction of the training data that triggered the clipped objective.",
+   "topic": "Standard definition of clipfrac"
+  },
+  {
+   "id": "iclr-ppo-entropy-bonus",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization（Overall Loss and Entropy Bonus）",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "The overall loss is calculated as `loss = policy_loss - entropy * entropy_coefficient + value_loss * value_coefficient`, which maximizes an entropy bonus term.",
+   "topic": "Entropy is a quantity explicitly maximized by the objective function"
+  },
+  {
+   "id": "iclr-ppo-gradclip",
+   "kind": "blog",
+   "title": "The 37 Implementation Details of Proximal Policy Optimization（Global Gradient Clipping）",
+   "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+   "venue": "ICLR Blog Track",
+   "year": "2022",
+   "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+   "quote": "For each update iteration in an epoch, PPO rescales the gradients of the policy and value network so that the “global l2 norm” (i.e., the norm of the concatenated gradients of all parameters) does not exceed `0.5`.",
+   "topic": "The definition of global gradient norm"
+  },
+  {
+   "id": "mimo-rl-qbitai-async",
+   "kind": "blog",
+   "title": "QbitAI: Luo Fuli officially announces Xiaomi reinforcement learning, livestreams new model training process (asynchronous pipeline)",
+   "authors": "Meng Chen (QbitAI)",
+   "venue": "qbitai.com",
+   "year": "2026",
+   "url": "https://www.qbitai.com/2026/09/490950.html",
+   "quote": "Some agents are still executing tasks in the environment, some have already finished and are waiting to be graded, some are computing reward, and new tasks are entering the system. Generation, execution, scoring, and training no longer queue strictly; instead, they form a continuously running asynchronous pipeline.",
+   "topic": "The asynchronous pipeline behind the sampler panel: tasks are simultaneously in three states: executing / waiting to be graded / computing reward"
+  },
+  {
+   "id": "mimo-rl-thirdparty-note",
+   "kind": "blog",
+   "title": "Third-party study notes: Xiaomi puts the RL training process on livestream (field-by-field version)",
+   "authors": "Bingqiang Zhou",
+   "venue": "bingqiangzhou.github.io",
+   "year": "2026",
+   "url": "https://bingqiangzhou.github.io/posts/xiaomi-mimo-rl-live/",
+   "quote": "On the right is a real-time table broken down by data source: 25 data sources (all names hashed, such as code/dataset-obg8, visual/dataset-gtav, cyber/dataset-9aui, chat/dataset-8kb6), and for each source, what the current accepted / target / remaining / judged / in flight values are. You can see in real time which data pool is nearly exhausted and which source's samples are still running in the sandbox.",
+   "topic": "The only public material so far that explains this table field by field, but the author himself notes that it is an interpretation read from the page, not an official explanation"
+  },
+  {
+   "id": "schulman-kl",
+   "kind": "blog",
+   "title": "Approximating KL Divergence",
+   "authors": "John Schulman",
+   "venue": "joschu.net",
+   "year": "2020",
+   "url": "http://joschu.net/blog/kl-approx.html",
+   "quote": "This post will explain why this expression is a good (though biased) estimator of KL, and how to make it unbiased while preserving its low variance.",
+   "topic": "Definition and bias of the KL estimator"
+  },
+  {
+   "id": "tis-blog",
+   "kind": "blog",
+   "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+   "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+   "venue": "Notion engineering blog (verl/THUDM ecosystem, listed by the verl documentation as a TIS source)",
+   "year": "2025",
+   "url": "https://fengyao.notion.site/off-policy-rl",
+   "quote": "In modern RL training frameworks (e.g., VeRL), different implementations are used for rollout generation (e.g., vLLM) and model training (e.g., FSDP). Here, we show the implementation gap implicitly turns the on-policy RL to be off-policy",
+   "topic": "Original definition of train-inference inconsistency and truncated importance sampling (TIS)"
+  },
+  {
+   "id": "tis-blog-clamp",
+   "kind": "blog",
+   "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+   "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+   "venue": "Notion engineering blog (verl/THUDM ecosystem)",
+   "year": "2025",
+   "url": "https://fengyao.notion.site/off-policy-rl",
+   "quote": "Therefore, we use a clamp operation in our truncated importance sampling (TIS) for training stabilization.",
+   "topic": "TIS's clamp definition"
+  },
+  {
+   "id": "tis-blog-kl-bias",
+   "kind": "blog",
+   "title": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+   "authors": "Feng Yao, Liyuan Liu, Dinghuai Zhang, Chengyu Dong, Jingbo Shang, Jianfeng Gao",
+   "venue": "Notion engineering blog (verl/THUDM ecosystem)",
+   "year": "2025",
+   "url": "https://fengyao.notion.site/off-policy-rl",
+   "quote": "These negative KL estimates signal ill-conditioned training dynamics.",
+   "topic": "KL estimation is biased under training-inference mismatch"
+  },
+  {
+   "id": "when-speed-kills",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion blog (ByteDance, source of motivation for verl Rollout Correction)",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "The relentless push for faster inference has created a dangerous \"training-inference mismatch\" that can silently kill reinforcement learning with LLMs.",
+   "topic": "Training-inference inconsistency is the direct cause of training collapse"
+  },
+  {
+   "id": "wsk-hardware",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion blog (ByteDance)",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "the magnitude of the vllm-kl essentially follows: H20 < L20 < A100. Specifically, the vllm-kl for the H20 is generally on the order of 5e-4 to 1e-3, for the L20 it is around 1e-3 to 1e-2, and for the A100, it is predominantly between 1e-2 and 1.",
+   "topic": "Hardware baseline band for KL magnitude"
+  },
+  {
+   "id": "wsk-logppl-sign",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion blog (ByteDance)",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "The mismatch consistently show that the fsdp-log-ppl is greater than the vllm-log-ppl indicating that the FSDP engine produces more extreme low-probability tokens.",
+   "topic": "Training-side log-ppl is systematically high (sign does not flip)"
+  },
+  {
+   "id": "wsk-lowprob",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion blog (ByteDance)",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "the divergence is most severe for tokens that have a low probability according to the vLLM inference engine. As a token's inference probability approaches zero, the training probability can become orders of magnitude smaller, leading to an infinite PPL and gradient.",
+   "topic": "Low-probability tokens are where disagreement concentrates."
+  },
+  {
+   "id": "wsk-nonfirst-round",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion blog (ByteDance)",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "The mismatch primarily occurs in non-first-round model outputs, manifested by a larger mean absolute difference in both log-ppl and token probability between FSDP policy and vLLM policy compared to the first-round output",
+   "topic": "The inconsistency in multi-turn/agentic outputs is more severe."
+  },
+  {
+   "id": "wsk-sample-size",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion blog (ByteDance)",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "Rollout batches were collected within the following three vllm-kl ranges, with five batches (around 5M tokens) in each group",
+   "topic": "Minimum sample size when grouping statistics by degree of inconsistency"
+  },
+  {
+   "id": "wsk-token-vs-seq",
+   "kind": "blog",
+   "title": "When Speed Kills Stability: Demystifying RL Collapse from the Training-Inference Mismatch",
+   "authors": "Jiacai Liu, Yingru Li, Yuqian Fu, Jiawei Wang, Qian Liu, Yu Shen",
+   "venue": "Notion blog (ByteDance)",
+   "year": "2025",
+   "url": "https://yingru.notion.site/When-Speed-Kills-Stability-Demystifying-RL-Collapse-from-the-Training-Inference-Mismatch-271211a558b7808d8b12d403fd15edda",
+   "quote": "A common heuristic, often inspired by algorithms like PPO and used in (Yao et al., 2025), applies a per-token importance ratio. While this typically has lower variance than the sequence-level ratio, it is a biased estimator that is theoretically unsound for autoregressive models.",
+   "topic": "Token-level IS is biased; only sequence-level is unbiased"
+  },
+  {
+   "id": "mimo-rl-notices-cyber",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl official run announcement: remove the cyber dataset",
+   "authors": "mimo.xiaomi.com/rl/ official dashboard announcement",
+   "venue": "https://mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "we also removed the cyber dataset from the upcoming pro run, since we observed some bad patterns in the rollout logs.",
+   "topic": "Official announcement for this run (environment/data source change)"
+  },
+  {
+   "id": "mimo-rl-notices-easy-filter",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl official announcement: filter out problems that are too easy for the current model",
+   "venue": "mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "we filtered out tasks that are relatively easy for the current pro model.",
+   "topic": "The official direct explanation that 'easy problems will be filtered out'"
+  },
+  {
+   "id": "mimo-rl-notices-grader",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl official announcement: network failure between the pro training cluster and the grading service",
+   "venue": "mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "there was a network connectivity issue between the pro training cluster and the grader deployment.",
+   "topic": "The site itself acknowledges the existence of a separate grading service (grader deployment)"
+  },
+  {
+   "id": "mimo-rl-notices-restart",
+   "kind": "doc",
+   "title": "mimo.xiaomi.com/rl official run announcement: flash reruns from step 15",
+   "authors": "mimo.xiaomi.com/rl/ official dashboard announcement",
+   "venue": "https://mimo.xiaomi.com/rl/api/notices",
+   "year": "2026",
+   "url": "https://mimo.xiaomi.com/rl/api/notices",
+   "quote": "we restarted the flash run from step 15. reason: a type of infra error on one of datasets was not correctly detected over the past ~3 hours.",
+   "topic": "Official announcement for this run (rerun and infra error)"
+  },
+  {
+   "id": "mimo-v2-flash-readme-env",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash official README (§5.2 Scaling Agentic RL environment scale)",
+   "authors": "XiaomiMiMo (Xiaomi MiMo team)",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "Our automated pipeline maintains a Kubernetes cluster capable of running over 10,000 concurrent pods with a 70% environment setup success rate.",
+   "topic": "Official sandbox environment scale and environment setup success rate"
+  },
+  {
+   "id": "mimo-v2-flash-readme-infra",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash official README (§5.3 Advanced RL Infrastructure / R3)",
+   "authors": "XiaomiMiMo (Xiaomi MiMo team)",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "Rollout Routing Replay (R3): Addresses numerical precision inconsistencies in MoE routing between inference and training. R3 reuses the exact routed experts from rollout during the training pass, ensuring consistency with negligible overhead.",
+   "topic": "Official engineering mechanism for train-inference inconsistency (out-of-scope supplement, group B)"
+  },
+  {
+   "id": "mimo-v2-flash-readme-mtp",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash official README (MTP and RL rollout speedup)",
+   "authors": "XiaomiMiMo (Xiaomi MiMo team)",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "Facilitates self-speculative decoding, tripling generation speed and mitigating GPU idleness during small-batch RL training.",
+   "topic": "Official motivation for generation-side throughput optimization"
+  },
+  {
+   "id": "mimo-v2-flash-readme-sched",
+   "kind": "doc",
+   "title": "MiMo-V2-Flash official README (§5.3 fine-grained data scheduling and partial rollout)",
+   "authors": "XiaomiMiMo (Xiaomi MiMo team)",
+   "venue": "GitHub: XiaomiMiMo/MiMo-V2-Flash",
+   "year": "2026",
+   "url": "https://github.com/XiaomiMiMo/MiMo-V2-Flash",
+   "quote": "We extend the rollout engine to schedule fine-grained sequences instead of micro-batches. Combined with partial rollout, this significantly reduces GPU idleness caused by long-tail stragglers.",
+   "topic": "Long-tail tailing causes GPU idling during the generation phase"
+  },
+  {
+   "id": "verl-drift",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation (Overview: Common off-policy scenarios / two-stage drift)",
+   "authors": "verl (Yingru Li)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr_math.html",
+   "quote": "This is the distribution shift between the data collection policy and the training reference policy.",
+   "topic": "Two-stage drift: rollout→old and old→current"
+  },
+  {
+   "id": "verl-perf-tuning",
+   "kind": "doc",
+   "title": "verl docs: Performance Tuning Guide (GPU memory/batch trade-offs for long-sequence training)",
+   "authors": "verl project (ByteDance Seed MLSys)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/perf/perf_tuning.html",
+   "quote": "To train long sequence (>32k), users may need to decrease the `*micro_batch_size_per_gpu` and `*max_token_len_per_gpu` to avoid OOM.",
+   "topic": "How lengthening context drives up training time"
+  },
+  {
+   "id": "verl-ppo-config",
+   "kind": "doc",
+   "title": "Proximal Policy Optimization (PPO) — verl documentation（Configuration）",
+   "authors": "verl (ByteDance Seed Foundation MLSys Team)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/ppo.html",
+   "quote": "`actor_rollout_ref.actor.clip_ratio`: The PPO clip range. Default to 0.2",
+   "topic": "verl's clipping interval is a single-parameter symmetric setting"
+  },
+  {
+   "id": "verl-ppo-epochs",
+   "kind": "doc",
+   "title": "Proximal Policy Optimization (PPO) — verl documentation（ppo_epochs）",
+   "authors": "verl (ByteDance Seed Foundation MLSys Team)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/ppo.html",
+   "quote": "`actor_rollout_ref.actor.ppo_epochs`: Number of epochs for PPO updates on one set of sampled trajectories for actor",
+   "topic": "Configuration implications of single-epoch updates"
+  },
+  {
+   "id": "verl-rollout-corr",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation",
+   "authors": "Yingru Li (author of the verl documentation)",
+   "venue": "verl official documentation (readthedocs)",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "These off-policy gaps can cause training instability and policy collapse.",
+   "topic": "Official classification of the off-policy problem: engine implementation differences vs temporal lag"
+  },
+  {
+   "id": "verl-rollout-corr-threshold",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation",
+   "authors": "Yingru Li (author of the verl documentation)",
+   "venue": "verl official documentation (readthedocs)",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "Typical threshold: 1.5 - 5.0",
+   "topic": "Common units for token-level IS clipping thresholds"
+  },
+  {
+   "id": "verl-three-policy",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation（Important Note on Common Implementation Mistakes）",
+   "authors": "verl (Yingru Li)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "Many LLM-RL implementations incorrectly apply PPO by **ignoring the actual rollout policy** π_rollout and assuming the training reference policy π_old is the behavior policy.",
+   "topic": "π_rollout and π_old are two different policies"
+  },
+  {
+   "id": "verl-tis-def",
+   "kind": "doc",
+   "title": "Rollout Correction — verl documentation（Key Design Principle: Separation of IS Weights and Rejection Sampling）",
+   "authors": "verl (Yingru Li)",
+   "venue": "verl.readthedocs.io",
+   "year": "2025",
+   "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+   "quote": "**Truncated**: Upper clamped via `.clamp(max=rollout_is_threshold)` (TIS: Truncated Importance Sampling)",
+   "topic": "The standard definition of TIS"
+  },
+  {
+   "id": "self-a3-dataset-composition",
+   "kind": "self",
+   "title": "Local telemetry recomputation: three-term shift-share decomposition of overall pass rate for 25 datasets (S3_composition / S3c_dashboardVsPanelGap in A3-dataset-numbers.json)",
+   "venue": "This project's local telemetry tasks/mimo-rl-telemetry/data/store (our own measurements, script codes/scripts/mimo_rl_telemetry/dataset_report.ts)",
+   "year": "2026",
+   "quote": "Recomputation definition: for each dataset d, p_d(t)=train/passrate/avg_passrate/<cat>/dataset-<id>[t] (sentinel 0 when missing), w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t], s_d(t)=w_d(t)/Σw(t); the panel takes datasets for which both p and w are non-empty at the first and last steps and w>0, pro 22, flash 23. Decomposition formula ΔA=Σs_d(0)Δp_d+ΣΔs_d·p_d(0)+ΣΔs_d·Δp_d, the script outputs checkSumError=0. pro: +3.5437=+3.8128+0.1623−0.4314; flash: +9.1494=+8.3071+0.0077+0.8346. Equivalent control curve: with the step-1 data mix fixed, pro's final value 60.6717 vs actual 60.4026 (+0.2691pp), flash 61.0930 vs 61.1559 (−0.0630pp).",
+   "topic": "Training dashboard-dataset level-composition effect and Simpson's paradox"
+  },
+  {
+   "id": "self-a3-dataset-composition-length",
+   "kind": "self",
+   "title": "Local telemetry recomputation: three-term decomposition of the overall change in generation length (pro_length_accW / flash_length_accW in S3_composition of A3-dataset-numbers.json)",
+   "venue": "This project's local telemetry tasks/mimo-rl-telemetry/data/store (our own measurements, script codes/scripts/mimo_rl_telemetry/dataset_report.ts)",
+   "year": "2026",
+   "quote": "Recomputation definition: p_d(t)=ctx_response_length/<cat>/dataset-<id>/mean[t], w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t], s_d(t)=w_d(t)/Σw(t), decomposition formula same as the pass-rate one. pro: totalChange=58110.0677, withinBaseWeights=53292.5038, compositionBaseRates=2292.1952, interaction=2525.3687; flash: 94262.4931 / 72194.9915 / 5765.1180 / 16302.3836. After freezing the step-1 data mix, pro's final value 118318.3177 vs actual 123135.8816, flash 139159.3777 vs 161226.8792.",
+   "topic": "Training dashboard-dataset level-length composition effect"
+  },
+  {
+   "id": "self-a3-dataset-crossrun",
+   "kind": "self",
+   "title": "Local telemetry recomputation: per-dataset rank correlation of the increase for pro and flash (S6b_crossRun and S2_perDataset in A3-dataset-numbers.json)",
+   "venue": "This project's local telemetry tasks/mimo-rl-telemetry/data/store (our own measurements, script codes/scripts/mimo_rl_telemetry/dataset_report.ts)",
+   "year": "2026",
+   "quote": "Recomputation definition: for each dataset, take the first non-empty value and the last non-empty value of train/passrate/avg_passrate/<cat>/dataset-<id>, subtract and multiply by 100 to get Δpp; pro has 24 steps, flash has 30 steps, all 25 datasets are usable (cyber only goes to step 14 in pro, use steps 1→14). Spearman uses average ranks to handle ties, p-value uses t approximation. Measured rho=0.5823, p=0.002258, n=25, critical value spearmanCrit(25)=0.3961.",
+   "topic": "Training dashboard - dataset layer - cross-run reproducibility"
+  },
+  {
+   "id": "self-a3-dataset-restart-gap",
+   "kind": "self",
+   "title": "Local telemetry recomputation: restart-coupled reporting gap (S8_mechanicalChecks.sentinelEvidence and S7_dynsam.*.heldIdentity in A3-dataset-numbers.json)",
+   "venue": "This project's local telemetry tasks/mimo-rl-telemetry/data/store (our own measurements, script codes/scripts/mimo_rl_telemetry/dataset_report.ts)",
+   "year": "2026",
+   "quote": "Recomputation definition: restart-affected steps = iterate over axis.walls; if the timestamp of events[].kind==='restart' in status.json falls between walls[k-1] and walls[k], record step k+1; sentinel 0 = steps whose value on train/passrate/avg_passrate/visual/dataset-{gtav,ol8x} is exactly 0. For pro, 0-steps = [1,2,3,11,15,17,23], restart-affected steps = [3,11,15,17,23], critic score over the same period = [0.569136,0.532828,0.547952,0.542567,0.552110,0.566738,0.566313] (gtav); for flash, 0-steps = [1,3,16,25,28], restart-affected steps = [16,25,28]. held check: |held(t)−(step(t)+carryover(t−1))|/max(1,held(t)) ≤ 0.05 counts as pass; pro 422 pass / 143 fail, flash 629 pass / 96 fail.",
+   "topic": "Training dashboard - dataset layer - data quality and restart coupling"
+  },
+  {
+   "id": "self-avgn-decompose",
+   "kind": "self",
+   "title": "Site accounting: the three-term decomposition of avg@n",
+   "venue": "Telemetry repo analyze.ts",
+   "year": "2026",
+   "quote": "avg@n = p1 + M·m (p1 all-correct share, M middle pool share, m middle pool average pass rate). pro step 1→19 +6.88pp = all-correct rate +8.41 − middle pool shrinking 4.16 + middle problems getting better 2.62; flash step 1→26 +12.43pp = +17.08 − 8.52 + 3.88, and the three terms added algebraically match the measurement.",
+   "topic": "Which part is going up"
+  },
+  {
+   "id": "self-bench-cross-run",
+   "kind": "self",
+   "title": "A3 leaderboard measurement error and saturation prediction recomputation (Section 8)",
+   "venue": "Our own measurements (recomputed from local telemetry tasks/mimo-rl-telemetry/data/store)",
+   "year": "2026",
+   "quote": "Recomputation definition: sync-index alignment only takes steps where both runs have readings; cost alignment uses cost(step)=rate_per_s×(walls[step−1]−run_start) to map each step with a reading to cost, then linearly interpolates onto a $0.1M grid; tokens are accumulated step by step using perf/total_num_tokens. Results: on sync index, pro is higher on avg@n 22/24, DeepSWE 16/16, In-house 15/15; at equal cost flash leads across the board (avg@n mean +2.80pp, DeepSWE +2.48 points, In-house +1.45 points, Automation +3.71 points); at equal token, at 20B DeepSWE pro 63.53 > flash 58.90. Script: codes/scripts/mimo_rl_telemetry/bench_report.ts.",
+   "topic": "Side-by-side comparison of the two runs and the alignment definition"
+  },
+  {
+   "id": "self-bench-gap",
+   "kind": "self",
+   "title": "A3 leaderboard measurement error and saturation prediction recomputation (Section 9)",
+   "venue": "Our own measurements (recomputed from local telemetry tasks/mimo-rl-telemetry/data/store) + external literature",
+   "year": "2026",
+   "quote": "Recomputation protocol: on the two runs' shared step numbers, fit Theil–Sen to the In-house Coding and DeepSWE series respectively; the slope difference uses paired bootstrap 4000 times to obtain a 95% interval; gap is defined as dynsam/avg@n×100 minus leaderboard score, with the slope likewise using Theil–Sen + bootstrap. Results: slope difference pro −0.176 [−0.355,−0.041], flash −0.177 [−0.266,−0.042], both runs have the same direction and both exclude 0; gap slope Automation pro +0.178, flash +0.160, In-house flash +0.197, DeepSWE pro −0.163. Script codes/scripts/mimo_rl_telemetry/bench_report.ts.",
+   "topic": "The decidable boundary between train-time evaluation and benchmark contamination"
+  },
+  {
+   "id": "self-bench-mde",
+   "kind": "self",
+   "title": "A3 leaderboard measurement error and saturation prediction recomputation (Section 3)",
+   "venue": "Our own measurements (recomputed from local telemetry tasks/mimo-rl-telemetry/data/store)",
+   "year": "2026",
+   "quote": "Recomputation protocol: read the sparse per-step scores from benchmarks.json; for each (leaderboard, run), first fit Theil–Sen, take the residual standard deviation as the single-point noise σ_pt, MDE=1.96·σ_pt·√2; then for each adjacent step change compute z=Δ/(σ_pt·√2) and the deviation-from-trend z=(Δ−τ·gap)/(σ_pt·√2); finally perform Holm-Bonferroni within each (leaderboard, run) group. Results: MDEs are, in order, DeepSWE 4.56/6.43, In-house 1.55/1.68, Automation 2.20/2.70 (pro/flash); of 115 changes, 9 are naively significant and 1 after Holm (In-house/pro steps 16→18 +1.99, raw p=0.0019), 0 after trend-relative + Holm. Script codes/scripts/mimo_rl_telemetry/bench_report.ts, seed 20260919.",
+   "topic": "Leaderboard measurement error and minimum detectable change (MDE)"
+  },
+  {
+   "id": "self-bench-saturation",
+   "kind": "self",
+   "title": "A3 leaderboard measurement error and saturation prediction recomputation (Section 7)",
+   "venue": "Our own measurements (recomputed from local telemetry tasks/mimo-rl-telemetry/data/store)",
+   "year": "2026",
+   "quote": "Recomputation protocol: fit four models to each series: exp_saturation `a−b·exp(−cx)`, gompertz `a·exp(−b·exp(−cx))`, logistic `K/(1+exp(−r(x−x0)))`, piecewise_linear_plateau `min(α+βx,P)`; parameters are obtained with profile + golden-section search, intervals with residual bootstrap 500 times; identifiability criterion = plateau 95% CI width ≤ 2× the data range. flash avg@n (n=30) results: piecewise plateau 0.6483 [0.6331,0.6598], logistic 0.7271 [0.6792,0.8948], Gompertz 0.7415 [0.6847,0.9745], exponential not identifiable; last step 0.6435, MDE 3.08pp. Script codes/scripts/mimo_rl_telemetry/bench_report.ts, seed 20260919.",
+   "topic": "Parameter uncertainty in saturation-curve extrapolation and “when to stop”"
+  },
+  {
+   "id": "self-clip-inert",
+   "kind": "self",
+   "title": "This site's calculation: clip fraction and PPO KL are identically zero throughout (it is 0, not empty)",
+   "venue": "Telemetry repository check.ts",
+   "year": "2026",
+   "quote": "actor/pg_clipfrac and actor/ppo_kl are equal to the value 0 on all steps in both runs: pro 50 tags / 940 values, flash 50 tags / 1250 values, all non-empty and 0.",
+   "topic": "How to read identically zero"
+  },
+  {
+   "id": "self-copies-are-names-not-signals",
+   "kind": "self",
+   "title": "Metric space and latent factors (our own measurements, raw series from the local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json; script codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "Recomputation basis: for the analysis set (pro 1389×24, flash 1465×30, coverage ≥0.8, non-constant, z-score), compute Pearson ρ over all metric pairs, yielding pro 963,  966 pairs (1389×1388/2 = 963,966) and flash 1,071,780 pairs; compute |ρ| quantiles and the share at each threshold. Copy groups: keys that are identical after normalizeKey (dataset-xxxx→dataset-<id>, harness-[A-Z]→harness-<x>, partial/<number>/→partial/<k>/, category segment→<cat>); average |ρ| within the group, then take the median across groups. Zero-variance metrics are counted in the preprocessing stage (standard deviation 0). Snapshot: pro 2026-09-19 08:58:10Z, flash 2026-09-19 03:07:03Z. Numbers in clusters.{pro,flash}.rho_stats and copy_groups of A3-factor-numbers.json.",
+   "topic": "The metric count is naming duplication rather than signal redundancy"
+  },
+  {
+   "id": "self-cost-basis",
+   "kind": "self",
+   "title": "Site calculation: cost is accumulated linearly by wall clock time",
+   "venue": "Telemetry repository check.ts",
+   "year": "2026",
+   "quote": "cost = rate × (now − start) holds exactly at all 21 synchronization points (rate: pro $5.71/s, flash $2.855/s). Converted to training tokens: pro $35,181 / 1B tokens, flash $10,690 / 1B tokens, a 3.3× difference.",
+   "topic": "Cost basis"
+  },
+  {
+   "id": "self-effective-dof-is-twelve",
+   "kind": "self",
+   "title": "Metric space and latent factors (our own measurements, raw series from the local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json; script codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "Recomputation basis: read all keys of `series.json`, coverage ≥0.8 (pro ≥20/24 steps, flash ≥24/30 steps non-empty), after linear interpolation z-score each metric separately (divide by the population standard deviation), drop zero-variance metrics (pro 294, flash 277), yielding pro 1389×24, flash 1465×30. Construct G = Z Zᵀ (steps×steps), compute eigenvalues with a self-written Jacobi cyclic rotation (script self-check max|Av−λv| = 9.3e-15), variance share = λ/(d·N), participation ratio = (Σλ)²/Σλ². Greedy forward selection: maintain the residual matrix R, at each step take the candidate j that maximizes r_jᵀ(RᵀR)r_j/(r_jᵀr_j) and project R along the r_j direction to remove it, cumulative explained variance = Σ_d(||z_d||²−||r_d||²)/(d·N). Snapshot times: pro 2026-09-19 08:58:10Z (step 24), flash 2026-09-19 03:07:03Z (step 30). All numbers in tasks/mimo-rl-training/analysis/A3-factor-numbers.json.",
+   "topic": "Effective dimensionality of the metric space and minimal metric set"
+  },
+  {
+   "id": "self-grad-spike-isolated",
+   "kind": "self",
+   "title": "Computed here: the gradient spike at pro step 19 is isolated within the recorded range",
+   "venue": "Telemetry repo analyze.ts",
+   "year": "2026",
+   "quote": "At pro step 19, grad_norm is 0.0335148, which is 5.96 times the median 0.005626 of the other 18 steps; in the same step, pg_loss, entropy_loss, rewards/mean, train_infer_diff/new_infer/kl, avg@n, and passrate/zero are all within the normal fluctuation range; flash has no similar spikes throughout (25-step range 0.004928~0.009054).",
+   "topic": "Whether the spike is anomalous"
+  },
+  {
+   "id": "self-grader-disagreement-60pct-rising",
+   "kind": "self",
+   "title": "A3 reward and grading structure recomputation artifact",
+   "venue": "our own measurements",
+   "year": "2026",
+   "quote": "Recomputation basis: select_probe_disagree_rate directly computes Pearson of the original series against step number (pro n=24 r=0.6874 p=2.06e-4; flash n=30 r=0.7039 p=1.42e-5); its correlation with dynsam/avg@n is given simultaneously for three bases: level, first difference (Δx vs Δy, n−1 points), and linear-detrended residual. On re-check, most official rate fields for count-type metrics do not exist; the script constructs its own normalized rate from count/groups_judged (derived/select_*_per_judged_group). Script codes/scripts/mimo_rl_telemetry/reward_report.ts. Check against the external reading “grader disagreement rate reaching 60% and rising”: this data hits select_probe_disagree_rate, magnitude 0.586~0.606, both runs significantly trending upward.",
+   "topic": "Observational basis for grader disagreement / credit assignment"
+  },
+  {
+   "id": "self-grader-tightens-not-loosens",
+   "kind": "self",
+   "title": "A3 reward and grading structure recomputation artifact",
+   "venue": "our own measurements",
+   "year": "2026",
+   "quote": "Recomputation basis: the five-dimensional equal-weight mean is derived/score_rubric_mean = mean(select_score_{A,B,E,P,S}_mean), computed per step, then Pearson against step number; failure fraction = select_groups_failed / groups_attempted; end2end and pass1 are only cross-checked for order of magnitude. Correlation bases: level (raw values), first difference (Δx vs Δy, n−1 points), and linear-detrended residual (residual from OLS of each side against step number). pro n=24, flash n=30; p is from a two-sided t-test. Key values: scoreRubricMean pro first 4.40509 last 4.29016 r=−0.8736 p=2.49e-8; flash first 4.39191 last 4.31082 r=−0.4820 p=6.99e-3. above_gold vs step: pro r=−0.0026 p=0.9904, flash r=0.3770 p=0.0400; flash above_gold vs avg@n first difference r=−0.3413 p=0.0705, detrended r=−0.0579 p=0.7603. Script codes/scripts/mimo_rl_telemetry/reward_report.ts.",
+   "topic": "Observational basis for grader-side leniency/strictness"
+  },
+  {
+   "id": "self-judge-identity",
+   "kind": "self",
+   "title": "Site computation: the three identities of the grading pipeline",
+   "venue": "Telemetry repo analyze.ts",
+   "year": "2026",
+   "quote": "groups_total = routed/off + select_v4 + select_v4_nogold (exact at all steps); groups_attempted = select_v4/attempted + select_v4_nogold/attempted (exact at all steps); attempted − judged ≈ select_groups_failed (difference ≤4).",
+   "topic": "Grading definition"
+  },
+  {
+   "id": "self-judge-throughput",
+   "kind": "self",
+   "title": "Site computation: grading saturation and second-pass review not enabled",
+   "venue": "Telemetry repo analyze.ts",
+   "year": "2026",
+   "quote": "judge_pending ≈ judge_pool_in_flight (pro 95 vs 94, flash 114 vs 113), there is no backlog in the queue; grading a single group takes about 562 seconds (pro) / 570 seconds (flash), of which 97% is spent on the first pass; pass2_success_rate is identically 1.0, while judge_pass2_attempts is identically 0.",
+   "topic": "Grader term explainer"
+  },
+  {
+   "id": "self-kl-decompose",
+   "kind": "self",
+   "title": "Computed here: split global KL into a \"data mix change\" part and an \"in-bucket change\" part",
+   "venue": "Telemetry repo analyze.ts",
+   "year": "2026",
+   "quote": "The reconstructed curve that fixes the data mix and plugs in only the true per-step bucket KL correlates with the true global KL at only pro 0.53 / flash 0.55; plugging in only the true data mix and averaging the bucket KL instead gives a reconstruction R² of pro 0.79 / flash 0.90.",
+   "topic": "Is it the data mix or the buckets that got worse"
+  },
+  {
+   "id": "self-kl-mixture",
+   "kind": "self",
+   "title": "Computed here: global KL is the weighted average of the KL of the freshness buckets",
+   "venue": "Telemetry repo check.ts / analyze.ts",
+   "year": "2026",
+   "quote": "Point-by-point verification: global KL = Σ(bucket token share × bucket KL): pro 19 steps, flash 26 steps, the bucket shares each sum to 1.0000, maximum relative error 0.15%.",
+   "topic": "CL blended scope"
+  },
+  {
+   "id": "self-mimo-rl-coverage-source",
+   "kind": "self",
+   "title": "This site's calculation: web search did not find the official definitions of these counters",
+   "venue": "This investigation (2026-09-20)",
+   "year": "2026",
+   "quote": "Both the MiMo-7B technical report (arXiv:2505.07608) and the MiMo-V2-Flash technical report (arXiv:2601.02780) only describe the mechanisms of dynamic sampling, per-data-source sample quota, and early termination; they do not define the per-data-source counters accepted/target/judged/in flight; the 22 metric explanations on the mimo.xiaomi.com/rl site also do not include them.",
+   "topic": "Search gap: the mechanism has literature, the counter definitions do not"
+  },
+  {
+   "id": "self-mimo-rl-ds-identities",
+   "kind": "self",
+   "title": "This site's reconciliation: the summation identity of the sampler quadruple (all archives)",
+   "venue": "Telemetry repo codes/scripts/mimo_rl_telemetry/sampler_report.ts",
+   "year": "2026",
+   "quote": "The recompute script sampler_report.ts verifies item by item the sampler archive of data/store/runs/<run>/live.jsonl (pro 18 / flash 11): Σaccepted == panel accept 29/29; Σtarget == panel target == 1568 29/29; judged_of == accept 29/29; Σ(in flight) == panel remain + remain_partial, max difference 2; the third number (labeled judged on the page) appears only on the 8 code data sources, and all 232 non-empty values satisfy c <= accepted; the hardest one is the exact decomposition of panel judged: Σc(reporting sources) + Σaccepted(non-reporting sources) == panel judged (29/29), equivalently accept − judged == Σ(accepted − c), and the gap comes only from those 8 reporting sources.",
+   "topic": "Which relations in the table are identities, and which hold only on some data sources"
+  },
+  {
+   "id": "self-mimo-rl-ds-tuple",
+   "kind": "self",
+   "title": "Verification on this site: the correspondence between the /live ds four-tuple and each column of the panel",
+   "venue": "Telemetry repository docs/01 and site/js/app.js (copy of the original site at data/upstream/js/app.js)",
+   "year": "2026",
+   "quote": "The original site's data/upstream/js/app.js renders the four-tuple of latest.ds in order as accepted / target / judged / in flight: in the source, Object.entries(latest.ds).map(([name, v]) => ({ name, acc: v[0], tgt: v[1], j: v[2], r: v[3] })), and the table headers are <th>source</th><th>accepted / target</th><th></th><th>remaining</th><th>judged</th><th>in flight</th>; the remaining column is not an API field, but is computed on the page as Math.max(0, r.tgt - r.acc). This code has not been changed at the telemetry layer (telemetry touched only 5 places, all marked with [telemetry]).",
+   "topic": "Source of the column mapping: the original site's own rendering code, not a guess from this site"
+  },
+  {
+   "id": "self-mimo-rl-github-search",
+   "kind": "self",
+   "title": "This site's verification: among third-party mirrors on GitHub, some got the column name wrong.",
+   "venue": "This investigation (2026-09-20)",
+   "year": "2026",
+   "quote": "Searching GitHub by repository name found 5 third-party projects scraping data from mimo.xiaomi.com/rl (all created on 2026-09-17, 0 stars): LianxinRay/mimo-rl-mission-control, AbhyudayPatel/rl-observatory, Project516/mimo-rl-status, YYY-676/mimo-rl-archive, ashafizullah/mimo-baby. Among them, rl-observatory is a faithful passthrough: it reads live.judged as a first-class field and does not call the third position of the tuple in flight; while mission-control's collection script comment says \"per source [accepted, target, in_flight, x]\", and the page renders the third position as the header IN FLIGHT and drops the fourth position, swapping columns c and d. The others only do archiving or status display. No project was found that did a column-by-column explainer for this table.",
+   "topic": "GitHub search results: there is faithful passthrough telemetry, and also counterexamples that swap c and d; no column-by-column explainer"
+  },
+  {
+   "id": "self-partial-ntokens-scope-collapse",
+   "kind": "self",
+   "title": "Metric credibility audit (our own measurements, raw series from local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json; script codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "Recomputation basis: compare bucket by bucket whether the three arrays `partial/<k>/n_tokens`, `partial/agentic/<k>/n_tokens`, `partial/code/dataset-yfch/<k>/n_tokens` are element-wise equal (including null positions). pro is equal at k=4,5,6,7 (covering 8/6/3/2 steps respectively), flash is equal at k=4..9 (15/13/11/9/7/5 steps); not equal at k≤3. Snapshot 2026-09-18.",
+   "topic": "In bucket statistics, different slice definitions fall back to the same value"
+  },
+  {
+   "id": "self-passrate-ratio-is-running-mean",
+   "kind": "self",
+   "title": "Metric credibility audit (our own measurements, raw series from local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json; script codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "Recomputation basis: take the non-empty arrays of `series['train/passrate/passrate_0_ratio']` and `..._1_ratio`, compute the first difference item by item, and tally the signs. For flash, all 30 steps have difference >0; among pro's 24 steps, step 15 has difference -0.050687 and step 23 has -0.009173, with the rest positive. The sample is the 2026-09-18 snapshot (pro 24 steps, flash 30 steps).",
+   "topic": "Cumulative-basis metric misread as an instantaneous ratio"
+  },
+  {
+   "id": "self-penalty-identity",
+   "kind": "self",
+   "title": "Calculation on this site: the \"mass removal—mass addition—scaling back to the original value by sign\" for positive and negative advantages",
+   "venue": "Telemetry repo analyze.ts",
+   "year": "2026",
+   "quote": "pos_scale ≈ 1 + pos_mass_removed / adv_pos_sum_pre_penalty (residual 5.2e-6 / 7.9e-6), neg_scale ≈ 1 − neg_mass_added / |adv_neg_sum_pre_penalty| (residual 6.3e-5 / 8.2e-4); at the same time, the pre/post values of adv_pos_sum and adv_neg_sum are exactly equal point by point (maximum difference 0).",
+   "topic": "Conservation structure of the penalty term"
+  },
+  {
+   "id": "self-per-token-throughput",
+   "kind": "self",
+   "title": "Calculation on this site: training token count per step = 1568 × 16 × context length",
+   "venue": "Telemetry repository check.ts",
+   "year": "2026",
+   "quote": "perf/total_num_tokens ≈ 1568×16×ctx_total_length/mean, pro's maximum relative error over 19 steps is 1.2%, flash's maximum is 2.7%. From this, each prompt is inferred to be sampled 16 times.",
+   "topic": "How the sampling count is derived"
+  },
+  {
+   "id": "self-pipeline-report",
+   "kind": "self",
+   "title": "Recomputation of the asynchronous pipeline and machine-time ledger for this site's dashboard telemetry (our own measurements)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/timeline.jsonl + series.json, script codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "Recomputation basis: for the 27 lines of timeline.jsonl, verify line by line that progress equals since/expected; for each line, take the 'median reported duration of the last 3 steps for completed step number k' and compare it with expected; take 'previous step outer_gen ÷ previous step timing_s/step' and compare it with gen_frac. Sample pro 24 steps / flash 30 steps, data cutoff 2026-09-19T08:58Z (pro s24 completed, flash s30 completed and end).",
+   "topic": "Dashboard field basis / in-step progress credibility"
+  },
+  {
+   "id": "self-pipeline-report-2",
+   "kind": "self",
+   "title": "Recomputation of the asynchronous pipeline and machine-time ledger for this site's dashboard telemetry (our own measurements)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{axis,status,events}.json, script codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "Recomputation basis: true step duration = difference between adjacent axis.walls (step 1 starts from run_start); reported = series['timing_s/step']; restart event t is treated as the time when running resumes (verified by the start point of timeline.restarted_at and step.since). Gap basis A: pro 26.147 h / $537,478 (27.7% of bill), flash 14.147 h / $145,403 (17.0%). Voided recomputation is determined by the same step number appearing twice in events.json with the second occurrence redo=true.",
+   "topic": "Restart cost / machine-time ledger"
+  },
+  {
+   "id": "self-pipeline-report-3",
+   "kind": "self",
+   "title": "Recomputation of the asynchronous pipeline and machine-time ledger for this site's dashboard telemetry (our own measurements)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{series,axis,events}.json, script codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "Recomputation basis: take the pointwise difference between avg_staleness and Σ k×frac_k; in-segment position = number of steps since the last restart event (segment start recorded as 0); correlation uses Spearman, excluding the restart step itself (restart resets staleness to zero). Sample pro 17 non-restart steps / flash 25 non-restart steps.",
+   "topic": "Data staleness / queueing delay"
+  },
+  {
+   "id": "self-pipeline-report-4",
+   "kind": "self",
+   "title": "Recomputation of the asynchronous pipeline and machine-time ledger for this site's dashboard telemetry (our own measurements)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json (train/trace/*), script codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+   "year": "2026",
+   "quote": "Recomputation definition: for the 6 overflow-type counters under train/trace, count n_nonnull and n_nonzero column by column; pro 24 steps, flash 30 steps, all n_nonzero = 0. min/median/max are additionally given for drain_wait_seconds / outcome_write_seconds / late_finishes.",
+   "topic": "Pipeline backpressure / throughput bottleneck"
+  },
+  {
+   "id": "self-pool-shrink-netted-out",
+   "kind": "self",
+   "title": "A3 reward and grading structure recomputation artifact",
+   "venue": "our own measurements",
+   "year": "2026",
+   "quote": "Recomputation definition: M_i = 1 − dynsam/passrate/zero_i − dynsam/passrate/one_i; m_i = (dynsam/avg@n_i − one_i) / M_i; the decomposition takes Δp1, ΔM, Δm from the first and last steps, m̄=(m_first+m_last)/2, M̄=(M_first+M_last)/2, the three terms are Δp1, m̄·ΔM, M̄·Δm, interaction residual = Δavg@n − sum of the three terms (measured, 0 at both ends). pro: M 0.675889→0.654545, p1 0.177866→0.201426, Δavg@n=0.031755, three terms 0.023560 / −0.012544 / 0.020713, residual 0. flash: M 0.718784→0.552846, p1 0.120756→0.290720, Δavg@n=0.129833, three terms 0.169964 / −0.098311 / 0.058195, residual 0. Incremental slope: OLS and Pearson on the first difference of avg@n against index 1..n−1. Script codes/scripts/mimo_rl_telemetry/reward_report.ts → poolDecomposition.",
+   "topic": "Sample pool shrinkage in dynamic sampling"
+  },
+  {
+   "id": "self-regimes-are-ops-not-model",
+   "kind": "self",
+   "title": "Metric space and latent factors (our own measurements, raw series from the local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{series,axis,status,tags}.json and data/store/notices.json; script codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "Recomputation definition: take the first 3 principal component scores of the analysis set (pro 1389×24, flash 1465×30), standardize each to unit variance, obtaining an N×3 step-coordinate matrix; for each candidate position p∈[2, N−2], compute the two-segment mean-difference statistic (p(N−p)/N)·Σ_dim(m1−m2)² (splitProfile in the script), then sort by the statistic and take Top6. Fallback ratio = ‖mean(steps p+3..N) − mean(steps p..p+2)‖ / ‖mean(steps p..p+2) − mean(steps p−3..p−1)‖ (Euclidean). Ops event alignment: status.json's events[kind=restart].t and tags.json's versions[].at are each mapped to steps using axis.walls, and the hour difference is computed. pro maximum statistic 19.138 at p=14 (= step 15), fallback ratio 0.97; flash 24.9 at p=14, fallback ratio 0.93. For numbers, see regimes and regime_ops in A3-factor-numbers.json.",
+   "topic": "Whether phase boundaries are ops events or model state"
+  },
+  {
+   "id": "self-reward-ceiling-pinned",
+   "kind": "self",
+   "title": "A3 reward and grading structure recomputation artifact",
+   "venue": "our own measurements",
+   "year": "2026",
+   "quote": "Recomputation definition: after clean(values) on critic/score/max, compute nDistinct and modalShare, yielding pro nDistinct=1 modalShare=1.0 (n=24), flash nDistinct=1 modalShare=1.0 (n=30); compute Pearson of critic/score/mean against step numbers 1..n, pro r=0.9039 p=1.38e-9, flash r=0.9389 p=1.76e-14; the mean−min series is constructed pointwise by subtracting critic/score/min from critic/score/mean, then its trend is computed, pro first value 1.2593 last value 0.7384 r=0.1594 p=0.4567, flash first value 1.3139 last value 1.4005 r=0.5234 p=0.0030; the floor-hugging criterion is |score/min + 0.8| < 1e-12. Script codes/scripts/mimo_rl_telemetry/reward_report.ts, run bun codes/scripts/mimo_rl_telemetry/reward_report.ts.",
+   "topic": "Reward signal distribution shape"
+  },
+  {
+   "id": "self-reward-vs-avgn",
+   "kind": "self",
+   "title": "This site's calculation: reward mean is not equal to avg@n",
+   "venue": "Telemetry repository check.ts",
+   "year": "2026",
+   "quote": "critic/rewards/mean and critic/score/mean are exactly equal at every step; but their difference from dynsam/avg@n reaches up to pro 0.044750 and flash 0.059080, and the direction is not fixed.",
+   "topic": "The two 'averages' are not the same thing"
+  },
+  {
+   "id": "self-time-accounting",
+   "kind": "self",
+   "title": "This site's calculation: the sum of reported per-step durations is 30% less than the wall clock, and almost all of what is missing is restart waiting.",
+   "venue": "Telemetry repo analyze.ts",
+   "year": "2026",
+   "quote": "pro wall clock 72.18h, Σtiming_s/step only 48.43h, gap 23.74h (32.9%) equivalent to about 48.8 ten-thousand USD; of which the waits immediately after the 6 restarts and before the new steps account for 20.76h, i.e. 87.4% of the gap. For non-restart steps, the reported value differs from wall clock by less than 10 seconds.",
+   "topic": "Where did the under-reported time go?"
+  },
+  {
+   "id": "self-trend-control-which-relations-survive",
+   "kind": "self",
+   "title": "Metric space and latent factors (our own measurements, raw series from the local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json; script codes/scripts/mimo_rl_telemetry/factor_report.ts",
+   "year": "2026",
+   "quote": "Recomputation definition: take the paired non-null points of the two series (pro 24, flash 30), compute Pearson to get the “raw” column; control variable t = step index (0-based, after renumbering), perform least squares x = a + b·t for each series to take residuals, then compute Pearson of the residuals to get the “partial correlation” column. Example: pro's `ctx_response_length/mean` and `dynsam/avg@n` raw 0.766, partial −0.013; `partial/avg_staleness` and `train_infer_diff/new_infer/kl` raw 0.923, partial 0.941. Note that `analysis/en/notes/09-generation-length-correlation.md` has already used first differences to give a similar conclusion for length~pass rate; the new content in this item is the contrast with “staleness~KL survives control” and the sign change of entropy. For script output, see the partial_corr field of A3-factor-numbers.json.",
+   "topic": "Partial correlation: distinguishing common trends from true relationships"
+  },
+  {
+   "id": "self-two-context-length-caps",
+   "kind": "self",
+   "title": "Metric credibility audit (our own measurements, raw series from local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json; script codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "Recomputation criteria: for each `ctx_{total,prompt,response}_length/*/(max|p99|p90)` metric, take the most frequent value v among its non-null values; if v also equals the metric's all-period maximum, occurs ≥3 times, and |v−2^k|/2^k < 1e-5, classify it as an upper-limit tier. Results: pro hits 7 (5 in the 1048570 tier, 2 in the 262144 tier), flash hits 10 (7 in the 1048570 tier, 3 in the 262144 tier). Snapshot 2026-09-18.",
+   "topic": "Metrics in the same family use two different truncation thresholds"
+  },
+  {
+   "id": "self-zero-passrate-means-no-sample",
+   "kind": "self",
+   "title": "Metric credibility audit (our own measurements, raw series from local telemetry repository)",
+   "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json; script codes/scripts/mimo_rl_telemetry/audit_report.ts",
+   "year": "2026",
+   "quote": "Recomputation criteria: for each dataset corresponding to `dynsam/<cat>/dataset-<id>/num_accepted/step`, take the step set A where `train/passrate/avg_passrate/<cat>/dataset-<id>` is 0, the step set B where `partial/<cat>/dataset-<id>/1/frac` is null, and the step set C where `num_accepted/step == num_accepted/held`, and compare element by element. On pro, A=B=C={1,2,3,11,15,17,23} (7 steps each for ol8x and gtav); on flash, A=B=C={1,3,16,25,28} (5 steps each). Snapshot 2026-09-18.",
+   "topic": "Encoding \"unsampled\" as 0 instead of null"
+  }
+ ],
+ "lang": "en",
+ "translated_from_updated_at": 1789874111,
+ "translated_at": "2026-09-20T07:52:54Z",
+ "translation_note": "Generated by src/translate_content.ts. The Chinese files (metrics.json, insights.json, sources.json) are canonical; edit those and re-run translate:content, never this file."
+}

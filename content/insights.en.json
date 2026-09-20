@@ -1,0 +1,1913 @@
+{
+ "schema_version": 1,
+ "updated_at": 1789812614,
+ "window": {
+  "label": "2026-09-16 00:02Z ~ 2026-09-19 08:58Z",
+  "note": "Covers all completed steps of each of the two training runs: pro 24 steps, flash 30 steps (the flash run has ended). The previous round's window stopped at pro step 19 / flash step 26; this round pushes the window to the current latest data. The evidence strength of each insight is annotated separately in the body.",
+  "pro_step": 24,
+  "flash_step": 30
+ },
+ "items": [
+  {
+   "id": "kl-is-a-mix",
+   "kind": "structural",
+   "title": "The KL on the front page rose threefold; what rose is the data mix, not a divergence between the trainer and the inference engine.",
+   "summary": "Global KL rose from 0.00219 to 0.00769, which looks like consistency is deteriorating. But when you break it down into buckets by data freshness, the KL on the freshest batch of data only moved from 0.00219 to 0.00264, a 20% increase. The rise in the global value mainly comes from stale data taking up a larger proportion of the batch.",
+   "body": [
+    "This metric measures how much the log-prob differs between the inference engine and the trainer on the same batch of tokens. The dashboard only gives one global curve, but the underlying data is bucketed by data freshness: bucket 0 is the freshest (trained immediately after being sampled from the current policy), and a larger bucket number means more policy versions between when this batch of data was sampled and when it was trained. Each bucket has its own KL and its own token weight frac in the batch.",
+    "The global KL is exactly the weighted sum of these buckets. I verified Σ(frac_k × KL_k) point by point, and it differs from the global value on the dashboard by on the order of 1e-5, so this decomposition is correct. Since it is a weighted sum, if the weights frac change, the global value will change, regardless of whether each bucket's KL changed.",
+    "Correlation also points to the same thing: pro's global KL and average staleness (avg_staleness) correlate at 0.930, flash at 0.925; while bucket 0's KL and staleness are almost uncorrelated, pro -0.194, flash 0.197. That is, the global curve is basically tracing \"how old this batch of data is\", not \"the two engines are misaligned\".",
+    "flash step 25 nailed this down. On 09-18 it restarted twice in a row; after the restarts, all data was resampled, average staleness dropped from 2.1832 at step 24 to 0.3198, and the global KL simultaneously fell from 0.010106 to 0.005971, a drop of 41%. Meanwhile, at the same moment bucket 0's KL only changed from 0.003407 to 0.003549. The real disagreement did not move; what moved was the bucket mix. The immediately following step 26 provided a reverse confirmation: staleness went from 0.3198 back to 0.8207, the global KL rose accordingly to 0.006266, while bucket 0's KL instead dropped to 0.003399. The two lines move in opposite directions, indicating they really do not measure the same thing.",
+    "When reading this plot, look at the global curve together with avg_staleness. It is normal for the two lines to move in the same direction; only a sustained rise in bucket 0's KL indicates that the two engines have really started to become misaligned."
+   ],
+   "facts": [
+    {
+     "label": "Global KL (pro)",
+     "value": "0.00219 → 0.00769",
+     "note": "From the first step to step 19, up 3.5×"
+    },
+    {
+     "label": "Bucket 0 KL (pro)",
+     "value": "0.00219 → 0.00264",
+     "note": "Same interval, up 21%"
+    },
+    {
+     "label": "Global KL (flash)",
+     "value": "0.00287 → 0.01011 (peak at step 24)",
+     "note": "At step 25, falls back to 0.00597; at step 26, 0.00627"
+    },
+    {
+     "label": "Bucket 0 KL (flash)",
+     "value": "0.00287 → 0.00340",
+     "note": "Throughout, stays only between 0.0025~0.0039; at step 26 it is still falling"
+    },
+    {
+     "label": "corr(global KL, average staleness)",
+     "value": "pro 0.930 / flash 0.925",
+     "note": ""
+    },
+    {
+     "label": "corr(bucket 0 KL, average staleness)",
+     "value": "pro -0.194 / flash 0.197",
+     "note": "Almost unrelated"
+    },
+    {
+     "label": "Difference between Σ(frac×KL) and the global value",
+     "value": "≤ 1e-5",
+     "note": "Point-by-point verification"
+    }
+   ],
+   "verify": "In the replay interface, switch to any historical moment and open both the train_infer_diff/new_infer/kl and partial/avg_staleness charts at the same time. For finer detail, look in the metrics view at the individual curve for each bucket of partial/<k>/train_infer_diff/new_infer/kl.",
+   "metrics": [
+    "train_infer_diff/new_infer/kl",
+    "partial/avg_staleness",
+    "partial/0/frac",
+    "partial/0/train_infer_diff/new_infer/kl"
+   ],
+   "sources": [
+    {
+     "ref": "self-kl-mixture",
+     "stance": "support",
+     "note": "This is the most solid part of this insight: global KL is exactly equal to the weighted sum of \"bucket share × bucket KL\" (pro 19 steps / flash 26 steps, shares sum to 1.0000, maximum relative error 0.15%). So as long as the bucket shares change, global KL will change along with them."
+    },
+    {
+     "ref": "self-kl-decompose",
+     "stance": "support",
+     "note": "The reverse test: fixing the data mix and plugging in only the true bucket KL, the correlation with the true global KL is only 0.53 / 0.55; plugging in only the true mix and averaging the bucket KL instead recovers R² 0.79 / 0.90. The upward movement mainly comes from the growing share of stale tokens."
+    },
+    {
+     "ref": "verl-three-policy",
+     "stance": "context",
+     "note": "The engineering document separates the three policies π_rollout, π_old, and π_θ and the two drift segments (rollout↔old, old↔θ), which is the same decomposition as the two lines \"engine difference + staleness\"; but the public material does not give the specific formulation of \"weighted sum by freshness bucket\"."
+    },
+    {
+     "ref": "missing-old-logits",
+     "stance": "context",
+     "note": "The article likewise treats \"engine numerical difference\" and \"data staleness\" as two additive error sources, supporting us in not reading the single number new_infer/kl directly as one particular cause."
+    },
+    {
+     "ref": "tis-blog-kl-bias",
+     "stance": "challenge",
+     "note": "The blog points out that the k1-type KL estimator is itself biased when the rollout is generated by the inference engine, and can even give negative values when training becomes unstable. Therefore, \"our KL has always been positive\" cannot in turn be taken as evidence that \"the engine has no problem\"."
+    }
+   ]
+  },
+  {
+   "id": "graduation-not-conquest",
+   "kind": "structural",
+   "title": "The improvement in performance comes from turning problems that were solved correctly half the time into ones solved correctly every time, not from cracking problems that were originally not solved correctly.",
+   "summary": "For both runs, the \"all-correct rate\" rises faster than avg@n, while the \"all-wrong rate\" basically stays flat. From step 1 to step 25, flash's all-correct rate rose 19.2 percentage points, while the all-wrong rate dropped only 1.3 percentage points.",
+   "body": [
+    "Divide each step's prompt into three categories by how many successes there are out of n attempts: \"all-correct\" (all n succeeded), \"all-wrong\" (not a single success), \"intermediate\" (some succeeded). avg@n is the average pass rate of each question, so it equals the all-correct rate plus the respective pass rates of the intermediate questions.",
+    "This lets us decompose the change in avg@n into three parts: the part from the rise in all-correct rate, the part from the shrinking size of that batch of middle tasks, and the part from the remaining middle tasks getting better on their own. For pro, from step 1 to step 19 avg@n rose 6.88 percentage points, decomposed as +8.41 (all-correct rate from 17.79% to 26.20%), −4.16 (middle group size from 67.59% to 60.32%), +2.62 (pass rate of the remaining middle tasks from 0.5723 to 0.6158). flash rose 12.43 percentage points from step 1 to step 26, decomposed as +17.08 (all-correct rate 12.08% → 29.15%), −8.52 (middle group 71.88% → 56.29%), +3.88 (middle task pass rate 0.5467 → 0.6081). For both runs the three terms add up algebraically to exactly the measured increase.",
+    "In other words, the main process is \"tasks that used to be answered correctly half the time can now be answered correctly every time\", with tasks graduating from the middle cell to the all-correct cell. Meanwhile, the share of tasks that were never answered correctly from start to finish barely changed: pro from 14.62% to 13.48%, flash from 16.05% to 14.56%, each run down only 1.1 and 1.5 percentage points.",
+    "The absolute size of this batch of tasks is worth a look on its own. Each prompt has n attempts (inferred from perf/total_num_tokens, 16 attempts), and \"all wrong\" means not a single one of the 16 succeeded. About 13.5% of pro's and about 14.6% of flash's tasks fall into this category, and after 26 steps of training this has barely budged.",
+    "This is useful for judging: if what you care about is \"how many tasks the model simply cannot do\", look at the all-wrong rate — it has barely improved. A good rise in avg@n does not mean the hard tasks have been cracked.",
+    "There is one more thing you must do first when reading the chart: the denominator of passrate (dynsam/num_measurable) jumps from 1636 to 4728 in pro, a 2.9× difference. At the p≈0.15 order of magnitude, the single-step standard error is 0.52~0.88 percentage points, while the swing between adjacent steps is often 2~3 percentage points. So before comparing passrate across steps, take a look at the denominator first, otherwise you will mistake sampling noise for progress."
+   ],
+   "facts": [
+    {
+     "label": "pro avg@n",
+     "value": "0.5647 → 0.6334",
+     "note": "+6.88pp"
+    },
+    {
+     "label": "pro all-correct rate",
+     "value": "0.1779 → 0.2620",
+     "note": "+8.41pp"
+    },
+    {
+     "label": "pro all-wrong rate",
+     "value": "0.1462 → 0.1348",
+     "note": "-1.14pp"
+    },
+    {
+     "label": "pro three-term decomposition",
+     "value": "+8.41 − 4.16 + 2.62",
+     "note": "All-correct rate up / middle group shrinks / middle problems improve"
+    },
+    {
+     "label": "flash avg@n",
+     "value": "0.5137 → 0.6380",
+     "note": "+12.43pp (step 1→26)"
+    },
+    {
+     "label": "flash all-correct rate",
+     "value": "0.1208 → 0.2915",
+     "note": "+17.08pp"
+    },
+    {
+     "label": "flash all-wrong rate",
+     "value": "0.1605 → 0.1456",
+     "note": "-1.49pp"
+    },
+    {
+     "label": "flash three-term decomposition",
+     "value": "+17.08 − 8.52 + 3.88",
+     "note": "Same as above"
+    },
+    {
+     "label": "passrate denominator",
+     "value": "pro 1636 ~ 4728",
+     "note": "2.9× difference, single-step standard error 0.52~0.88pp"
+    }
+   ],
+   "verify": "On the same slice, look at the three curves dynsam/avg@n, dynsam/passrate/one, and dynsam/passrate/zero. The three are synchronized; switching to step 1 and step 25 and checking each once will let them line up.",
+   "metrics": [
+    "dynsam/avg@n",
+    "dynsam/passrate/one",
+    "dynsam/passrate/zero"
+   ],
+   "sources": [
+    {
+     "ref": "self-avgn-decompose",
+     "stance": "support",
+     "note": "The three-term decomposition is the arithmetic basis of this insight: avg@n = all-correct share + middle pool share × middle pool quality; both pro +6.88pp and flash +12.43pp can be recovered algebraically from the three terms."
+    },
+    {
+     "ref": "dapo-accuracy1-rising",
+     "stance": "support",
+     "note": "The original DAPO text explicitly writes: as training proceeds, the number of samples with accuracy equal to 1 continues to increase. This is exactly the public counterpart of \"the all-correct share rising faster than avg@n\", showing that it is not a phenomenon unique to this run."
+    },
+    {
+     "ref": "dapo-dynsam",
+     "stance": "support",
+     "note": "DAPO's dynamic sampling oversamples and filters out groups with accuracy 1 and 0. This mechanistically explains why the “all-correct” end rises unidirectionally: they are the first batch to be screened out."
+    },
+    {
+     "ref": "rlvr-passk-shrink",
+     "stance": "challenge",
+     "note": "The paper's key conclusion is that models trained with RLVR are better at small k, but at large k the base model instead scores higher — that is, the “solvable range” has been shrunk. So a rising all-correct share cannot be read directly as capability expansion."
+    },
+    {
+     "ref": "dr-grpo-length-bias",
+     "stance": "challenge",
+     "note": "Dr. GRPO points out that GRPO's length and standard deviation normalization introduces optimization bias, systematically favoring long responses. This bias is mixed into our avg@n uptrend, and it cannot be used alone to prove capability improvement."
+    }
+   ]
+  },
+  {
+   "id": "timing-excludes-restart",
+   "kind": "structural",
+   "title": "timing_s/step does not include restart waiting, so pro underreports by 23.7 hours and about $488,000",
+   "summary": "pro has run for 72.18 hours of wall clock, but summing the timing_s/step reported at each step gives only 48.43 hours. The 23.74-hour difference is almost entirely waiting during restarts, accounting for 32.9% of the true wall clock. flash similarly underreports by 21.6%.",
+   "body": [
+    "The \"time elapsed this step\" on the run card and timing_s/step are the same number; it only counts the time this step was actually running. Waiting for restarts, recovery and weight reloads is not counted in it. So when looking at \"how long training ran\" or \"how much money was spent\", using this number will be noticeably low.",
+    "pro has restarted 9 times so far. 6 of those were immediately followed by the completion of a new step, and these 6 waiting segments total 20.76 hours, 87.4% of the total under-reporting. The largest segment runs from 2026-09-17 20:20Z to the completion of step 17, 5.88 hours, equivalent to $121,000 — the announcement corresponding to that segment was a network problem between the training cluster and the grading service.",
+    "flash restarted 4 times, which after removing double-counting is 3 waiting segments, totaling 12.60 hours, 86.5% of its under-reporting. The largest segment is between the two consecutive restarts on 2026-09-18 and the completion of step 25, 4.49 hours.",
+    "Together the two runs under-report 38.3 hours, equivalent to about $638,000 at their respective rates. This machine time was really spent, it just does not show up in the per-step timing.",
+    "Incidentally, on steps without a restart the wall clock and the reported value differ by less than 10 seconds, so this gap really does come from restarts, not from a drift in the measurement convention."
+   ],
+   "facts": [
+    {
+     "label": "pro wall clock",
+     "value": "72.18 h",
+     "note": "Counted from 2026-09-15 10:32Z"
+    },
+    {
+     "label": "pro Σ timing_s/step",
+     "value": "48.43 h",
+     "note": "Underreports 23.74 h, accounting for 32.9%"
+    },
+    {
+     "label": "pro underreport equivalent",
+     "value": "$488,074",
+     "note": "at $5.71/s"
+    },
+    {
+     "label": "flash wall clock",
+     "value": "67.44 h",
+     "note": ""
+    },
+    {
+     "label": "flash Σ timing_s/step",
+     "value": "52.87 h",
+     "note": "Underreports 14.57 h, accounting for 21.6%"
+    },
+    {
+     "label": "flash underreport equivalent",
+     "value": "$149,757",
+     "note": "at $2.855/s"
+    },
+    {
+     "label": "Restart count",
+     "value": "pro 9 / flash 4",
+     "note": "From totals.restarts"
+    },
+    {
+     "label": "Maximum single-segment wait",
+     "value": "pro 5.88 h / flash 4.49 h",
+     "note": ""
+    }
+   ],
+   "verify": "While looking at timing_s/step, also look at the clock on the run card (that is the true wall clock counted from start); the difference between the two is the missing part. In the replay interface, move the slice to just before/after a restart, and the difference will visibly jump.",
+   "metrics": [
+    "timing_s/step",
+    "timing_s/outer_gen",
+    "timing_s/trainer_ops"
+   ],
+   "sources": [
+    {
+     "ref": "self-time-accounting",
+     "stance": "support",
+     "note": "All numbers in this item come from this accounting: pro wall clock 72.18h vs Σtiming_s/step 48.43h, a gap of 23.74h (32.9%), of which the waiting immediately following 6 restarts and before new steps accounts for 87.4%; for non-restart steps the difference between the two is less than 10 seconds."
+    },
+    {
+     "ref": "hybridflow",
+     "stance": "context",
+     "note": "The hybrid controller framework shows that “a step” in engineering terms is one data flow of generation + training, and the timing scope naturally covers only this flow; downtime waiting outside the framework is not included."
+    },
+    {
+     "ref": "pipeline-rl",
+     "stance": "context",
+     "note": "Pipelined (asynchronous) RL training is precisely intended to eliminate idle waiting between generation and training. This conversely shows that waiting time in synchronous training is a real cost, not a negligible accounting detail."
+    },
+    {
+     "ref": "mimo-v2-flash-readme-infra",
+     "stance": "context",
+     "note": "The official README gives the runtime environment as tens of thousands of concurrent pods and about a 70% environment setup success rate — large-scale scheduling inherently comes with failures and rescheduling, so restart waiting is not an anomalous event."
+    }
+   ]
+  },
+  {
+   "id": "gen-vs-train-balance",
+   "kind": "structural",
+   "title": "Compute is roughly half-and-half between generation and training, but the mix is drifting toward the training side.",
+   "summary": "Looking across both runs from start to finish, rollout generation accounts for about half the wall clock and the trainer about 45%. But step by step, the first step is overwhelmingly generation at 69~70%, and later the generation share drops to 36% (pro step 19), with the training segment instead becoming the bulk.",
+   "body": [
+    "timing_s/outer_gen is the wall clock used for rollout generation, and timing_s/trainer_ops is the wall clock used by the trainer. Their sum at each step does not exceed timing_s/step, and the remaining ~2% is miscellaneous things like data preparation, evaluation, and synchronization.",
+    "Total over the whole run: pro generation 25.62 hours (52.9% of the sum of per-step durations), training 21.77 hours (45.0%); flash generation 26.47 hours (50.1%), training 24.88 hours (47.1%). In total, it really is half and half.",
+    "But looking step by step, the trend is one-directional. For pro, generation at step 1 accounts for 69.3% of the sum of the two, stabilizes at 47~54% in the middle, and drops to 36.1% at step 19; in that same step the training segment is 2.04 hours and generation 1.19 hours. For flash, step 1 is 70.2%, and step 25 is 61.2% (that step had just restarted, the data was completely new, and generation time became longer again).",
+    "This drift has two forces: one is that context and batch keep getting larger (pro's total ctx length rose from 72k to 101k tokens), and the absolute duration of the training segment rises along with it; the other is that there may be optimization on the generation side, with pro's generation time dropping from 1.81 hours at step 1 to 1.19 hours at step 19.",
+    "It should be noted that pro step 19's 62% training share is the highest in the whole run, and it comes right after the announcement of 'adjusting the training parallelism strategy', so that step cannot fully represent steady state."
+   ],
+   "facts": [
+    {
+     "label": "pro generation / training",
+     "value": "25.62 h / 21.77 h",
+     "note": "Accounting for 52.9% / 45.0% of sum of per-step durations"
+    },
+    {
+     "label": "flash generation / training",
+     "value": "26.47 h / 24.88 h",
+     "note": "50.1% / 47.1%"
+    },
+    {
+     "label": "pro generation share",
+     "value": "step 1 69.3% → step 19 36.1%",
+     "note": ""
+    },
+    {
+     "label": "flash generation share",
+     "value": "step 1 70.2% → step 25 61.2%",
+     "note": "step 25 just finished restarting"
+    },
+    {
+     "label": "Other overhead",
+     "value": "about 2%",
+     "note": "outer_gen + trainer_ops < timing_s/step"
+    }
+   ],
+   "verify": "Overlay the two charts timing_s/outer_gen and timing_s/trainer_ops, and in the H view the intersection of the two lines is where dominance changes hands.",
+   "metrics": [
+    "timing_s/outer_gen",
+    "timing_s/trainer_ops",
+    "timing_s/step"
+   ],
+   "sources": [
+    {
+     "ref": "hybridflow",
+     "stance": "support",
+     "note": "The framework explicitly splits the RLHF/RL pipeline into two stages, generation and training, supporting our approach of doing time-share analysis by outer_gen / trainer_ops."
+    },
+    {
+     "ref": "dapo-longtail-generation",
+     "stance": "support",
+     "note": "The DAPO paper points out that generation time is dominated by long-tail samples. This explains why the generation share rises to 70% on long-sequence tasks — the average is pulled away by a few extremely long rollouts."
+    },
+    {
+     "ref": "mimo-v2-flash-readme-mtp",
+     "stance": "support",
+     "note": "The official source treats MTP (multi-token prediction) as a means to speed up rollout, which amounts to admitting that rollout is the dominant bottleneck in RL, consistent with the shape we see in the time share."
+    },
+    {
+     "ref": "mimo-v2-flash-tr-compute",
+     "stance": "context",
+     "note": "The technical report describes the post-training objective as 'efficiently amplifying RL compute'; then the generation/training balance is the first-hand reading on this scaling curve."
+    }
+   ]
+  },
+  {
+   "id": "flash-cheaper-per-token",
+   "kind": "structural",
+   "title": "flash's context is 17% longer than pro's, but its cost per token is only 30% of pro's",
+   "summary": "pro has so far spent $1.484M and trained 42.17B tokens; flash spent $693k and trained 64.84B tokens. Converted, pro costs $35.2k per 1B tokens, while flash costs only $10.7k.",
+   "body": [
+    "The two runs use different rates: pro $5.71/s, flash $2.855/s, exactly two times. But converted by training volume, the gap is amplified to 3.3 times, indicating that flash's output per unit time is higher.",
+    "Looking at individual steps gives the same conclusion: pro averages $78,087 per step, flash $27,726; yet flash's number of tokens trained per step is actually higher (average 2.59 billion vs pro's 2.22 billion).",
+    "Interestingly, flash's context is not shorter, but actually longer: average total length 104,203 tokens, pro is 88,878, flash is 17% longer. Response length averages 84,731 for pro and 99,947 for flash. Prompt lengths are about the same for both, both in the 4,100~4,300 range. So the difference is entirely in the part the model generates itself.",
+    "Sandbox usage differs even more: flash started a cumulative 6,240,816 sandbox environments (about 38k active), while pro started 2,347,584 (about 23k active). Flash's trajectories are longer and have more turns, and the corresponding environment overhead is also larger.",
+    "Putting the two runs together, pro's per-step value is not in throughput; its avg@n is now about the same as flash's (0.6334 vs 0.6408), but its cost per token is three times as high."
+   ],
+   "facts": [
+    {
+     "label": "Cumulative cost",
+     "value": "pro $1,483,650 / flash $693,152",
+     "note": "cost = rate × elapsed time"
+    },
+    {
+     "label": "Cost per 1B training tokens",
+     "value": "pro $35,181 / flash $10,690",
+     "note": "flash is 3.3× cheaper"
+    },
+    {
+     "label": "Average cost per step",
+     "value": "pro $78,087 / flash $27,726",
+     "note": ""
+    },
+    {
+     "label": "Mean total context length",
+     "value": "pro 88,878 / flash 104,203 token",
+     "note": "flash is 17% longer"
+    },
+    {
+     "label": "Cumulative training tokens",
+     "value": "pro 42.17B / flash 64.84B",
+     "note": ""
+    },
+    {
+     "label": "Cumulative sandbox",
+     "value": "pro 2,347,584 / flash 6,240,816",
+     "note": ""
+    },
+    {
+     "label": "Current avg@n",
+     "value": "pro 0.6334 / flash 0.6408",
+     "note": "Performance is close"
+    }
+   ],
+   "verify": "The top right corner of the dashboard has cumulative cost, and the run card has the token count for the current step; just divide the two. The cost basis is rate multiplied by elapsed time, not usage-based billing, so it is machine time cost, not a bill.",
+   "metrics": [
+    "perf/total_num_tokens",
+    "ctx_total_length/mean",
+    "env/active",
+    "ctx_response_length/mean"
+   ],
+   "sources": [
+    {
+     "ref": "self-cost-basis",
+     "stance": "support",
+     "note": "Cost basis calculation: cost = rate × (now − start) holds exactly at 21 sync points; converted to training tokens, it is pro $35,181/1B vs flash $10,690/1B, a 3.3× difference."
+    },
+    {
+     "ref": "self-per-token-throughput",
+     "stance": "support",
+     "note": "Training tokens per step ≈ 1568 × 16 × context length (error 1.2% / 2.7%); this identity shows that the difference in token count between the two runs comes almost entirely from context length and number of steps."
+    },
+    {
+     "ref": "mimo-v2-flash-readme-sched",
+     "stance": "support",
+     "note": "The official README describes fine-grained data scheduling and partial rollout. This kind of scheduling is precisely the engineering source of 'lower cost per token', providing a mechanistic explanation for the profit gap."
+    },
+    {
+     "ref": "self-time-accounting",
+     "stance": "challenge",
+     "note": "Cost accumulates by wall clock, and 30% of wall clock is restart waiting. So part of the 3.3× per-token cost difference is not compute efficiency but waiting time — it cannot be attributed entirely to the model or scheduling."
+    }
+   ]
+  },
+  {
+   "id": "offline-eval-lag",
+   "kind": "watch",
+   "title": "Offline evaluation lags training progress by 5~8 steps, and the gap differs between the two runs",
+   "summary": "The leaderboard only covers up to before the training progress, and the latest few steps have no independent evaluation backing. pro trained to step 24, DeepSWE and In-house Coding stopped at step 18, AutomationBench stopped at step 16, gaps of 6, 6, and 8 steps; flash ended after 30 steps of training, all three leaderboards stopped at step 25, a gap of 5 steps. The gap is not a fixed value — in the previous round of observation, pro was 4 steps, now it has expanded to 6~8 steps, so it is determined by the official backfill schedule.",
+   "body": [
+    "All three offline leaderboards (DeepSWE v1.1, In-house Coding Bench, AutomationBench v1.0.6) require running the full agent process before grading, making them much slower than online metrics. Comparing the set of step numbers on the leaderboards with the current training step number reveals the gap.",
+    "This gap is not a constant, and that is more important than the absolute value of the gap. For the same data, when pro reaches step 19 the gap is 4 steps; when it reaches step 24, DeepSWE's gap becomes 6 steps and AutomationBench's becomes 8 steps; when flash stops at step 30 it is 5 steps. In other words, the width of the gap depends on the official backfill cadence, not on a fixed evaluation cycle.",
+    "That official announcement spells it out clearly: 「we have updated the latest deepswe results for flash step 12 & pro step 8. we will keep posting as the offline evaluation results come out.」——the nominal step number and when that result actually becomes visible are two different things. Going by timestamps, pro step 8's result only became readable 5.27 hours after it finished, and flash step 12's took 3.75 hours.",
+    "So the judgement that 「the last few steps are still climbing」 currently has only one source, the online metric `dynsam/avg@n`, and that is a number on the training distribution, which cannot substitute for external evaluation. Conversely, you also can't use 「the leaderboard hasn't gone up」 as evidence that the last few steps made no progress —— the leaderboard never measured those steps at all.",
+    "A usage reminder along the way: when replaying historical slices, the earlier the slice, the bigger the leaderboard gap, so don't read 「no result yet at that moment」 as 「the result was 0 at that moment」."
+   ],
+   "facts": [
+    {
+     "label": "Leaderboard coverage",
+     "value": "pro reaches step 18/18/16; flash reaches step 25 on all three leaderboards",
+     "note": "Training has reached step 24 / 30 (flash has ended)"
+    },
+    {
+     "label": "Gap",
+     "value": "pro 6（DeepSWE）、6（In-house）、8（Automation）；flash 5",
+     "note": "Not a fixed value: in the previous round, pro was still 4 steps"
+    },
+    {
+     "label": "pro DeepSWE",
+     "value": "58.41 → 67.46 (step 1→18)",
+     "note": "+9.05"
+    },
+    {
+     "label": "flash DeepSWE",
+     "value": "48.67 → 64.90 (step 1→25)",
+     "note": "+16.23"
+    },
+    {
+     "label": "pro In-house Coding",
+     "value": "57.54 → 63.67",
+     "note": "+6.13"
+    },
+    {
+     "label": "flash In-house Coding",
+     "value": "53.83 → 61.93",
+     "note": "+8.10"
+    },
+    {
+     "label": "pro AutomationBench",
+     "value": "46.2 → 49.8",
+     "note": "+3.60"
+    },
+    {
+     "label": "flash AutomationBench",
+     "value": "43.3 → 51.6",
+     "note": "+8.30"
+    },
+    {
+     "label": "Backfill delay (announcement reconciliation)",
+     "value": "pro step 8 is 5.27 hours late, flash step 12 is 3.75 hours late",
+     "note": "Obtained by subtracting that step's completion time from the announcement timestamp"
+    }
+   ],
+   "verify": "The benchmarks block at the bottom of the overview view lists the score for each step; blank spots are steps that do not yet have results.",
+   "metrics": [
+    "dynsam/avg@n"
+   ],
+   "sources": [
+    {
+     "ref": "self-avgn-decompose",
+     "stance": "context",
+     "note": "We have already broken down the internal structure of that number on the training side (all-correct rate / intermediate pool share / intermediate pool quality) locally; the fact that the evaluation leaderboard lags 4 steps slows down the path of 'using the evaluation to confirm training-side readings'."
+    },
+    {
+     "ref": "swebench",
+     "stance": "context",
+     "note": "The original definition of these code evaluation tasks comes from SWE-bench: using real GitHub issues to determine single-pass success. With a 4-step lag, what we can get is still historical points under this definition."
+    },
+    {
+     "ref": "reality-final-verifier",
+     "stance": "challenge",
+     "note": "The paper's claim is that 'passing all tests does not mean deployment is acceptable.' This reminds us: the evaluation leaderboard not keeping up is only a temporary lack of a reference; even if it kept up, it would not be the final verdict."
+    },
+    {
+     "ref": "passk-inversion",
+     "stance": "challenge",
+     "note": "Looking only at pass@1 (or avg@n) misses 'whether the solvable range is shrinking'. The evaluation leaderboard currently only gives readings of single-pass rate; changes in coverage cannot be seen — this is exactly the second layer of blind spots besides scoring lag."
+    }
+   ]
+  },
+  {
+   "id": "entropy-rising",
+   "kind": "watch",
+   "title": "Policy entropy is rising, and it is rising in the same direction as the success rate.",
+   "summary": "The per-token entropy of both runs is going up: pro from 0.3953 to 0.4063, flash from 0.4133 to 0.4561. The all-correct rate is also rising over the same period.",
+   "body": [
+    "actor/entropy_loss is the average entropy of the policy over tokens, measuring how flat the output distribution is. A common worry in RL is entropy collapse——the policy gets more and more confident, the distribution gets sharper and sharper, and the ability to explore is lost. Neither of these two runs is that case.",
+    "pro's entropy fluctuates between 0.3792~0.4087, 0.3953 at step 1 and 0.4063 at step 19, up 0.0110, not monotonic. flash rises from 0.4133 to 0.4554 (step 26), up 0.0421, basically a monotonic climb, with a magnitude nearly four times pro's.",
+    "Success rate over the same period: the all-correct rate rose 8.4 percentage points for pro and 19.2 percentage points for flash. Entropy rising and success rate rising at the same time shows that the policy isn't scoring points by getting narrower and sharper, but is raising the proportion correct while maintaining (even expanding) output diversity.",
+    "flash's absolute entropy is also higher than pro's (mean 0.4276 vs 0.3942), a direction consistent with flash's larger increase and longer context.",
+    "The dashboard doesn't say whether entropy has a target value or whether entropy regularization was added, so here we only talk about the trend, not whether it's good or bad. To really look at risk, you have to look at pg_loss and pg_tis_clipfrac together——those two metrics reflect how much of the update gets clipped; high entropy with a clip rate that isn't rising means the updates are still fairly mild."
+   ],
+   "facts": [
+    {
+     "label": "pro entropy",
+     "value": "0.3953 → 0.4063",
+     "note": "+0.0110, range 0.3792~0.4087"
+    },
+    {
+     "label": "flash entropy",
+     "value": "0.4133 → 0.4554",
+     "note": "+0.0421, range 0.4086~0.4561"
+    },
+    {
+     "label": "pro entropy mean",
+     "value": "0.3942",
+     "note": "19 steps"
+    },
+    {
+     "label": "flash entropy mean",
+     "value": "0.4276",
+     "note": "25 steps"
+    },
+    {
+     "label": "same-period all-correct rate",
+     "value": "pro +8.41pp / flash +17.08pp",
+     "note": "same direction"
+    }
+   ],
+   "verify": "On overview, look at actor/entropy_loss and dynsam/passrate/one side by side.",
+   "metrics": [
+    "actor/entropy_loss",
+    "actor/pg_loss",
+    "dynsam/passrate/one"
+   ],
+   "sources": [
+    {
+     "ref": "entropy-mechanism",
+     "stance": "challenge",
+     "note": "The empirical relation given by the paper is R = −a·exp(H) + b, that is, the higher the entropy, the lower the performance, and it argues that entropy collapse is the constrained case and requires active intervention. The direction is opposite to 'entropy rising, avg@n also rising'; this is the most direct boundary condition of this insight."
+    },
+    {
+     "ref": "dispo",
+     "stance": "challenge",
+     "note": "Through ablations, the paper points out: whether entropy is pushed up by upper-bound clipping or lower-bound clipping has different consequences, and excessive pushing upward leads to slow degradation. Therefore 'entropy is rising' itself cannot determine whether it is good or bad; it depends on which side is pushing it."
+    },
+    {
+     "ref": "dapo-upper-clip",
+     "stance": "support",
+     "note": "DAPO's Clip-Higher relaxes the upper-bound clipping specifically to counter entropy collapse, which shows that 'a bit higher entropy' is usually pursued as a health signal in engineering."
+    },
+    {
+     "ref": "spurious-rewards",
+     "stance": "challenge",
+     "note": "The paper points out that the clip term causes clipping bias, amplifying high-prior behavior from the pretraining stage. Rising entropy may also just be the result of this kind of bias amplification, rather than exploration improving."
+    },
+    {
+     "ref": "rlvr-entropy-coverage",
+     "stance": "challenge",
+     "note": "The paper's direction is that entropy decrease leads to narrower solvable coverage. Viewing it alongside this item: the relationship between entropy and coverage is not monotonic, and using entropy alone to describe 'exploration state' is unreliable."
+    }
+   ]
+  },
+  {
+   "id": "pro-step19-anomaly",
+   "kind": "watch",
+   "title": "At pro step 19, three system-side anomalies appear simultaneously, but the performance metrics are normal.",
+   "summary": "In the same step, the training segment accounted for 62.0%, the highest across the whole run; the gradient norm jumped to 0.03351 (6 times the median of the other steps); and possible_leak showed its only non-zero value across the whole run. Yet avg@n, pg_loss, and advantage were all normal.",
+   "body": [
+    "actor/grad_norm is the global gradient norm before clipping. pro's other 18 steps are concentrated in 0.0048~0.0087, median 0.005625, and step 19 is 0.03351, 6.0 times that. flash stays between 0.0049~0.0091 throughout, with no similar spike appearing.",
+    "The system-side data for the same step is also unusual: timing_s/trainer_ops is 2.04 hours, 62.0% of timing_s/step, the highest share of any step in pro's whole run (the previous high was 52.7% at step 8); env/possible_leak equals 1 at this step, and is 0 for all the other 18 steps.",
+    "But nothing looks wrong on the effect side. Step 19's avg@n is 0.6334, the second highest of the whole run; pg_loss 0.00529 is in the normal range; critic/advantages/mean -0.00436 is also in the normal range. So this isn't 「training went wrong」, it's 「something happened on the machine side」.",
+    "On the timeline, step 19 comes immediately after an announcement: pro restarted at step 17 because of a GPU OOM caused by uneven expert load, and the official said \"adjusted the training parallelism strategy.\" Steps 18 and 19 were run under the new configuration.",
+    "One point cannot establish causality; it can only be said that these three anomalies appeared simultaneously on the first full training step after the configuration change. The next step (step 20) is worth watching: if grad_norm falls back and the training segment share falls back, that may be the short-term cost of the change; if they continue to spike, it has to be treated as a trend."
+   ],
+   "facts": [
+    {
+     "label": "grad_norm (pro step 19)",
+     "value": "0.03351",
+     "note": "median of the other 18 steps 0.005626, 6.0 times"
+    },
+    {
+     "label": "grad_norm (flash throughout)",
+     "value": "0.0049 ~ 0.0091",
+     "note": "No spike"
+    },
+    {
+     "label": "Training segment share (pro step 19)",
+     "value": "62.0%",
+     "note": "Highest across the whole run; the previous highest was 52.7% at step 8"
+    },
+    {
+     "label": "possible_leak（pro）",
+     "value": "step 19 = 1",
+     "note": "The other 18 steps are all 0; flash is 0 throughout the full run"
+    },
+    {
+     "label": "same-period avg@n",
+     "value": "0.6334",
+     "note": "Second highest across the whole run, normal"
+    }
+   ],
+   "verify": "In the metrics view, search actor/grad_norm to see the whole curve; then search env/possible_leak to cross-reference step numbers. In the replay interface, switch to before and after step 19 completion to directly see the training segment share on the run card.",
+   "metrics": [
+    "actor/grad_norm",
+    "timing_s/trainer_ops",
+    "env/possible_leak"
+   ],
+   "sources": [
+    {
+     "ref": "self-grad-spike-isolated",
+     "stance": "support",
+     "note": "In the same step, pg_loss, entropy_loss, rewards/mean, new_infer/kl, avg@n, and passrate/zero are all within the normal fluctuation range; the spike is the only one within the recorded range (5.96 times the median)."
+    },
+    {
+     "ref": "simpletir",
+     "stance": "support",
+     "note": "Training instability in multi-turn tool-calling RL is attributed to low-probability tokens causing a “gradient norm explosion.” This provides a mechanistic explanation for “single-point spike = anomalous sample.”"
+    },
+    {
+     "ref": "gradient-stabilizer",
+     "stance": "context",
+     "note": "The paper argues that what should be fixed is the gradient norm itself (not the global gradient direction). This shows that in engineering the norm spike is indeed treated as an independent problem, consistent with our reason for making it a separate alert."
+    },
+    {
+     "ref": "monitor-cot-hacking",
+     "stance": "context",
+     "note": "The paper discusses monitoring cheating behavior in the reasoning process. Alerts such as `env/possible_leak` belong to the same class of “behavioral anomaly” signals, and their occurrence at the same step is worth recording side by side."
+    },
+    {
+     "ref": "baitbench",
+     "stance": "context",
+     "note": "This benchmark shows that reward hacking can be designed as an “optional shortcut” to be measured. It supports treating possible_leak as a clue that needs follow-up, rather than discarding it as noise."
+    }
+   ]
+  },
+  {
+   "id": "penalty-redistributes",
+   "kind": "structural",
+   "title": "The penalty term does not change the total advantage; what it changes is how advantage is allocated across tokens.",
+   "summary": "train/adv_*_sum_pre_penalty and post_penalty are exactly identical point by point, which can easily be read as “the penalty term had no effect.” In fact, the penalty branch proportionally rescales the added/removed mass back to the original value; total conservation is by design, not a sign that it had no effect.",
+   "body": [
+    "First look at the confusing phenomenon: train/adv_pos_sum_pre_penalty and train/adv_pos_sum_post_penalty are exactly equal at every step in both runs (max difference 0), and the same holds for the negative side. At the same time, under penalty/action/, three of the four tags are identically zero and adv_mul_min is identically 1. Taken together, these two things naturally lead to the conclusion that \"the penalty term didn't run at all.\"",
+    "But the data under penalty/signed/ is alive. Moreover, two identities can be verified: pos_scale ≈ 1 + pos_mass_removed / adv_pos_sum_pre_penalty (pro max difference 5.2e-6, flash 7.9e-6), neg_scale ≈ 1 − neg_mass_added / the absolute value of adv_neg_sum_pre_penalty (pro 6.3e-5, flash 8.2e-4). In other words, the penalty branch first removes some mass from the positive side and adds some to the negative side, then rescales the total for that sign back to its original value. Total mass conservation is how it is constructed, not that it didn't run.",
+    "So the correct reading is: aggregate metrics cannot reveal the penalty term; you have to look at the scale and mass quantities to know how much it moved and on which side. The penalty/action/ family was indeed never triggered throughout, but that is another pathway, and it is a different matter from the signed branch.",
+    "Now look at what actually happened in this run; the two runs differ greatly. flash's negative side concentrated its volume at the end: neg_mass_added jumped from 46k~1.62M in steps 1~17 (mean about 380k) to 2.06M~6.83M in steps 18~24 (step 24 max 6.83M), neg_hit_tokens shot up to 7.838M at step 22, and neg_scale reached 0.970986 in the same period (step 24, deviation from 1 by 2.9 percentage points). Its rewards/min had been stuck at −0.8 from step 15 onward (steps 15, 18~23, 25 all exactly equal −0.8). At step 25, because it had just restarted (data all new), this quantity fell back to 477k, but at step 26 it rose again to 812k—the volume expansion pattern has not ended.",
+    "pro does not have this pattern. Its neg_mass_added only spiked once at step 14 to 1.43M, and the other steps are between 30k~330k; neg_scale only reached as low as 0.992055 (deviation of 0.79 percentage points), and rewards/min also only equaled −0.8 at step 14.",
+    "The dashboard does not explain why neg_mass_added amplifies by more than tenfold at the end of flash, nor does it explain whether −0.8 is a lower bound on the reward. What is certain is that this is a real change occurring on the negative side in flash's last phase, not background noise—pro has the same 19-step observation window, and nothing similar appeared."
+   ],
+   "facts": [
+    {
+     "label": "pre and post total advantage",
+     "value": "Max pointwise difference 0",
+     "note": "pro 19 steps + flash 25 steps"
+    },
+    {
+     "label": "pos_scale identity relation",
+     "value": "≈ 1 + pos_mass_removed / positive-side total",
+     "note": "Residual pro 5.2e-6 / flash 7.9e-6"
+    },
+    {
+     "label": "neg_scale identity relation",
+     "value": "≈ 1 − neg_mass_added / absolute value of negative-side total",
+     "note": "Residual pro 6.3e-5 / flash 8.2e-4"
+    },
+    {
+     "label": "flash neg_mass_added",
+     "value": "Steps 1~17 about 380,000 → step 24 6,830,000",
+     "note": "Scaling up begins at step 18; at step 25 it drops back to 477,000, and at step 26 it reaches 812,000 again"
+    },
+    {
+     "label": "flash neg_scale lowest",
+     "value": "0.970986 (step 24)",
+     "note": "Deviation from 1 reaches 2.9%"
+    },
+    {
+     "label": "flash rewards/min",
+     "value": "Pinned at −0.8 over the long term",
+     "note": "Steps 15, 18~23, and 25 are exactly equal to −0.8; step 26 is −0.679"
+    },
+    {
+     "label": "pro neg_mass_added",
+     "value": "30,000 ~ 330,000 (1,430,000 once at step 14)",
+     "note": "No volume increase in the final segment"
+    },
+    {
+     "label": "pro neg_scale lowest",
+     "value": "0.992055",
+     "note": "Deviation 0.79%"
+    },
+    {
+     "label": "penalty/action/*",
+     "value": "Three tags identically 0, adv_mul_min identically 1",
+     "note": "This pathway is never triggered at any point"
+    }
+   ],
+   "verify": "In the metrics view, search penalty/signed to see neg_mass_added and neg_scale; then search train/adv_neg_sum_pre and post for comparison. Put the two curves on the same slice; the jump after step 18 in flash is the most easily discernible shape change in this run.",
+   "metrics": [
+    "penalty/signed/neg_mass_added",
+    "penalty/signed/neg_scale",
+    "penalty/signed/pos_scale",
+    "train/adv_neg_sum_pre_penalty",
+    "critic/rewards/min"
+   ],
+   "sources": [
+    {
+     "ref": "self-penalty-identity",
+     "stance": "support",
+     "note": "Accounting for the identity: pos_scale ≈ 1 + withdrawn positive mass / total positive advantage before intervention (residual 5.2e-6 / 7.9e-6), neg_scale ≈ 1 − added negative mass / |total negative advantage before intervention| (6.3e-5 / 8.2e-4), so the pre/post totals are exactly equal point by point."
+    },
+    {
+     "ref": "dapo-upper-clip",
+     "stance": "context",
+     "note": "The closest asymmetric treatment among public methods: DAPO splits the upper and lower bounds, relaxes only the upper bound, and explicitly keeps the lower bound fixed. It acts on the importance ratio and does not change the advantage distribution —— still different in form from this run."
+    },
+    {
+     "ref": "dual-clip-ppo",
+     "stance": "context",
+     "note": "Another type of asymmetric treatment: add a lower bound to the objective function only when the advantage is negative. It likewise modifies the surrogate, not “redistributes advantage mass by sign.”"
+    },
+    {
+     "ref": "gspo",
+     "stance": "challenge",
+     "note": "GSPO argues that token-level ratio variance is too large and that sequence-level ratios should be used instead. This shows that what is tunable in this system is the ratio and clipping, not advantage mass; using intuitions from other frameworks to explain this site’s penalty fields makes it easy to explain them incorrectly."
+    }
+   ]
+  },
+  {
+   "id": "notices-explain-outages",
+   "kind": "note",
+   "title": "5 announcements explain 6 of the 16 restarts, and additionally announce the removal of a dataset.",
+   "summary": "From 2026-09-16 17:58Z to 09-18 03:49Z, the official team posted 5 announcements, all incident reports and one dataset adjustment; none was an interim training conclusion. 4 were about restarts, 2 gave specific causes (single-node VRAM, network disconnection between the training and grading clusters, GPU OOM caused by imbalanced expert load, an infra error in a dataset that went undetected for about 3 hours). But the total restart count over the whole period is pro 11 + flash 5 = 16, and only some of them had announcements.",
+   "body": [
+    "These 5 notices are themselves the rarest thing on this dashboard: the vast majority of public training runs only write a single line afterwards saying \"we ran into some instability\", whereas here the cause of the failure, the scope of impact and the remediation actions are all written out.",
+    "But do not overestimate its coverage. The restart counts for pro and flash in `totals.restarts` of `status.json` are 11 and 5 respectively, while only 4 of the 5 notices are about restarts, and the restarts that can be matched by event alignment number 6 (pro 5, flash 1; for verification see `analysis/en/notes/13-async-pipeline-and-machine-time.md`). The remaining 10 restarts are unexplained.",
+    "There are three data traces directly visible in the notices: flash steps 16 and 17 each appear twice in the event stream (corresponding to \"rerun from step 15\"); pro's cyber series becomes null from step 15 onward (corresponding to \"remove the cyber dataset from subsequent pro runs\"); and pro's step 17 restart notice was issued after the fact, published after that step had completed.",
+    "There is one more pitfall: the `run` field in `notices.json` is all null, so the notices do not indicate which run they belong to; you have to judge that yourself from the wording in the body text and the event times."
+   ],
+   "facts": [
+    {
+     "label": "Number of announcements",
+     "value": "5 announcements",
+     "note": "Time span about 34 hours"
+    },
+    {
+     "label": "Runs involved",
+     "value": "The run field is all null",
+     "note": "All are global announcements"
+    },
+    {
+     "label": "Restarts explained by announcements",
+     "value": "4 of the 5 are about restarts (pro 3 times, flash 1 time)",
+     "note": "pro has 9 total and flash 4 total restarts; the rest have no separate announcement"
+    },
+    {
+     "label": "Verifiable data traces",
+     "value": "flash steps 16 and 17 each appear twice; pro cyber is null from step 15 onward",
+     "note": ""
+    }
+   ],
+   "verify": "The notices section at the bottom of overview; compare against the curve breakpoints of partial/cyber-related metrics in the metrics view.",
+   "metrics": [
+    "partial/cyber/dataset-9aui/avg_staleness"
+   ],
+   "sources": [
+    {
+     "ref": "mimo-rl-notices-cyber",
+     "stance": "support",
+     "note": "The original official announcement states that the cyber dataset was removed because bad shapes appeared in the rollout logs, and in the same batch of announcements it mentions network problems. It is also the direct explanation for 「why the cyber-related series breaks at a certain point」."
+    },
+    {
+     "ref": "mimo-rl-notices-restart",
+     "stance": "support",
+     "note": "The official announcement states verbatim that flash reruns from step 15. This explains the pattern in the data that 「steps 16 and 17 each appear twice and the second occurrence has redo=true」, and also explains the abrupt changes in staleness and KL around flash step 25."
+    },
+    {
+     "ref": "self-time-accounting",
+     "stance": "context",
+     "note": "The announcements only say 「what happened」, not 「how much time was lost」. After aligning the announcement timestamps with the wall clock, 87.4% of pro's timing gap falls on waiting after restarts —— this is the part outside the announcements that can only be calculated from the data."
+    },
+    {
+     "ref": "missing-old-logits",
+     "stance": "context",
+     "note": "This paper discusses the semantic mismatch caused by missing old logits in asynchronous/restart scenarios. It provides a general rationale for 「why the metrics at the restart step cannot be directly compared with adjacent steps」."
+    }
+   ]
+  },
+  {
+   "id": "passrate-ratio-is-running-mean",
+   "kind": "counterintuitive",
+   "title": "`passrate_0_ratio` / `passrate_1_ratio` are cumulative averages: flash strictly monotonically increases over 30 steps; pro draws down at steps 15 and 23",
+   "summary": "These two metrics have ratio in their names, and the dashboard also shows them as percentages, so they are easily read as 「what share of questions in this step are all-wrong (all-correct)」. In fact, they are full-run cumulative averages: among flash's 30 step values, the first differences are all positive and there is not a single pullback; among pro's 23 first differences, 21 are positive, and the other two are step 15 dropping from 0.0619 to 0.0112 and step 23 dropping from 0.0443 to 0.0351. Reading them as per-step proportions will misread 「the cumulative measure slowly converging」 as 「quality is very high at this moment」 or 「it suddenly got worse」.",
+   "body": [
+    "These two metrics are under the `train/passrate/` prefix, named `passrate_0_ratio` (the share of tasks whose pass rate is exactly 0) and `passrate_1_ratio` (the share of tasks whose pass rate is exactly 1). The dashboard displays them in percentage format, so they are easily taken for \"this step's distribution\".",
+    "The way to determine that they are cumulative averages is not to look at a single value but at the differences. flash's `passrate_1_ratio` climbs all the way from 0.00686 to 0.15177, with all 29 first-order differences positive and not a single pullback; if it were a step-by-step proportion, fluctuating around a level would be the normal shape. pro's case is even more telling: at step 15 it pulls back at once from 0.0619 to 0.0112, and at step 23 it pulls back again from 0.0443 to 0.0351. A cumulative average shows this kind of downward jump only when it is reset.",
+    "Step 15 happens to be the step where that \"network connectivity problem, we restarted the whole run\" notice occurred; step 23 has no notice at all. Since pro has 7 restart steps and flash has 4 restart steps, while only pro shows two pullbacks, the explanation \"a restart resets it\" does not hold, and the trigger condition for the pullbacks is not visible at present.",
+    "The practical usage is simple: do not compare these two values across different steps, and do not difference them against `dynsam/passrate/zero` and `dynsam/passrate/one` (the step-by-step proportions under the sampler's definition). To know the true proportion at a given step, either look at `dynsam/passrate/zero` / `one`, or compute the differences yourself and multiply back by the number of steps.",
+    "Fields of this kind, \"named like a proportion but actually a cumulative quantity\", are not an isolated case on this dashboard. The audit script ran a monotonicity scan over all metrics ending in ratio / rate / frac / share; only these two (flash) qualify as \"strictly monotonically increasing\", and those qualifying as \"rising with a small number of pullbacks\" are pro's two plus several datasets' `clip_ratio`. That is to say, no third trap of this kind was found this time, but the detection method should be kept in the routine checks."
+   ],
+   "facts": [
+    {
+     "label": "Sign of the first differences of flash `passrate_1_ratio`",
+     "value": "29/29 positive",
+     "note": "0.00686 → 0.15177, strictly monotonic; per-step proportions cannot behave this way"
+    },
+    {
+     "label": "Drawdown points of pro `passrate_0_ratio`",
+     "value": "step 15 -0.0507, step 23 -0.0092",
+     "note": "The remaining 21 differences are all positive"
+    },
+    {
+     "label": "First and last `passrate_0_ratio` (pro / flash)",
+     "value": "pro 0.00921→0.03885；flash 0.00912→0.08296",
+     "note": "The starting points on both sides are almost the same; flash has a larger cumulative value because it has more steps."
+    },
+    {
+     "label": "Number of monotonic ratio/rate/frac/share metrics",
+     "value": "flash 2, pro 0",
+     "note": "Full scan (excluding those with fewer than 10 distinct values), see the cumulative field of A3-audit-numbers.json"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-passrate-ratio-is-running-mean",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "zero-passrate-means-no-sample",
+   "kind": "structural",
+   "title": "The exact 0s for ol8x and gtav are “no sampling”; the three independent signals are completely aligned on pro’s 7 steps and flash’s 5 steps",
+   "summary": "The average pass rates of the two datasets ol8x and gtav contain many exact 0s, which previously could only be labeled as “suspected unreported”. This time, three mutually independent signals were found: the steps where a 0 value appears, the steps where `partial/<dataset>/1/frac` is null, and the steps where `num_accepted/step` equals `held`. The three are completely consistent across both runs and both datasets (7 steps each for pro, 5 steps each for flash), and the 0-value step sets of the two datasets are also element-wise identical. The conclusion can be set as: these 0s are not a 0% pass rate; rather, no data entered training at this step.",
+   "body": [
+    "First, the phenomenon: pro's ol8x and gtav each have 7 steps reporting exactly 0, with step numbers 1, 2, 3, 11, 15, 17, 23; flash has 5 each, with step numbers 1, 3, 16, 25, 28. The sets of zero-value steps for the two datasets are identical, which itself shows the problem is not with the datasets.",
+    "Pulling up the other two quantities on the same set of steps: `partial/visual/dataset-ol8x/1/frac` (the token share of this dataset in the \"stale 1 generation\" bucket) is null on these steps; `dynsam/visual/dataset-ol8x/num_accepted/step` (number of accepted tasks this step) is exactly equal to the `held` with the same prefix (task pool holdings). Accepted count equal to holdings means the task pool had no net consumption, and a null share means no data entered training—both point to \"this dataset is idling at this step\". The audit script checked these three boolean values cell by cell, and all four datasets for pro and flash are consistent.",
+    "In terms of time, these 7 steps for pro exactly coincide with the steps where restart events fall in `events` (restarts fall on 1, 2, 3, 11, 15, 17, 23 in order), and flash's 5 steps are the four restart steps plus step 1 (the run's starting step). So a more accurate description is: on the step after a restart, these two datasets have no data, and \"no data\" was written as 0.",
+    "The actual damage of this 0 is not small. At pro step 15, there are 6 vision-class datasets; averaging as-is gives 0.4420; after removing these two 0s as missing, it gives 0.6630, a difference of 22 percentage points. The differences at steps 2, 17, and 23 are 20.7, 20.9, and 23.7 percentage points, respectively. Any analysis that aggregates pass rates by category, as long as it does not handle these two 0s, will systematically underestimate the vision class on restart steps.",
+    "Conversely, this triple alignment can serve as a \"restart-step detector\" that does not depend on `events`: pro is {1,2,3,11,15,17,23}, flash is {1,3,16,25,28}. It is closer to the data itself than looking through `events.json`—`events` is the event stream of the trainer process, while this triple is a trace left by the data reporting layer."
+   ],
+   "facts": [
+    {
+     "label": "Exact-0 steps for ol8x / gtav (pro)",
+     "value": "7 steps each: 1,2,3,11,15,17,23",
+     "note": "The sets for the two datasets are element-wise identical"
+    },
+    {
+     "label": "Exact-0 steps for ol8x / gtav (flash)",
+     "value": "5 steps each: 1,3,16,25,28",
+     "note": "Four restart steps + starting step"
+    },
+    {
+     "label": "Three-signal agreement rate",
+     "value": "4/4 datasets, 100% per cell",
+     "note": "0-value steps = steps where `1/frac` is null = `step==held` steps"
+    },
+    {
+     "label": "Vision-category average pass rate (pro step 15)",
+     "value": "Including 0: 0.4420; after excluding: 0.6630",
+     "note": "6 vision datasets, two are idle steps"
+    },
+    {
+     "label": "Control: restart steps of other datasets",
+     "value": "No 0s appeared",
+     "note": "They are likewise restart steps and likewise have `step==held`, but the chat-category datasets still report normal values, so the trigger condition is specific to these two datasets"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-zero-passrate-means-no-sample",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "partial-ntokens-scope-collapse",
+   "kind": "method",
+   "title": "In the old buckets, `partial/<k>/n_tokens` reports the same number under three scopes: global, agentic slice, and single-dataset slice are value-wise identical",
+   "summary": "`partial/<k>/n_tokens` is a token count bucketed by data freshness. The audit found that on pro buckets 4~7 and flash buckets 4~9, the arrays for the three scopes (global, agentic slice, and single-dataset slice) are exactly identical value by value (including null positions), while their `frac` values differ from one another. It is physically impossible for three slices with different ranges to simultaneously report the same absolute count, so the per-slice token counts of the old buckets are unusable.",
+   "body": [
+    "The `partial/` section splits the same set of statistics into several buckets by \"how many policy versions separate data from sampling to being trained\"; the larger the bucket number, the older the data. Each bucket has both `frac` (the weight of that bucket in this step's tokens) and `n_tokens` (the absolute token count of that bucket). The same family is further split by slice: `partial/agentic/<k>/...` is for the agentic category, and `partial/code/dataset-yfch/<k>/...` is for a single dataset.",
+    "When doing pairwise identical detection, a cluster that should not appear appeared: `partial/4/n_tokens` = `partial/agentic/4/n_tokens` = `partial/code/dataset-yfch/4/n_tokens`, present in both pro and flash, and covering every step of the old buckets. On buckets 0~3, the three are different from one another, which is normal.",
+    "Why this cannot hold simultaneously: `partial/<k>/n_tokens` is the token count of all trajectories in that bucket, `partial/agentic/<k>/n_tokens` is the part of it in the agentic category, and `partial/code/dataset-yfch/<k>/n_tokens` is the part narrowed further to a single dataset. The latter two must be subsets of the first, unless the three sets happen to be exactly the same. The three being equal can only mean 'the per-slice counts were not tracked separately on the old bucket and fell back to the global value'.",
+    "A piece of counter-evidence can confirm this is not a coincidence: the `frac` of the three definitions are not equal. The denominator of `frac` is the total for the respective slice; if the three were really the same set, the denominators should also be the same, and `frac` should also be the same. Different denominators with the same numerator means the numerator was written from the same source.",
+    "Practical impact: the absolute values of the `partial/<k>/n_tokens` family already do not add up (summing all buckets gives only 44%~56% of `perf/total_num_tokens`, for unknown reasons); now one can tighten it further—on buckets ≥4, the per-slice absolute quantities are completely unusable. To compare 'how much each category accounts for in stale data', one can only use `frac`; to use absolute quantities, one can only look at the global level.",
+    "Incidentally, explaining this detection method: the pairwise 'identical value by value' determination must include sparse filtering, otherwise it will produce many false duplicates. For example, if two series each have only 5 non-empty values, and those 5 values are all 0, they are of course 'identical'. The audit script marks series with 'number of distinct values <3, or ≥80% are 0, or coverage <50%, or fewer than 8 non-empty values' as sparse, and removes them from the trusted clusters; among pro's 151 clusters, 18 are this kind of false positive."
+   ],
+   "facts": [
+    {
+     "label": "Value-wise identical buckets",
+     "value": "pro buckets 4,5,6,7; flash buckets 4,5,6,7,8,9",
+     "note": "pro bucket 4 covers 8 steps, flash bucket 4 covers 15 steps"
+    },
+    {
+     "label": "The same three scopes",
+     "value": "`partial/<k>/`、`partial/agentic/<k>/`、`partial/code/dataset-yfch/<k>/`",
+     "note": "Including null positions, also completely identical"
+    },
+    {
+     "label": "Control: whether `frac` is the same",
+     "value": "Not the same",
+     "note": "Different denominators but the same numerator is direct evidence of “falling back to the global value”"
+    },
+    {
+     "label": "`partial` total as a share of `perf/total_num_tokens`",
+     "value": "pro 45%~55%，flash 44%~56%",
+     "note": "The existing problem that this family of absolute values does not reconcile is confirmed this time to still hold."
+    },
+    {
+     "label": "Sparse false-positive scale",
+     "value": "18 of 151 clusters for pro, 15 clusters for flash",
+     "note": "This kind of scan must add filtering, otherwise the conclusions will be drowned by 0s."
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-partial-ntokens-scope-collapse",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "two-context-length-caps",
+   "kind": "numeric",
+   "title": "Context length has two truncation caps: most metrics hit 1048570 (≈2²⁰), while `code/dataset-4onq` hits 262144 (=2¹⁸)",
+   "summary": "`ctx_total_length/max` repeatedly hit 1048570, which was previously treated as a single hard cap. This time all 25 similar metrics split by dataset were checked: pro has 5 and flash has 7 that repeatedly hit 1048570; meanwhile pro has 2 and flash has 3 that repeatedly hit 262144, among which `code/dataset-4onq/max` is exactly equal to 262144 at pro's 16/24 steps and flash's 25/30 steps. Different datasets use two sets of truncation thresholds, so comparing “whose long context is longer” across the board compares thresholds rather than capability.",
+   "body": [
+    "`ctx_total_length/max` is the maximum total length of a single trajectory (prompt plus generation). The dashboard has a mean curve that is always shown, but there are 25 per-dataset `max` metrics, with no explainer coverage.",
+    "The method for judging 'hitting the cap' is: find the value that occurs most frequently for that metric; if it is also the maximum of that metric over the whole period, occurs ≥3 times, and this value is close to an integer power of 2, then it is judged to be a cap. pro hits 7 metrics, falling into two tiers: 1048570 (global `ctx_total_length/max` 11/24 steps, `ctx_total_length/agentic/max` 11/24, `code/dataset-yfch/max` 9/24, etc., 5 in total) and 262144 (`code/dataset-4onq/max` 16/24, `chat/dataset-lm3t/max` 7/24). flash hits 10, also two tiers: 7 in the 1048570 tier, 3 in the 262144 tier, among which `code/dataset-4onq/max` is 25/30 steps.",
+    "1048570 is close to 2²⁰=1048576, off by 6; 262144 is exactly 2¹⁸. The two thresholds differ by a factor of 4. The ceiling of `code/dataset-4onq` is one quarter of the others, so on any chart sorted by `max` it will appear to have the 'shortest context', but this has nothing to do with model capability.",
+    "There is another pitfall that is easier to fall into than \"two tiers\": 1048570 is not a hard upper limit. In flash's `ctx_total_length/max` there are four values higher than it: 1049640, 1048610, 1048690, 1054990, and there is also 2236430 at step 14 (about 2.13 times it); pro also has values above 1.05 million. So you cannot take \"this quantity is definitely ≤ 1048570\" as a data validation rule, nor can you use `max` to infer the configuration.",
+    "Usage recommendation: to compare long-context behavior across datasets, use quantiles that are not truncated, such as `ctx_prompt_length/*/mean` or `ctx_total_length/*/p90`, or at least first confirm that both sides hit the same tier cap. The `max` family is only suitable for answering \"whether a ceiling was hit\", not for answering \"how long it typically is\"."
+   ],
+   "facts": [
+    {
+     "label": "Cap tier 1048570 (≈2²⁰)",
+     "value": "pro 5 metrics / flash 7",
+     "note": "e.g., global `ctx_total_length/max` 11/24 steps (pro), 15/30 steps (flash)"
+    },
+    {
+     "label": "Cap tier 262144 (=2¹⁸)",
+     "value": "pro 2 metrics / flash 3",
+     "note": "`code/dataset-4onq/max` 16/24 steps (pro), 25/30 steps (flash); flash's chat-type datasets are also in this tier"
+    },
+    {
+     "label": "Values over 1048570 (flash)",
+     "value": "1049640、1048610、1048690、1054990、2236430",
+     "note": "This indicates that this is not a hard cap, and truncation is not consistent"
+    },
+    {
+     "label": "`ctx_total_length/max` maximum over the full period",
+     "value": "flash 2236430 (step 14), approximately 2.13 times 1048570",
+     "note": "The same metric is on the order of ≤1.05 million at the remaining 29 steps"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-two-context-length-caps",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "bench-mde-noise-floor",
+   "kind": "method",
+   "title": "The single-step noise of the three offline leaderboards differs by a factor of 3~4: DeepSWE requires 4.6~6.4 points to count as a real change, and of the 115 single-step changes only 1 withstands multiple comparisons",
+   "summary": "Using trend residuals to estimate single-point noise σ, calculate according to MDE=2.77σ “how large a difference between adjacent two steps is worth taking seriously”: for DeepSWE it is pro 4.56 / flash 6.43 points, In-house 1.55 / 1.68, Automation 2.20 / 2.70; the yardsticks of the three leaderboards differ by a factor of 3~4. Among the 115 single-step changes, 9 are significant under naive testing; after Holm correction by leaderboard×run only 1 remains (In-house/pro steps 16→18 +1.99 points); switching to “whether it deviates from trend” gives 0. The largest single-step drop is also only −6.05 points.",
+   "body": [
+    "The score difference between adjacent steps consists of two parts: the increase the trend should give, and the noise of the measurement itself. To judge whether a score drop is worth taking seriously, you must first subtract the trend. This article uses the residual standard deviation of the Theil–Sen robust trend as the single-point noise σ_pt (rather than directly using the standard deviation of adjacent differences—when the series has negative autocorrelation, the latter systematically overestimates; the first-order autocorrelation of the residuals for DeepSWE/flash is −0.461, and the adjacent-difference definition gives an MDE of 7.80 points, larger than the 6.43 points from the residual definition).",
+    "Conclusion 1: The three leaderboards are not the same ruler. DeepSWE's MDE is 3~4 times that of In-house Coding Bench. The same single-step change of −2 points is pure noise on DeepSWE, while on In-house it has already crossed the noise threshold. Before comparing \"how many points it gained\" across leaderboards, you must first report the respective MDE.",
+    "Conclusion 2: On this dashboard, the vast majority of single-step changes are indistinguishable. Among 115 changes, a naive 5% test finds 9 significant; after Holm-Bonferroni correction within each (leaderboard, run), only 1 remains: In-house Coding / pro step 16→18 +1.99 points (raw p=0.0019, Holm threshold 0.05/16=0.0031). Moreover, half of this step's significance comes from it being a change across 2 steps—the trend itself contributed +0.78 points, and after subtracting it the residual is only 1.53σ (p=0.126).",
+    "Conclusion 3: The back-inferred \"equivalent number of questions\". Assuming the leaderboard score is the average pass rate of \"Q questions × 3 independent samples per question\" and that all questions have homogeneous difficulty, then from σ²=p(100−p)/N we back-infer about 150~290 questions for DeepSWE, about 2200~2540 for In-house, and about 880~1330 for AutomationBench. This explains why the In-house curve is much smoother than DeepSWE's. But on the same question set, the back-inferred values for pro and flash differ by a factor of 1.94 on DeepSWE, indicating that at least half of the error in this back-inference comes from non-sampling noise, so it can only be used as a \"lower bound on the equivalent number of independent questions\".",
+    "Transferable practice: for any statement that \"metric A dropped by X\", first ask two numbers—what σ is, and how many comparisons were made in total. Only if |Δ| > 2.77σ and it passes the multiple-comparison correction for that series is it worth writing into a conclusion. The script for this article turns this set of criteria into a complete 115-row table (`A3-bench-judgement-table.md`), with each row carrying z, p, the decision, and whether it passes Holm."
+   ],
+   "facts": [
+    {
+     "label": "MDE(95%) —— DeepSWE v1.1",
+     "value": "pro 4.56 points / flash 6.43 points",
+     "note": "n=17 / 23; MDE=1.96·σ_pt·√2, with σ_pt taken as the Theil–Sen residual SD (1.59 / 2.25)"
+    },
+    {
+     "label": "MDE(95%) —— In-house Coding Bench",
+     "value": "pro 1.55 points / flash 1.68 points",
+     "note": "n=17 / 23; σ_pt=0.56 / 0.49. Noise is the lowest among the three leaderboards."
+    },
+    {
+     "label": "MDE(95%) —— AutomationBench v1.0.6",
+     "value": "pro 2.20 points / flash 2.70 points",
+     "note": "n=16 / 25；σ_pt=0.79 / 0.97"
+    },
+    {
+     "label": "Single-step change determination",
+     "value": "115 changes → 9 significant naively (8 up, 1 down) → 1 after Holm correction → 0 after relative-to-trend + Holm",
+     "note": "Three leaderboards × two runs, including 5 changes spanning 2 steps; Holm is performed within each (leaderboard, run) group, with 15~24 comparisons within the group"
+    },
+    {
+     "label": "Largest single-step drop",
+     "value": "DeepSWE/flash steps 10→11 −6.05 points, deviation from trend −6.56 points, z=−2.00, uncorrected p=0.0456",
+     "note": "The Holm threshold for this sequence is 0.05/22=0.0023; and it is the maximum among the 115 changes, which is post hoc selection"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-mde",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "bench-cross-run-alignment-flips",
+   "kind": "numeric",
+   "title": "Which of pro and flash leads depends entirely on the alignment convention: by step number pro leads 22/24, by cost flash leads in all, and by token pro again leads by 4.6~6.8 points",
+   "summary": "By step number pro leads across the board: over the 24 common steps of avg@n, pro is higher 22 times, DeepSWE 16/16. Aligned by cumulative cost it flips: flash leads at every common cost point, with mean avg@n +2.80pp, DeepSWE +2.48 points, Automation +3.71 points; by cumulative token it flips back: at 20B, DeepSWE pro 63.53 / flash 58.90. The two runs' cost rate is constant at 2:1; flash burns more tokens per step, and the advantage is in cost per unit rather than sample efficiency.",
+   "body": [
+    "The question “which run is stronger” has no unique answer on this data, because the two runs are simultaneously advancing at different rates along three dimensions: step number, token, money. The three alignment methods give three conclusions, and none of them is wrong—they answer different questions.",
+    "By step number (asking “for the same number of training runs, who learns more”): pro leads. For `dynsam/avg@n`, over 24 common steps pro is higher 22 times; on DeepSWE and In-house, pro is higher on all common steps. flash overtakes in only two places—`avg@n` at step 24 (0.6155 vs 0.5964, exactly the step where pro's late-stage drop occurs), and around step 15 on AutomationBench (51.2 vs 50.7, while 51.2 is the highest point of flash's own sequence).",
+    "By cumulative cost (asking “for the same money, who learns more”): flash leads, and there is not a single exception. At $0.6M, `avg@n` 0.600 vs 0.618, DeepSWE 63.23 vs 65.68, In-house 60.92 vs 62.24, AutomationBench 46.93 vs 52.22. Because flash's `cost/rate_per_s` (cost rate) is constant at 2.855/s throughout, pro's is 5.71/s, the ratio is exactly 2.000; and because the rates of both runs do not change over time, alignment by cost and alignment by wall clock are the same thing.",
+    "By cumulative token (asking “for the same amount of data, who learns more”): pro leads instead. At 20B token, DeepSWE pro 63.53 / flash 58.90; at 30B, 64.49 / 57.73. This is consistent with flash's generation length growing more sharply (×2.13 vs pro ×1.68): flash burns more token per step, but the score gain it gets in return is smaller.",
+    "So the accurate answer to “is flash just running fast” is: it is not “fast”, it is “cheap per token”. Its advantage is built entirely on the per-token cost advantage brought by MoE's smaller activated parameters (cost per 1B token is only 30% of pro's), not on higher learning efficiency per token. Which metric to use depends on the decision problem: to choose model capability, look at same step number or same token; to calculate return on investment, look at same cost. Mixing the three metrics leads to mutually contradictory conclusions."
+   ],
+   "facts": [
+    {
+     "label": "Who leads by step number",
+     "value": "`avg@n`: pro higher in 22 of 24 common steps; DeepSWE 16/16, In-house 15/15, AutomationBench 11/16 pro higher",
+     "note": "Common step = a step number at which both runs have readings"
+    },
+    {
+     "label": "Who leads by cumulative cost (flash−pro)",
+     "value": "`avg@n` +2.80pp (+0.94~+4.90); DeepSWE +2.48; In-house +1.45; Automation +3.71; flash leads at all common cost points",
+     "note": "Cost = rate_per_s × (axis.walls[step−1] − run_start), linearly interpolated pointwise to every $0.1M; common cost intervals $0.2M~$0.6M (DeepSWE/In-house/Automation), $0.2M~$0.8M (avg@n)"
+    },
+    {
+     "label": "Who leads by cumulative token",
+     "value": "20B token：DeepSWE pro 63.53 / flash 58.90；30B：64.49 / 57.73",
+     "note": "token is summed step by step using series.json's perf/total_num_tokens, exactly equal to status.totals.tokens_cum"
+    },
+    {
+     "label": "Cost rate",
+     "value": "pro 5.71/s, flash 2.855/s, ratio 2.000, no jumps throughout",
+     "note": "status.json's cost.rate_per_s; under the same machine type it is a reading of the machine count"
+    },
+    {
+     "label": "Cumulative quantities",
+     "value": "pro 24 steps / 56.0B token / 93.3 hours; flash 30 steps / 81.4B token / 81.8 hours",
+     "note": "Wall clock = completion time of the last step − run_start"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-cross-run",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "bench-flash-stop-plateau-model-dependent",
+   "kind": "counterintuitive",
+   "title": "Whether flash stopping at step 30 counts as saturation depends on which model you trust: the piecewise model says the plateau is 0.648 (already at the ceiling), Gompertz says 0.742 (still 9.8 percentage points short, still 38 steps to go)",
+   "summary": "Fitting four saturation models to flash's avg@n, the plateaus of the three identifiable models are piecewise linear 0.648 (CI [0.633, 0.660], covering the last step 0.6435), logistic 0.727, Gompertz 0.742. The piecewise model, which depends least on shape assumptions, says 「exactly stopping on the plateau」, while the other two say 「still 8.4~9.8pp short, still 29~38 steps needed」. The spread between models is 9.3pp, 3 times its single-step MDE, while the AICc range is less than 2. The drop of the last two steps 0.6623→0.6435 (−1.88pp) is within noise.",
+   "body": [
+    "This question looks like a question of “is there enough data”, but is actually a question of “model choice determines the conclusion”. The AICc differences of the four models on this sequence are all less than 2 (Gompertz −270.81, logistic −270.79, exponential −270.80, piecewise −267.08); by the conventional criterion they count as “no difference”; but their plateau predictions differ by 9.3 percentage points.",
+    "The piecewise model (`y = min(α+βx, P)`) is the only one of the four that does not require assuming “what the curve looks like”: it only assumes “first rises linearly, then becomes constant at some step”, and the breakpoint is determined by grid search. The plateau it gives, 0.6483, differs from the last step 0.6435 by only 0.47pp, and the 95% CI [0.6331, 0.6598] contains the last step—by its reading, flash stops exactly on the plateau.",
+    "Gompertz and logistic, by contrast, require the curve to satisfy a specific bending shape over the entire interval; they are still bending upward at the end of the data, thus pushing the plateau to 0.727~0.742, and the 95% CI of both plateau values **lies entirely above the last step** (Gompertz lower bound 0.685 > 0.6435). By their reading, when flash stops there is still 8.4~9.8pp left to go, requiring another 28.9~37.6 steps (the CIs are [10.5, 84.7] and [13.8, 116.6] steps respectively). The exponential model is directly unidentifiable on this sequence (CI upper bound 1.19, exceeding the physical upper limit of 1.0).",
+    "There is independent evidence supporting “already flattened”: at steps 23~30, the net change in `avg@n` is only +0.87pp, whereas according to the full-run slope (+0.48pp/step) these 8 steps “should” rise by 3.37pp, a difference of −2.5pp (z≈−0.66); the last 5 steps show a net change of +0.55pp versus an expected +1.93pp (z=−0.48). The directions agree, but neither is significant. The three adjacent leaderboards were also flattening over the same period (DeepSWE net +0.89, In-house +1.01, AutomationBench +1.20).",
+    "The honest conclusion is “cannot rule out, and also does not support”: the piecewise model supports (1/3), the two smooth models do not support (2/3). If I must give a leaning, I would side with the piecewise model, because it does not rely on a curve-shape assumption, and its AICc is not worse than the other two; but this is a judgment, not a data conclusion. **With this data, it is impossible to answer “whether training 5 more steps can buy more than 3pp of avg@n”**, because the 95% CI of the slope of flash's terminal trend is [−0.93, +1.36] pp/step, simultaneously compatible with “still rising” and “falling”."
+   ],
+   "facts": [
+    {
+     "label": "flash avg@n saturation plateau (identifiable models)",
+     "value": "Piecewise 0.6483 [0.6331, 0.6598]; logistic 0.7271 [0.6792, 0.8948]; Gompertz 0.7415 [0.6847, 0.9745]; exponential unidentifiable ([0.691, 1.190])",
+     "note": "n=30, last step 0.6435 (step 30), peak 0.6623 (step 29); parameter intervals use residual bootstrap 500 times"
+    },
+    {
+     "label": "Inter-model plateau span",
+     "value": "9.3pp (identifiable models only); AICc range < 2",
+     "note": "flash's own single-step MDE is 3.08pp, and the span is 3 times it; AICc: Gompertz −270.81 / exponential −270.80 / logistic −270.79 / piecewise −267.08"
+    },
+    {
+     "label": "Steps still needed to 90%",
+     "value": "Gompertz +37.6 [13.8, 116.6]; logistic +28.9 [10.5, 84.7]; piecewise −6.1 (already finished long ago)",
+     "note": "Targeting 90% of the gain from the first step's 0.5137 to the plateau, counted from step 30"
+    },
+    {
+     "label": "Magnitude of flattening in the final segment",
+     "value": "Steps 23~30 net +0.87pp (full-run slope expected +3.37pp, z=−0.66); last 5 steps net +0.55pp (expected +1.93pp, z=−0.48)",
+     "note": "All are non-significant; noise estimated using residual σ_pt=1.11pp and the square root of step count"
+    },
+    {
+     "label": "Last two steps",
+     "value": "0.6623 (step 29, highest over full run) → 0.6435 (step 30), −1.88pp",
+     "note": "Less than the single-step MDE of 3.08pp, within noise; this cannot be used to say the model got worse"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-saturation",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "bench-inhouse-slower-than-external",
+   "kind": "structural",
+   "title": "The external leaderboard rises faster than the in-house leaderboard: DeepSWE's slope is higher than In-house by 0.176/0.177 points per step, consistent across the two runs and both paired confidence intervals exclude 0",
+   "summary": "Paired comparison on the common step numbers for each of the two runs: for pro, In-house slope +0.384, DeepSWE +0.560, difference −0.176 (95% CI [−0.355, −0.041]); for flash, In-house +0.328, DeepSWE +0.506, difference −0.177 ([−0.266, −0.042]). The two independent runs give almost identical differences, both in the direction of the external leaderboard rising faster—if 'overfitting to one's own questions' held, the opposite direction should be seen. But this cannot prove that the evaluation set is clean.",
+   "body": [
+    "“Does testing while training cause overfitting?” can be broken down into an observable question: the rate of improvement on in-house problems (In-house Coding Bench, problems not public, from in-house), compared with external problems (DeepSWE v1.1, an industry-public benchmark), is faster or slower?",
+    "The answer in both runs is “external problems are faster”, and the two differences are almost exactly the same (−0.176 and −0.177). This is not the typical form of a sampling coincidence—the two runs use the same recipe, but completely different model scales and machine allocations, yet give the same difference, suggesting it more likely reflects the properties of the two leaderboards themselves (problem difficulty distribution, ceiling position) rather than the incidental behavior of a particular run.",
+    "There is another related observation: the gap between online `dynsam/avg@n` and leaderboard score (online reading − fixed test set score) widens significantly on AutomationBench (pro +0.178 points/step, flash +0.160 points/step, both CIs exclude 0), narrows on In-house (flash +0.197, CI [0.099, 0.298]), and is basically unchanged on DeepSWE. That is, the fact that “online readings increasingly do not represent true ability” holds only on AutomationBench; on in-house problems it is actually the opposite.",
+    "The boundaries of this conclusion must be made clear. First, it is “no sign of overfitting has been seen”, not “overfitting has been proven absent”—the dashboard contains no information at all about whether test problems appear in the training data. Second, flash's DeepSWE starting point (48.67) is 5.16 points lower than In-house (53.83), and a low starting point may itself rise quickly; although pro's two starting points are almost the same (58.41 vs 57.54) and also exhibit the same slope difference, this data cannot completely rule out the ceiling effect.",
+    "To determine contamination, things beyond the dashboard are also needed: per-item identities of the test set and a searchable index of the training corpus (for n-gram / near-duplicate / canary detection), per-item scores rather than aggregate scores (the current aggregate score averages away \"a few specific items going from 0/3 to 3/3\"), a parallel item set confirmed never to have entered training as a control, and runtime logs of the grading pipeline (which can only rule out \"runtime leakage\"). External literature also supports \"contamination cannot be seen from scores alone\": a systematic review covering 55 studies explicitly states that \"no detection method is consistently reliable across all contamination levels, access settings, and training stages\" and points out that contamination auditing for the RL/post-training stage has only just begun to mature; another ICLR 2026 paper further finds that a brief GRPO training run can substantially mask the signals that contamination detection relies on, with the mechanism being PPO-style importance sampling and clipping—this means that \"inferring whether data was contaminated from the behavior of a trained model\" basically fails after RL."
+   ],
+   "facts": [
+    {
+     "label": "In-house − DeepSWE slope difference",
+     "value": "pro −0.176 points/step [−0.355, −0.041]; flash −0.177 [−0.266, −0.042]",
+     "note": "Paired bootstrap 4000 times on each run's common step numbers; pro 16 common steps, flash 23"
+    },
+    {
+     "label": "Net change comparison",
+     "value": "pro：In-house +6.13 vs DeepSWE +9.05；flash：In-house +8.10 vs DeepSWE +16.23",
+     "note": "Same common-step intervals; both leaderboards use a 0~100 point scale, so slopes can be compared directly"
+    },
+    {
+     "label": "Gap slope between online and offline leaderboards",
+     "value": "Automation pro +0.178 [0.023, 0.303], flash +0.160 [0.076, 0.274] (significantly widening); In-house flash +0.197 [0.099, 0.298] (significantly narrowing); DeepSWE pro −0.163 [−0.313, 0.021] (not significant)",
+     "note": "gap = dynsam/avg@n×100 − leaderboard score, in percentage points; Theil–Sen slope + bootstrap 4000 times"
+    },
+    {
+     "label": "Starting-point difference (rebuttal point)",
+     "value": "flash: DeepSWE 48.67 vs In-house 53.83 (5.16 points lower); pro: 58.41 vs 57.54 (almost the same)",
+     "note": "The ceiling effect can explain part of flash, but cannot explain the slope difference that also appears on pro"
+    },
+    {
+     "label": "External literature",
+     "value": "Nourbakhsh et al. (GEM 2026): 55 reviews, no method is consistently reliable across all contamination levels/access settings/training stages, inflation estimates 6%~40%; Wang et al. (ICLR 2026): a single short GRPO training run can substantially mask contamination-detection signals",
+     "note": "ACL Anthology 2026.gem-main.50；arXiv:2510.02386"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-bench-gap",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "a3-no-simpson-in-passrate",
+   "kind": "structural",
+   "title": "Of the 3.54pp rise in overall pass rate for pro, data mix contributes only −0.27pp: this round's performance improvement was not obtained by shifting weight onto easy tasks",
+   "summary": "Concern that 'the average score rose only because training increasingly uses easy questions for testing'. Reconstruct the overall pass rate by weighting by each dataset's accepted task count num_accepted/step, and do a three-term shift-share decomposition: pro total change +3.544pp = own improvement +3.813 + data mix +0.162 + interaction −0.431, data-mix-related total −0.269pp; flash +9.149pp = +8.307 + 0.008 + 0.835, data-mix-related +0.843pp. More than 90% of the performance gain comes from each dataset itself improving; switching to held weights leaves the conclusion unchanged.",
+   "body": [
+    "The question to ask is very specific: the overall pass-rate curve is a weighted average of the datasets, and the weights (how many items are accepted from each dataset at each step) are themselves changing. If the weights systematically shift toward easier datasets, the overall curve will move upward without real progress—this is the form Simpson's paradox takes in a time series.",
+    "The approach is a three-term shift-share decomposition, whose three terms sum exactly to the total change: ΔA = Σ s_d(0)·Δp_d (each dataset itself improves, valued at the baseline mix) + Σ Δs_d·p_d(0) (mix shifts, valued at baseline scores) + Σ Δs_d·Δp_d (interaction term). The reason for not drawing conclusions from the \"difference between fixed-mix curves\" alone is that this difference is exactly equal to the \"mix term + interaction term,\" which would mix \"the datasets shifted toward also improving over the same period\" into the mix. This paper computes both conventions, and the conclusions are consistent.",
+    "The pro panel is the 22 datasets that have pass rates at both the first and last steps and weights greater than 0 (25 minus cyber, gtav, ol8x: cyber is missing at the last step, and gtav/ol8x first values are suspected not to have been reported). Total change +3.544pp = +3.813 (107.6%) + 0.162 + (−0.431), and the mix-related total is −0.269pp. The flash panel has 23 datasets, with total change +9.149pp = +8.307 (90.8%) + 0.008 + 0.835, and mix-related total +0.843pp (+9.2%). Neither run shows the pattern that \"the improvement mainly comes from swapping data.\"",
+    "Robustness checks were done in four tiers: when the weights are changed to num_accepted/held (the number of items held in the task pool), pro becomes −0.936pp and flash +0.933pp; when treating gtav/ol8x's 0 as true values (panels 24/25), pro is −0.814pp and flash +0.878pp; under equal weights the mix term is identically zero (by construction); when taking only the first 14 steps of the cyber era, pro is +0.149pp. Under all four conventions, the mix-related term does not exceed 1pp.",
+    "What really makes the direction differ is the interaction term, and its sign is opposite across the two runs: pro withdraws traffic from code/dataset-m1dt, which improves the fastest (share 11.4%→8.3%, −3.09pp, same-period pass rate +14.10pp), and gives it to the slightly regressing code/dataset-obg8 (+3.21pp share, pass rate −5.97pp); flash is exactly the opposite, adding +3.18pp share to code/dataset-yfch, which rises the most (pass rate +34.99pp). So pro's mix effect slightly underestimates progress, while flash's slightly overestimates it.",
+    "When reading other \"overall\" metrics, this check has to be reproduced, especially for those quantities that look like pure model behavior. This article applies the same treatment to generation length, and the data mix effect jumps from 9% to 23% (see the other candidate insight)."
+   ],
+   "facts": [
+    {
+     "label": "Three-term decomposition of pro overall pass rate",
+     "value": "+3.544pp = +3.813 + 0.162 − 0.431",
+     "note": "Panel of 22 datasets (25 − cyber − gtav − ol8x), weight dynsam/<cat>/dataset-<id>/num_accepted/step, units pp"
+    },
+    {
+     "label": "Three-term decomposition of flash overall pass rate",
+     "value": "+9.149pp = +8.307 + 0.008 + 0.835",
+     "note": "Panel of 23 datasets (25 − gtav − ol8x), same basis"
+    },
+    {
+     "label": "Data-mix-related term as a share of each total change",
+     "value": "pro −7.6% / flash +9.2%",
+     "note": "Data mix term + interaction term; under the four specifications—switching to held weights, using 0 as the true value, and taking only the first 14 steps—the absolute values are all ≤1pp"
+    },
+    {
+     "label": "End-value difference with the step 1 data mix frozen",
+     "value": "pro +0.27pp / flash −0.06pp",
+     "note": "Fixing the mean of steps 1~3 or the mean of the first half, the absolute value of the difference is ≤0.30pp"
+    },
+    {
+     "label": "The two actions with the largest weight shares (pro)",
+     "value": "m1dt −3.09pp (pass rate +14.10pp) / obg8 +3.21pp (pass rate −5.97pp)",
+     "note": "Shares normalized by num_accepted/step; the two actions go in opposite directions, and the combined data mix term is negative"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-composition",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "a3-length-total-composition-dirty",
+   "kind": "counterintuitive",
+   "title": "Under the same set of weights, 8.3% (pro) to 23.4% (flash) of 'overall generation length is rising' is just traffic shifting to datasets that were already long to begin with",
+   "summary": "For the same 'overall', the score one is almost clean, while the length one is three times as dirty. Moving the three-term decomposition to ctx_response_length/mean: pro total generation length growth +58110 token = own lengthening +53293 (91.7%) + data mix +2292 + interaction +2525, data-mix-related total +4818 (8.3%); flash +94262 = +72195 (76.6%) + 5765 + 16302, data-mix-related +22067 (23.4%). This part of flash is mainly in one dataset, code/dataset-yfch.",
+   "body": [
+    "The statement \"overall generation length is rising\" carries an implicit assumption: what is rising is the model writing longer and longer, not training feeding in more and more tasks that inherently require long responses. These two things can be separated in the data: weight each dataset's ctx_response_length/mean by the same num_accepted/step, then do a three-term decomposition.",
+    "pro: +58110.07 token = +53292.50 (91.7%) + 2292.20 + 2525.37, data-mix-related total +4817.56 (8.3%). flash: +94262.49 = +72194.99 (76.6%) + 5765.12 + 16302.38, data-mix-related total +22067.50 (23.4%). The end-value difference with the step 1 data mix fixed is consistent with this number (pro actual 123135.88 vs fixed 118318.32, difference −4817.56; flash 161226.88 vs 139159.38, difference −22067.50).",
+    "Why flash's interaction term is so large comes mainly from one point, code/dataset-yfch: its mean generation length is 416513 token, the highest of all (pro is about the same, 358130), its weight share rises from 2.10% to 5.28% (+3.18pp), while over the same period its pass rate rose +34.99pp. What got more traffic is a dataset that was already writing very long, and it is also improving at the same time — this term can only be caught by the interaction term.",
+    "What is more interesting when viewed side by side: the data-mix-related term on the score line is −0.269pp and +0.843pp on the two runs (−7.6% / +9.2% of the total change), while on the length line it is +4818 / +22067 (8.3% / 23.4%). Same set of weights, same batch of datasets, same decomposition formula, and the composition effect of length is 2~3 times that of score.",
+    "Practical implication: when reading conclusions like \"overall responses got longer\", the weight movement must first be stripped out before making a judgment. This also explains why \"length\"-type conclusions are especially easy to conflate with \"model behavior\"-type conclusions — it is not pure model behavior, it is a weighted mixture of \"model behavior × data mix\"."
+   ],
+   "facts": [
+    {
+     "label": "Decomposition of pro total generation length",
+     "value": "+58110.07 = +53292.50 + 2292.20 + 2525.37 token",
+     "note": "Panel of 22 datasets, weight num_accepted/step; data-mix-related total +4817.56, accounting for 8.3%"
+    },
+    {
+     "label": "Decomposition of flash total generation length",
+     "value": "+94262.49 = +72194.99 + 5765.12 + 16302.38 token",
+     "note": "Panel of 23 datasets; data-mix-related total +22067.50, accounting for 23.4%"
+    },
+    {
+     "label": "Fixed-data-mix end-value difference (length)",
+     "value": "pro −4817.56 token / flash −22067.50 token",
+     "note": "Freeze the step 1 data mix; compared with the end value of the actual curve, the sign agrees with the data-mix-related term"
+    },
+    {
+     "label": "flash's largest interaction source",
+     "value": "code/dataset-yfch: share 2.10%→5.28%, pass rate +34.99pp",
+     "note": "This dataset's average generation length of 416513 token is 1st overall"
+    },
+    {
+     "label": "Composition effect for score vs length",
+     "value": "Pass rate within 8.3% (pro is negative) / length 8.3%~23.4%",
+     "note": "The same set of weights, the same decomposition formula, the same two runs"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-composition-length",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "a3-restart-coupled-reporting-gap",
+   "kind": "method",
+   "title": "The two datasets' pass rates being exactly 0 and the sampler carryover chain breaking fall on the same batch of steps: step 1 plus all 'first reported step after restart'",
+   "summary": "The pass rates of visual/dataset-gtav and ol8x contain exact 0s. After aligning with restart events: pro's 0s are at steps 1, 2, 3, 11, 15, 17, 23 (7 times each), and the 'first reporting step after restart' derived from events is 3, 11, 15, 17, 23, with only the first two steps of the chain extra; flash's 0s are at 1, 3, 16, 25, 28, and the restart steps are 16, 25, 28. In the same period critic score is normal, and on the same batch of steps held = step + carryover(t−1) also breaks entirely. These 0s are restart-coupled missing reports.",
+   "body": [
+    "The two kinds of \"suspicious data\" phenomena used to be recorded separately: one is in notes/09, \"the 0 for gtav/ol8x may be an unreported sentinel\", the other is in the Chinese metric explainers, \"the held identity breaks at the restart step\". Once the two are put together and aligned by step, they refer to the same thing.",
+    "Look at 0 first. pro's restart event timestamps fall between steps 2 and 3, between steps 10 and 11, between steps 14 and 15, between steps 16 and 17, and between steps 22 and 23; the corresponding \"first reported step after restart\" is 3, 11, 15, 17, 23. The exact 0s for gtav and ol8x appear exactly at 1, 2, 3, 11, 15, 17, 23 — a superset of this set of steps, with only step 1 and step 2 extra. flash's restart-affected steps are 16, 25, 28 (in addition, steps 16 and 17 are rerun steps), while 0 appears at 1, 3, 16, 25, 28, again a superset, with only steps 1 and 3 extra.",
+    "Now look at held. Test the relation held(t) = step(t) + carryover(t−1) with a tolerance of 5% relative error: pro holds on 422/565 (dataset × step) cases (74.69%), and the broken-chain steps are 2, 3, 11, 15, 17, 23; flash holds on 629/725 (86.76%), and the broken-chain steps are 3, 16, 25, 28. The broken chains are not scattered—at pro step 11 all 25 datasets are broken, step 15 24/24, step 17 24/24. This is a step-level event (the carryover chain was reset), not dataset-level noise.",
+    "The step sets of the two phenomena are almost identical (pro's held broken-chain steps 2, 3, 11, 15, 17, 23 are exactly the steps where 0 appears; flash's 3, 16, 25, 28 are the steps where 0 appears excluding step 1), indicating they share the same cause: a restart resets the reporting chain.",
+    "Why is the critic score normal at the same moment? Because critic/visual/<ds>/score/mean takes another reporting path and was not reset. This happens to be the most useful criterion: for the same entity, at the same step, if one metric family is 0 and another is normal, it is not a “real 0”, but a missing report.",
+    "There are two practical implications: first, these 14 (pro) and 10 (flash) observation points of gtav/ol8x must be removed from trend and correlation statistics, otherwise a “restart” will be read as “pass rate dropped to 0”; second, don't use the held relationship to validate data completeness—it necessarily fails at restart steps."
+   ],
+   "facts": [
+    {
+     "label": "Steps where exact 0 appears",
+     "value": "pro 1,2,3,11,15,17,23 (7 times each)／ flash 1,3,16,25,28 (5 times each)",
+     "note": "The datasets are visual/dataset-gtav and visual/dataset-ol8x; the two are fully synchronized."
+    },
+    {
+     "label": "Restart-affected steps (by aligning events' restart timestamps with axis.walls)",
+     "value": "pro 3,11,15,17,23 ／ flash 16,25,28",
+     "note": "The set of steps with exact 0 is a superset of it; the only extra one is step 1 (pro also has step 2)."
+    },
+    {
+     "label": "Whether critic score is normal in the same period",
+     "value": "gtav 0.53~0.57 ／ ol8x 0.60~0.67",
+     "note": "On these steps, pro and flash both have normal values for critic/<cat>/dataset-<id>/score/mean, proving that the 0s in pass rate are not real measurements."
+    },
+    {
+     "label": "Rate at which held = step + carryover(t−1) holds",
+     "value": "pro 74.69%（422/565）／ flash 86.76%（629/725）",
+     "note": "Tolerance 5%; broken-chain steps pro 2,3,11,15,17,23, flash 3,16,25,28; at each broken-chain step, almost all datasets break simultaneously."
+    },
+    {
+     "label": "Metric families that are identically zero at the dataset level",
+     "value": "actor/*/dataset-*/ppo_kl and pg_clipfrac; all 542 values for pro and 690 values for flash are 0",
+     "note": "These two families cannot be used for any inference; the only usable one is pg_tis_clipfrac (nonzero, maximum pro 2.216e-3, flash 2.598e-3)."
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-restart-gap",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "a3-dataset-ranking-reproducible",
+   "kind": "numeric",
+   "title": "Retraining with a different model, the ranking of gains across the 25 datasets still reproduces: the rank correlation of Δpp between pro and flash is ρ=0.582 (n=25, p=0.0023).",
+   "summary": "If the dataset-level strengths and weaknesses were just noise, two independent runs should not give a similar ranking. Measured across all 25 datasets, the rank correlation of the first-to-last pass-rate change between pro and flash is ρ=0.582, n=25, p=0.0023 (two-tailed 0.05 critical value 0.396). The common big gainers are m1dt (+14.10/+17.78pp), x7wh (+6.27/+15.36), jzd3 (+15.36/+13.00), ve5o (+8.36/+13.37); the common non-gainers are bvg7, v7yx, 5610. This is also corroborating evidence that 'the data mix is not the main cause'.",
+   "body": [
+    "Dataset-level heterogeneity conclusions are meaningful only when reproducible. pro and flash are two models of different scales, ran for 24 and 30 steps, and have different restart time points; if the differences between datasets were only sampling noise, their rankings should be uncorrelated.",
+    "Measured: take each dataset's pass-rate change (pp) from “last step with a value − first step with a value”, run Spearman rank correlation on the 25 datasets, yielding ρ=0.582, n=25, p=0.0023. At this sample size, the two-tailed 0.05 critical |ρ| is 0.396, and the measured value clearly exceeds it.",
+    "Common big gainers: code/dataset-m1dt (pro +14.10pp, flash +17.78pp, the regression slopes for the two runs are 0.611 and 0.615 pp/step respectively), code/dataset-x7wh (+6.27 / +15.36), visual/dataset-jzd3 (+15.36 / +13.00), visual/dataset-ve5o (+8.36 / +13.37), code/dataset-zg6q (+3.35 / +8.31). Common non-gainers: code/dataset-bvg7 (−2.84 / −1.41), code/dataset-v7yx (−9.17 / −4.50), general/dataset-5610 (−1.60 / −3.06), chat/dataset-8kb6 (+2.72 / −4.16, clear decline on flash).",
+    "This does not mean every dataset is consistent. visual/dataset-jzd3, which gains the most on pro, has a lower starting point on flash (36.12%) but gains as well (+13.00pp); conversely, code/dataset-4onq drops 10.14pp on pro but gains 9.26pp on flash, making it the one with the largest divergence between the two runs. ρ=0.582 refers to the overall ranking, not point-by-point consistency.",
+    "The usefulness of this for the next step is: dataset-level strengths and weaknesses can serve as a stable stratification basis for finer-grained attribution (for example, “why the chat category cannot lift over the whole run”), without having to worry that it is just a chance occurrence of a single training. It is also corroborating evidence for the explanation of “changing the data mix to farm score”: if the total score improvement mainly came from shifting traffic to easier datasets, the ordering of the two runs would not be this consistent."
+   ],
+   "facts": [
+    {
+     "label": "Cross-run rank correlation",
+     "value": "ρ = 0.582，n = 25，p = 0.0023",
+     "note": "The variable is each dataset's pass-rate change (pp) of 'last value − first value'; two-tailed 0.05 critical |ρ|=0.396"
+    },
+    {
+     "label": "Common big gainers across the two runs",
+     "value": "m1dt +14.10/+17.78pp；x7wh +6.27/+15.36pp；jzd3 +15.36/+13.00pp；ve5o +8.36/+13.37pp",
+     "note": "Format is pro/flash; both are taken from train/passrate/avg_passrate/<cat>/dataset-<id>"
+    },
+    {
+     "label": "Common non-gainers across the two runs",
+     "value": "bvg7 −2.84/−1.41pp；v7yx −9.17/−4.50pp；5610 −1.60/−3.06pp；8kb6 +2.72/−4.16pp",
+     "note": "Same definition"
+    },
+    {
+     "label": "Datasets with the largest divergence between the two runs",
+     "value": "code/dataset-4onq：pro −10.14pp / flash +9.26pp",
+     "note": "This shows that ρ=0.582 is overall ranking agreement, not point-by-point agreement"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-a3-dataset-crossrun",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "effective-dof-is-twelve",
+   "kind": "structural",
+   "title": "The effective degrees of freedom of the dashboard's 2000 metrics is 11–13; picking 15 metrics can reproduce 83% of the total variance.",
+   "summary": "For pro's 1389 analyzable metrics, each standardized, the participation ratio of the correlation matrix (Σλ)²/Σλ² = 11.21, flash = 12.99 (truncated to the same 24 steps it is 12.12). Explaining 80% variance requires 14 principal components for pro and 17 for flash (truncated to 24 steps also 14). Switching to the “minimum number of metrics to read” framing, using variance greedy forward selection, picking 15 root-level aggregate metrics explains 82.8% of total variance, and picking 20 reaches 94.5%. Most curves on the dashboard are indeed repeating the same thing, but what is repeated is the naming convention, not independent information.",
+   "body": [
+    "Principal component analysis recombines many curves into new mutually uncorrelated curves. If the 2000 metrics really each tell their own story, the variance would be spread out over many components; if they are actually only saying a few things, the first few components would eat up most of the variance. The participation ratio compresses the entire eigenvalue spectrum into one number, answering “effective number of independent signals”.",
+    "Measured: pro PC1 accounts for 21.0%, PC2 accounts for 14.6%, PC3 accounts for 7.0%, the top five cumulative 53.1%, covering 80% requires 14 components; participation ratio 11.21. flash is 18.6% / 14.8% / 6.4%, n80=17, participation ratio 12.99. The two numbers cannot be directly compared: flash has 30 time points, pro only 24; the more points, the more components can be resolved. After truncating flash to the first 24 steps, its n80 is also 14, and the participation ratio drops to 12.12.",
+    "A more practical way to ask: what is the minimum number of metrics to read to reproduce the entire dashboard? Using variance greedy forward selection (at each step pick the metric that makes the remaining variance drop the most) selects among pro's 285 “root-level aggregate metrics” (without dataset id, without freshness bucket number, without harness letter): 5 reach 51.0%, 10 reach 68.7%, 15 reach 82.8%, 20 reach 94.5%. Selecting from the full 1389 candidates also adds only 0.7 percentage points (83.5%). The top two are `ctx_total_length/agentic/mean` (mean total context length) and `partial/agentic/0/frac` (token share of the freshest bucket); the two alone account for 33 percentage points.",
+    "How to read this on the dashboard: don't assume information is missing just because a metric is not in the headline charts. The roughly 1370 metrics not covered by these 15 directions together contribute less than 5% of the variance. Conversely, if an anomaly appears outside these 15 directions, that is the truly new information.",
+    "Must be cited with a definition: participation ratio 11.2, n80=14, greedy 15 reaching 83% are answers to three different questions; they do not contradict each other but cannot be used interchangeably. All numbers vary by no more than 0.2 percentage points under six missing-data handling definitions (coverage 0.8/0.95/1.0 × linear interpolation/mean imputation), and the metric bootstrap (B=200) gives a 90% interval for the participation ratio of [10.81, 11.56] (pro)."
+   ],
+   "facts": [
+    {
+     "label": "Participation ratio (effective degrees of freedom)",
+     "value": "pro 11.21, flash 12.99, flash truncated to 24 steps 12.12",
+     "note": "Eigenvalues of the correlation matrix of the d×N matrix after each metric is z-scored; participation ratio = (Σλ)²/Σλ²; pro d=1389/N=24, flash d=1465/N=30"
+    },
+    {
+     "label": "Number of components needed to explain 80% / 90% variance",
+     "value": "pro 14 / 18; flash 17 / 22 (flash truncated to 24 steps 14 / 19)",
+     "note": "n80 is affected by the upper limit on the number of time points; cross-run comparisons must align steps"
+    },
+    {
+     "label": "Cumulative explained variance of greedy forward selection (k=5/10/15/20)",
+     "value": "pro root-level pool 51.0% / 68.7% / 82.8% / 94.5%; full pool 51.1% / 69.2% / 83.5% / 94.8%; flash full pool 47.7% / 62.5% / 74.6% / 85.0%",
+     "note": "Definition: at each step select the candidate metric with the largest “Rayleigh quotient of its own residual direction”; cumulative quantity = Σ_d(variance loss after removing the selected subspace)/(d·N)"
+    },
+    {
+     "label": "Robustness",
+     "value": "Under six missing-data conventions, pro PC1 21.0～21.1%, participation ratio 11.18～11.21; under the Spearman convention, participation ratio pro 11.38 / flash 13.87; bootstrap participation ratio pro [10.81, 11.56]",
+     "note": "B=200 resampled metrics; Spearman is to first convert each metric to ranks and then standardize"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-effective-dof-is-twelve",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "copies-are-names-not-signals",
+   "kind": "counterintuitive",
+   "title": "77% of metrics are slice copies of the same metric, but the median |ρ| between any two metrics is only 0.19",
+   "summary": "Grouping metrics whose keys differ only in the “slice segment” (dataset id / harness letter / freshness bucket / category), pro has 101 groups covering 1072/1389 = 77.2% of metrics, flash 103 groups covering 79.1%. But the median of the within-group average |ρ| is only 0.260 (pro) / 0.282 (flash). Across the full set, the median |ρ| between any two metrics is 0.187, and metric pairs with |ρ|≥0.9 account for only 0.41%. The “2000 metrics” are mainly multiplied out by naming convention: they are neither 2000 independent measurements nor 2000 fully duplicate measurements.",
+   "body": [
+    "On the dashboard, the same quantity is recorded many times split by dimension: `penalty/stage_credit_group/harness/harness-{A,B,C,D}/<metric>` is the same set of 74 grader metrics recorded once on each of 4 harnesses (296 in total for pro); `critic/<cat>/dataset-<id>/{rewards,score,advantages,returns}/{min,max,mean}` is the same batch of statistics recorded once on each dataset; `partial/<k>/*` is the same batch split into 8 buckets by data freshness; `<metric>/<cat>/dataset-<id>/...` is split one more level by dataset.",
+    "After grouping these keys that “differ only by slice”, 1072 of pro’s 1389 analyzable metrics (77.2%) fall into some replica group with ≥3 members. This layer explains “why there are 2000 metrics”.",
+    "But replicas are not highly synchronized with each other. The median |ρ| over all is only 0.187 (flash 0.167); pairs with |ρ|≥0.9 account for 0.41%, and those with ≥0.98 account for 0.08%. It is the same within replica groups: within the `train/passrate/avg_passrate/<cat>/dataset-<id>` group, the average |ρ| is only 0.199, `critic/<cat>/dataset-<id>/rewards/mean` 0.226, `ctx_total_length/<cat>/dataset-<id>/min` 0.257. The only truly synchronized ones are the sampler counts `dynsam/<cat>/dataset-<id>/num_accepted/step` (average |ρ| = 0.723 across 24 replicas) and the context length mean (0.606, but after detrending it drops to 0.232, indicating that this correlation is almost entirely a common trend).",
+    "There is also a layer of “dead metrics”: of the 1944 raw metrics, 294 are zero-variance constants, of which 224 are identically zero, and almost all are from the `pg_clipfrac` / `ppo_kl` / `pg_tis_clipfrac_*` family (`actor/<cat>/dataset-<id>/pg_clipfrac` and `ppo_kl` 22 each). They cannot be standardized and must be removed from any multivariate analysis; on the dashboard they are a straight line hugging 0.",
+    "There are two practical conclusions. First, comparing 2000 metrics side by side is meaningless; first merge by family and then look. Second, statements like “two metrics correlate at 0.6” often carry no information on this dashboard—first check whether they are slice replicas of the same family, then remove the common trend (for pro, after per-metric linear detrending, the median |ρ| drops from 0.187 to 0.169)."
+   ],
+   "facts": [
+    {
+     "label": "Slice copy group coverage",
+     "value": "pro 101 groups cover 1072/1389 = 77.2%; flash 103 groups cover 1159/1465 = 79.1%",
+     "note": "Group definition: same after key normalization (dataset-xxxx→dataset-<id>, harness-X→harness-<x>, partial/<number>/→partial/<k>/, category segment→<cat>), and members ≥3"
+    },
+    {
+     "label": "Distribution of |ρ| between any two metrics",
+     "value": "pro median 0.187, quartiles [0.088, 0.328]; |ρ|≥0.90 accounts for 0.41%, ≥0.95 accounts for 0.18%, ≥0.98 accounts for 0.08%",
+     "note": "0.96M metric pairs at d=1389; flash d=1465, median 0.167, ≥0.90 accounts for 0.40%"
+    },
+    {
+     "label": "Median of the within-replica-group average |ρ|",
+     "value": "pro 0.260、flash 0.282",
+     "note": "Average |ρ| over all pairs within a group, then take the median across groups"
+    },
+    {
+     "label": "Zero-variance constant metrics",
+     "value": "pro 294 (of which 224 are identically 0) / flash 277 (202 are identically 0)",
+     "note": "15.1% / 14.0% of the original 1944 / 1974; constants cannot be z-scored and must be excluded from multivariate analysis"
+    },
+    {
+     "label": "Median |ρ| after detrending",
+     "value": "pro 0.187 → 0.169；flash 0.167 → 0.153",
+     "note": "For each metric, run a least-squares regression on step number and take residuals; the common trend contributes little to the overall correlation level"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-copies-are-names-not-signals",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "trend-control-which-relations-survive",
+   "kind": "method",
+   "title": "After controlling for step number, the correlation between length and pass rate goes from 0.77 to zero, while data staleness and global KL rise from 0.92 to 0.94",
+   "summary": "On the same dashboard, the two types of “obvious correlation” have opposite fates after removing the common time trend. Generation length and `dynsam/avg@n` drop from 0.766 to −0.013 (pro) and from 0.920 to −0.140 (flash), a pure common trend; data staleness and global KL rise from 0.923 to 0.941 (pro) and from 0.866 to 0.892 (flash), and the relationship not only does not shrink but is slightly stronger. The level correlation between policy entropy and pass rate is positive, and it changes sign after controlling for the trend (0.578 → −0.620). To judge whether a correlation on a dashboard can be trusted, do this step first.",
+   "body": [
+    "The approach is straightforward: regress each of the two series on “step number” by least squares, keep only the residuals, then compute Pearson. What this step strips away is the part of the correlation caused by “time moving forward and both quantities moving along with it”. The sample has only 24 / 30 points, and the noise in the partial correlation is not small (standard error about 0.2), so only read pairs whose magnitude of variation far exceeds the noise.",
+    "The category that goes to zero is represented by length: `ctx_response_length/mean` (this step’s mean generation length) and `dynsam/avg@n` (the main average pass rate metric) go from 0.766 to −0.013 for pro and from 0.920 to −0.140 for flash; total length and pass rate are the same (0.764 → −0.017). `timing_s/step` (this step’s wall-clock time) and total length go from 0.733 to −0.301. This is consistent with the conclusion obtained using first differences in `analysis/en/notes/09-generation-length-correlation.md` (there, after differencing, pro is −0.063); switching to the residual method confirms it once more.",
+    "The surviving category is represented by data staleness: `partial/avg_staleness` (the average staleness of this step's data, how many policy versions back) and `train_infer_diff/new_infer/kl` (log-prob divergence between the inference engine and the trainer) pro 0.923 → 0.941, flash 0.866 → 0.892. This relationship is determined by the weighted structure of 'bucket share × bucket KL' (`insights.json`'s `kl-is-a-mix` already has a breakdown); the partial correlation only adds one thing: it is not a spurious correlation caused by time trend.",
+    "The most counterintuitive is policy entropy: the level correlation between `actor/entropy_loss` and `dynsam/avg@n` is positive (pro 0.578, flash 0.889), and becomes negative after controlling for step index (−0.620 / −0.395). That is, 'entropy and performance rise together' is caused by time; when comparing near the same training stage, the steps with higher entropy actually have worse performance. The sample size is small; do not treat this negative sign as conclusive.",
+    "A transferable methodological conclusion: most metrics on this dashboard drift monotonically as training progresses, so the level correlation between any two metrics will be inflated. To judge whether a relationship is real, controlling for step index (or using first differences) is a necessary step, not an optional one. Conversely, only if a pair of metrics' correlation survives this step is it worth digging into the mechanism further."
+   ],
+   "facts": [
+    {
+     "label": "Generation length ~ `dynsam/avg@n` (raw / after controlling for step number)",
+     "value": "pro 0.766 → −0.013；flash 0.920 → −0.140",
+     "note": "n=24 / 30 valid points; control variable = step number (0-based), then compute Pearson on the residuals"
+    },
+    {
+     "label": "`partial/avg_staleness` ~ global KL (raw / after controlling)",
+     "value": "pro 0.923 → 0.941；flash 0.866 → 0.892",
+     "note": "Same basis; this relationship survives trend control"
+    },
+    {
+     "label": "`actor/entropy_loss` ~ `dynsam/avg@n` (raw / after controlling)",
+     "value": "pro 0.578 → −0.620；flash 0.889 → −0.395",
+     "note": "Changes sign after controlling for the trend; with 24/30 points, the partial correlation standard error is about 0.2, sign direction is consistent but strength is unstable"
+    },
+    {
+     "label": "Pairs where the two runs disagree",
+     "value": "`timing_s/trainer_ops` ~ total length: pro 0.845 → 0.150, flash 0.974 → 0.922; `critic/rewards/mean` ~ pass rate: pro 0.898 → 0.614, flash 0.929 → 0.220",
+     "note": "The same pair of metrics has very different partial correlations across the two runs; when citing, do not report only one run"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-trend-control-which-relations-survive",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "regimes-are-ops-not-model",
+   "kind": "structural",
+   "title": "The “phases” in metric space are caused by operations: the largest change point falls at the restart step, and the shift returns to 0.97 within 3 steps",
+   "summary": "Change point detection is performed on PC1-3 coordinates; the largest change point for both pro and flash is at step 15 (location statistic 19.1 / 24.9), while pro's restart is exactly at step 15 wall clock (0-hour difference) and flash's restart is at step 16 (0-hour difference). The key criterion is the fallback ratio: 3 steps after the jump, the new level returns to 0.97 of the original level (pro) / 0.93 (flash)—a model capability improvement would not be returned in 3 steps; this is a transient shock from the pipeline being reset. The persistent level shifts remaining after detrending move pipeline quantities such as env/active, length truncation rate, and freshness bucket share, not effect sizes.",
+   "body": [
+    "There is a simple criterion for distinguishing 'the model state changed' from 'operations reset the pipeline': see whether it comes back after the jump. A level shift formed by the model learning something new will persist; a jump caused by a restart flushing the queue and cache will return to the original trend within a few steps. Looking at this 'rollback ratio' together with the temporal alignment of changepoint locations with operations events allows a qualitative determination.",
+    "On the original PC1-3 coordinates for pro, the strongest location statistic is at step 15 (19.1), the restart falls exactly on the wall-clock boundary of step 15 (difference 0 hours), displacement 1.94 standard deviations, rollback ratio 0.97 (almost completely rolled back). The families dominating the change are `train/passrate/*` and `train/harness/harness-D-pw/training/{rollouts,trained_rollout_share}`—both are 'how many trajectories were processed this step, up to which step the pass rate is computed', typical pipeline quantities.",
+    "flash is isomorphic: the maximum statistic is at step 15 (24.9), the restart is at step 16 (difference 0 hours), rollback ratio 0.93, the dominant families are `ctx_total_length/<cat>/max`, `ctx_response_length/<cat>/max` (the longest truncated trajectories) and `dynsam/infra_error/seq_rate` (infrastructure error rate).",
+    "After detrending (removing the linear trend of each metric against step index, re-standardizing, and then performing changepoint detection), the remaining persistent level shifts point to dataset additions/deletions and version switches: for pro, step 23 displacement 2.56, the nearest restart is also at step 23, and the version switch to `3-5513.22.12.23` is only 1.09 hours away; what moved are `env/active`, `env/<cat>/shared/active` (number of active environments) and length truncation rate; for flash, step 25 displacement 1.89 (restart at the same step, version difference 2.4 hours), what moved are `env/total_error` and `partial/<cat>/avg_staleness`.",
+    "There is an even harder piece of evidence: the metric set itself is changing. pro has 218 metrics that stop reporting midway and 232 that only start reporting midway; the vast majority are freshness bucket metrics like `partial/<cat>/<id>/<k>/{frac,n_tokens}`—buckets 1/2/3 only exist when the data is stale enough (bucket 1 at earliest step 2, bucket 2 at step 5, bucket 3 at step 6). The “appearance of new metrics” on the dashboard is itself pipeline state, not model state.",
+    "A counterexample must be reported as well: grouping the detrended position statistic by “whether within the restart step and the 2 steps after it”, flash is median 5.92 near restarts versus 2.36 otherwise (restarts indeed create shifts), while pro is 2.42 versus 3.44 (smaller shift near restarts). pro has 11 restarts but they only land on 5 step boundaries (steps 3, 11, 15, 17, 23); restarts are too dense, so they instead do not constitute “more special steps”. Therefore, on pro, the conclusion “phase=ops” is supported by three pieces of evidence—“maximum changepoint + fallback ratio + what changes is pipeline volume”—and cannot be simplified to “the more restarts, the larger the shift”."
+   ],
+   "facts": [
+    {
+     "label": "Position and alignment of the largest change point",
+     "value": "pro step 15 (statistic 19.1, restart difference 0h); flash step 15 (24.9, restart at step 16, difference 0h)",
+     "note": "Unpenalized two-segment mean-difference statistic on PC1-3 coordinates (each standardized), position p means “a break between step p and step p+1”"
+    },
+    {
+     "label": "Fallback ratio (how much the shift returns within 3 steps)",
+     "value": "pro 0.97、flash 0.93",
+     "note": "= ‖long-term mean after the following 3 steps − mean of the following 3 steps‖ / ‖changepoint shift‖; ≈1 indicates complete reversion (operational transient shock), ≈0 indicates the step is maintained"
+    },
+    {
+     "label": "Alignment of persistent steps after detrending",
+     "value": "pro step 23 shift 2.56 (restart-synchronized, version gap 1.09h, dominated by env/active and clip_ratio); flash step 25 shift 1.89 (restart-synchronized, version gap 2.4h, dominated by env/total_error and avg_staleness)",
+     "note": "Version switch timestamps are taken from versions[].at in tags.json"
+    },
+    {
+     "label": "Shift magnitude near restarts (median of the detrended location statistic)",
+     "value": "flash 5.92 (n=9) vs. others 2.36 (n=18); pro 2.42 (n=12) vs. 3.44 (n=9)",
+     "note": "Restart step numbers come from events (kind=restart) in status.json, mapped by axis.walls; pro's 11 restarts fall on 5 step boundaries, flash's 5 fall on 3"
+    },
+    {
+     "label": "Metric set additions/deletions",
+     "value": "pro stopped reporting 218 midway and started reporting 232 midway; versions[].n in tags.json changed from 2019 to 2029",
+     "note": "last_seen in tags.json is always equal to the file write time, so removals cannot be identified from it; removals can only be inferred from null gaps in the series and announcements"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-regimes-are-ops-not-model",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "progress-fields-are-derived-not-live",
+   "kind": "counterintuitive",
+   "title": "The dashboard's three “in-step progress” fields are all derived values: progress has a maximum error of 0 seconds, expected is the median of the last 3 steps, and gen_frac is the previous step's generation fraction and is frozen for the entire step",
+   "summary": "Of the four fields on the dashboard that show “how far this step has gotten,” only since and phase are real-time observations in practice. progress is exactly equal to min(1, since/expected), with error 0 at 27 sync points; expected is exactly equal to the median of the reported durations of the last 3 completed steps, and is frozen after entering the current step; gen_frac equals the previous step's generation fraction and remains constant for the entire step. Using progress to judge “how much longer” will mislead you the most on the slowest steps: pro step 15 progress hit 1.0 and then ran for another 3465 seconds, accounting for 26.9% of that step.",
+   "body": [
+    "When the definition is not written clearly, people automatically assume that every number on the screen is “an observation of this very moment”. These three fields are not. progress is not calculated independently; it is just since ÷ expected and then truncated to 1; expected is also not a prediction for this step, but the median of the reported durations of the three most recently completed steps, and then it is not updated for the entire lifetime of the step; gen_frac is even more thorough—it describes what proportion of the previous step was generation, and it is the same number throughout the current step.",
+    "The verification method is to compare them by subtraction with the already-completed reported values in series.json, not to look at how they change over time. progress: compute since ÷ expected for each line of timeline.jsonl and compare it with the progress field; across the two runs there are 27 collection points, and the maximum absolute error is 0. expected: for each line, take the median reported duration of the most recent 3 steps when “completed up to step k”; 27/27 are exactly equal (error less than 0.05 seconds). gen_frac: for each line, take “previous step's outer_gen ÷ previous step's reported duration”; 27/27 are equal (error less than 1e-3).",
+    "The first practical consequence of this is that gen_frac cannot be used at all to answer “how far along is the generation for this step”. It is constant within this step; if you plot it as a curve, it is also a horizontal line. To determine whether the generation phase has ended, you can only look at the phase field flipping from rollout to training, and in practice this flip differs from the reported outer_gen by several hundred to over a thousand seconds (flash step 20: phase flips between since 3617.9~4824.0, reported outer_gen = 4932.0 seconds).",
+    "The second consequence is more costly: expected is backward-looking, and when step durations monotonically increase, it cannot keep up. Because progress = since/expected, the moment when “progress reaches 100%” also happens earlier. pro step 15 has progress = 1.0000 at since = 9416.4 seconds, but that step actually reported 12881.6 seconds—the last 3465.2 seconds (26.9%) displayed progress 100% and phase = training throughout. flash step 20 is the same; it was pinned at 100% for 1376.8 seconds (13.6%). Using this progress to schedule inspections or to judge “whether an eval can be inserted” will systematically miss the mark.",
+    "The third consequence is that it is not 'always' biased toward optimism. Using only non-restart steps, among pro's 17 steps, expected is optimistic on 8 and pessimistic on 9, median +0.13% (almost unbiased); among flash's 25 steps, it is optimistic on 16, median −1.57%. The real pattern is 'the distribution is very wide, both tails reach 30%, and the large errors on the optimistic side are concentrated on steps where the step length jumps up': pro's three most optimistic steps are −11.3% / −10.7% / −10.3%, flash's are −21.5% / −13.9% / −13.6%. So the correct judgment is 'the expected median is credible, the optimistic direction in the tail is not credible', not 'expected is systematically optimistic'—the latter is a judgment I wrote incorrectly in my own first draft and revised after recalculating.",
+    "A transferable practice: when you get any dashboard, first separate 'observed quantities' from 'derived quantities'. The criterion is simple—plug in the candidate derived formula; if the error is 0, then this field carries no new information, so don't build alerts on it; then do a distribution check on 'predictive' fields (expected, ETA, remaining time) to see whether their error is two-tailed or directional. Directional error is most dangerous when the load steps up."
+   ],
+   "facts": [
+    {
+     "label": "progress = min(1, since/expected)",
+     "value": "27/27 collection points, maximum absolute error 0",
+     "note": "All 27 lines of timeline.jsonl for both runs; definition: since in the same line divided by expected"
+    },
+    {
+     "label": "expected = median of the reported durations of the last 3 completed steps",
+     "value": "pro 27/27, flash 27/27 matched (error < 0.05 s)",
+     "note": "Example: pro step 15 expected 9416.42 = median(9063.0, 9416.4, 10491.6)"
+    },
+    {
+     "label": "gen_frac = previous step's outer_gen ÷ previous step's reported duration",
+     "value": "27/27 matched (error < 1e-3), and constant throughout the step",
+     "note": "Example: flash step 20 is 0.4144 throughout = 3632.2 ÷ 8765.3 (previous step s19)"
+    },
+    {
+     "label": "Duration for which progress is pinned at 1.0",
+     "value": "pro s15 3465.2 s (26.9% of that step) / flash s20 1376.8 s (13.6%)",
+     "note": "Exact value = reported duration − expected; whenever expected is optimistic, this period is “fake 100%”"
+    },
+    {
+     "label": "expected error distribution (non-restart steps only)",
+     "value": "pro median +0.13%, range −11.3%~+31.2% (n=17); flash median −1.57%, range −21.5%~+32.2% (n=25)",
+     "note": "Median is almost unbiased; the problem is in the tail; large optimistic bias is concentrated in steps where the step length jumps up a level."
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "restart-gap-is-mostly-discarded-work",
+   "kind": "structural",
+   "title": "The 'time gap' caused by restarts is not downtime: of the 5.63 hours missing at flash step 16, 3.96 hours are recomputation that ran to completion and was then discarded; the actual recovery wait is only 0.09 hours",
+   "summary": "That timing_s/step does not include restart time has been said before, but treating the gap directly as 'wait' will get the accounting wrong. The gap can be split precisely into three things: the span from previous step completion to the last recovery, the overhead from recovery to step timer start, and recomputation discarded for whole steps. The third has one verifiable event in flash: steps 16 and 17 each completed once and were then rerun by redo, totaling 3.96 hours, equivalent to $40,728, while the actual recovery wait for this step is only 0.09 hours. There is also a directly usable constant: recovery overhead is 740~800 seconds per occurrence for pro and 328~367 seconds per occurrence for flash.",
+   "body": [
+    "gap = true step duration (difference between adjacent axis.walls) − reported duration (timing_s/step). It has an exact identity: gap = (previous step completion → last recovery run) + (last recovery run → this step completion − this step's reported duration). The 11 gap steps across the two runs all match digit by digit, with error less than 0.001 seconds. The second term on the right-hand side is exactly the overhead of 'the new process has started, but the step timer has not yet started'; it can be measured precisely and is very stable.",
+    "First remember this constant: pro is 740.3~799.9 seconds each time (12.3~13.3 minutes), flash is 328.3~367.0 seconds each time (5.5~6.1 minutes). At their respective rates, for a single restart this invisible overhead alone is about $4,300 for pro and about $980 for flash. Its cause is not written in the data; in magnitude it looks like actions such as loading weights and rebuilding the data pipeline.",
+    "The first term on the right-hand side, 'previous step completion → last recovery run', is a mixed term: it contains both progress discarded before the crash and downtime from crash to recovery. Because the restart timestamp in events.json is **the moment the new process resumes running** (evidence: timeline's restarted_at equals it, and step.since is counted from it, matching point by point to within 1 second), the crash moment is unobservable, so this term cannot be separated across all 11 of pro's restarts.",
+    "flash step 16 is the only sample that can be separated. In events.json, steps 16 and 17 each appear twice, and the second occurrence carries redo=true, and announcement n-b60f90 says we restarted the flash run from step 15. Using the difference between the timestamps of adjacent step events, one can calculate that the first completions of these two steps took 6641.6 seconds and 7623.8 seconds respectively, totaling 14265.4 seconds = 3.96 hours, all invalidated. The gap for the same step is 20277.7 seconds, of which recovery overhead is only 332.1 seconds, and the remaining 5680.2 seconds is the span 'between the last completion and recovery'. So of the 5.63 hours missing from this step, the verifiable wasted compute is 3.96 hours, and the actual recovery waiting is 0.09 hours—a factor of 40 difference.",
+    "Counting the rerun itself as well, the cost of this incident is: 14265.4 seconds invalidated + 18193.1 seconds consumed by reruns (the reported value after rerunning steps 16 and 17) = 32458.5 seconds of extra machine time; relative to the counterfactual of \"nothing ever went wrong\", the extra wall clock spent is 24202 seconds = 6.72 hours, which at the flash rate of $2.855/second is $69,097.",
+    "A transferable rule of thumb: when you see the \"downtime/failure time\" metric definition, first ask whether it counts wall clock or billable time. In the wall-clock loss from a restart, recovery overhead is a constant term (you can directly multiply by the number of occurrences to get a lower bound), while discarded reruns are a conditional term (only events with a redo marker or a version rollback can prove them). The two are exactly equally expensive on the bill, but completely different for optimization—the former requires shortening the startup path; the latter requires changing \"making intermediate results resumable, so that an entire step does not have to be redone.\" Mixing the two into a single \"wait time\" will make you spend your budget in the wrong place."
+   ],
+   "facts": [
+    {
+     "label": "Gap identity",
+     "value": "Gap = (previous step completion→last recovery) + (recovery→this step completion − reported), error < 0.001 s for 11 gap steps",
+     "note": "Definition: pro 7 steps / flash 4 steps; real = difference between adjacent axis.walls"
+    },
+    {
+     "label": "Recovery overhead (per last restart)",
+     "value": "pro 740.3~799.9 s／flash 328.3~367.0 s",
+     "note": "= (this step completion − last restart recovery time) − this step reported duration; equivalent to $4,300 / $980"
+    },
+    {
+     "label": "Compute wasted by whole-step invalidation at flash step 16",
+     "value": "14265.4 s = 3.96 h = $40,728",
+     "note": "s16 6641.6 s + s17 7623.8 s; both completed once and were then rerun by redo (events.json)"
+    },
+    {
+     "label": "Actual recovery wait for flash step 16",
+     "value": "332.1 s (1.6% of the 20277.7 s gap for this step)",
+     "note": "66.5% of this step's gap comes from the 'previous step completion→recovery' span (including 3.96 h of verified discarded recomputation)"
+    },
+    {
+     "label": "Extra wall clock cost of this incident",
+     "value": "24202 s = 6.72 h ≈ $69,097（flash）",
+     "note": "Actual s16+s17 window 38467.4 s minus counterfactual 14265.4 s"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report-2",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "staleness-follows-restart-clock-not-load",
+   "kind": "counterintuitive",
+   "title": "avg_staleness is a restart clock, not a load table: rank correlation with 'steps since last restart' is 0.944, and with actual step duration only −0.235",
+   "summary": "Intuitively, 'steps get longer → trajectories don't finish → data gets stale' should hold; empirically this chain breaks in the middle. Getting longer is real, and getting staler is also real (flash step 24 has 9 staleness buckets, about 84% of the tokens come from 1 version earlier), but there is no association between the two: the rank correlation of avg_staleness with actual step duration is only pro −0.235, flash −0.070, while with 'steps since last restart' it is +0.944 / +0.885, and the rank correlation of bucket count with steps within a segment is 1.000 / 0.998. This metric is a restart clock, not a load table.",
+   "body": [
+    "First rule out the mechanical identity: avg_staleness is exactly equal to Σ(k × frac_k), and point-by-point verification gives a maximum error of less than 1e-7. So it is not an independent observable itself; it is merely the weighted sum of the staleness bucket proportions, and when the proportions change, it changes. This must be stated clearly before judging causality.",
+    "Next look at what determines it. For each step, compute \"how many steps have passed since the last restart\" (position within the segment), and compute its rank correlation with avg_staleness: pro +0.944, flash +0.885. Correlation with the number of buckets: pro +0.944, flash +0.880. And the rank correlation of the number of buckets with position within the segment is pro 1.000, flash 0.998—that is, **after a restart, each step advanced adds one more bucket, without exception**. After each restart, pro's bucket count goes from 1 to 8, and flash's from 1 to 10.",
+    "Within the same set of samples, the rank correlation of avg_staleness with actual step duration is pro −0.235, flash −0.070; with average generation length it is −0.177 / +0.031; and with the current step's training tokens it is −0.226 / +0.045. All are near zero or slightly negative. If \"longer steps make the data staler\" held, there should be a significant positive correlation here.",
+    "So avg_staleness plotted out is a series of sawteeth; the start of each tooth is a restart (which zeroes the pipeline and replaces all data with the freshest), and the height of the tooth is how many versions accumulated in that segment. pro's three tooth peaks are 1.82 (step 9, reset at step 11), 1.21 (step 14, reset at step 15), 1.29 (step 22, reset at step 23); flash's are 1.89 (step 15, reset at step 16), 2.18 (step 24, reset at step 25), and the run ends when the final segment climbs to 1.19. **The more frequent the restarts, the \"healthier\" this metric looks, while it is actually just being zeroed out more often.**",
+    "This is not to say that staleness is unimportant. The magnitude of \"data is very old\" is itself large: at flash step 24, 84% of tokens come from at least one version earlier, and at pro step 9 it is 80.3%. Moreover, \"steps getting longer\" and \"sandboxes being occupied longer\" can be lined up on another chain: using Little's law to back out the average sandbox lifetime, pro rises from 1.198 hours (steps 3–10) to 1.793 hours (steps 17–22), and flash rises from 1.705 hours to 2.168 hours, in the same direction as the increase in generation length. So the correct statement is: long trajectories do create pressure in the system, but the pressure shows up in sandbox occupancy time, not in staleness.",
+    "Transferable judgment rule: for any \"latency-type\" metric, first find its reset event. For metrics whose reset is triggered by external events (restart, rollback, manual reset), their variance mainly comes from reset frequency; to measure the true effect of load on it, you must run the regression within the segment between two reset events, and treat \"position within the segment\" as a confounder that must be controlled for. Directly correlating it with load metrics over the full sample will give a conclusion with the completely opposite direction."
+   ],
+   "facts": [
+    {
+     "label": "avg_staleness = Σ k × frac_k",
+     "value": "Pointwise maximum absolute error < 1e-7 (pro 24 steps / flash 30 steps)",
+     "note": "Mechanical identity, rule it out first, to avoid reading data mix changes as mechanism changes"
+    },
+    {
+     "label": "Within-segment correlation (non-restart steps only)",
+     "value": "With within-segment position pro +0.944 / flash +0.885; with bucket count +0.944 / +0.880; with actual step duration −0.235 / −0.070",
+     "note": "Spearman; pro n=17, flash n=25; bucket count vs within-segment position = 1.000 / 0.998"
+    },
+    {
+     "label": "Upper limit on staleness bucket count",
+     "value": "pro 8 (k=0..7) / flash 10 (k=0..9)",
+     "note": "The upper limit is determined by the longest span between two restarts, not by load"
+    },
+    {
+     "label": "Data mix of the oldest step",
+     "value": "flash s24: bucket0 frac 0.1607, i.e. 83.9% of tokens come from ≥1 version earlier; pro s9: 80.3%",
+     "note": "Definition: 1 − partial/0/frac"
+    },
+    {
+     "label": "Sandbox mean lifetime back-inferred from Little's law",
+     "value": "pro 1.198 → 1.793 h; flash 1.705 → 2.168 h (monotonically lengthens with segment)",
+     "note": "L = mean env/active, λ = cumulative number of sandboxes created since self-reset ÷ wall clock since reset; only segments with segment length ≥3 steps are used"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report-3",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "no-backpressure-in-the-trace-layer",
+   "kind": "numeric",
+   "title": "Backpressure counters are all identically 0 across two runs and 54 step observations: this layer is not blocked, and the long tail left no trace at this layer either",
+   "summary": "Under train/trace, six overflow-type counters (backpressure wait count and seconds, orphan parsing, write failures, termination conflicts) are all 0 on pro 24 steps and flash 30 steps, with not one of 324 observation points nonzero. Drain wait drain_wait_seconds is at most 8.23 seconds, and outcome write outcome_write_seconds is at most 1.60 seconds; this layer never blocked the producer. The conclusion is negative but directly usable: optimization budget should not be spent here.",
+   "body": [
+    "Backpressure is the most direct readout of queue overflow: when a bounded queue cannot be written to, the producer gets blocked, and \"blocked\" will definitely be counted. So to judge \"whether this layer is the bottleneck,\" look at the number of non-zero occurrences of the overflow counter, not utilization or queue length. The train/trace family provides exactly this kind of counter, and the dashboard breaks it down very finely: wait count, wait seconds (sum, max), orphan resolution, write failures, termination conflicts.",
+    "The measured results are very clean: across pro's 24 steps and flash's 30 steps, these six items are all equal to 0, with not a single non-zero occurrence. The two accompanying items are also on the order of seconds: drain_wait_seconds is 1.29~8.23 seconds for pro and 2.55~5.87 seconds for flash; outcome_write_seconds is 0.46~1.60 seconds for pro and 0.52~0.85 seconds for flash. Placing these two numbers next to the 6,850~14,000-second step duration, the order of magnitude is one ten-thousandth to one thousandth.",
+    "There is one quantity that deserves attention but need not be over-interpreted: late_finishes is not 0; pro ranges from 0~47 (median 0, non-zero only at steps 4, 7, 8, 9, 10, 21, and 22), flash ranges from 0~210 (median 14, with 17 of 30 steps non-zero). It is a count of \"late completions,\" but the dashboard gives no definition and no accompanying wait seconds, so we can only note it: flash has more late completions than pro, consistent with that run having two full-step reruns (steps 16 and 17) and a longer context, but this is a coincidence-level consistency and cannot be treated as a conclusion.",
+    "Another timing coincidence worth recording: train/trace/records jumps from 1.63e6 to 3.27e6 at pro step 17, almost exactly doubling, and at the same moment writer_seconds_sum rises from about 5,000 seconds to about 8,000 seconds. Step 17 is exactly the step where that \"expert load imbalance causing GPU OOM, adjusting the training parallelism strategy\" restart occurred. This looks like the parallelism adjustment incidentally also changed the parallelism of trace writes, but the dashboard does not define these two fields; this article records it only as a clue.",
+    "Why it is worth writing a separate \"nothing was found\" entry: in this kind of system, \"throughput being eaten by the long tail\" is the most common narrative, and it will inevitably leave backpressure counts at some layer. This layer left none, which means the write-side buffer is large enough or the long tail was absorbed by concurrency (env/active runs on 20,000 to 38,000 sandboxes, and writes are asynchronous). The correct inference is \"don't optimize here,\" not \"there is no long tail.\"",
+    "Transferable judgment rule: to judge the bottleneck, look at two things together—the number of non-zero occurrences of the overflow counter, and the magnitude of drain/wait times. All 0 plus second-level waits equals \"this layer has headroom\"; once waits enter the minute level or the overflow count is non-zero, only then is it true backpressure. Conversely, high utilization does not mean blockage, and low utilization does not mean no blockage."
+   ],
+   "facts": [
+    {
+     "label": "Nonzero count of backpressure-type counters",
+     "value": "0 (pro 24 steps × 6 items + flash 30 steps × 6 items = 324 observation points)",
+     "note": "backpressure_waits / backpressure_wait_seconds_sum / _max / orphan_resolves / failed_writes / terminal_conflicts"
+    },
+    {
+     "label": "drain_wait_seconds max",
+     "value": "pro 8.23 s (min 1.29 s) / flash 5.87 s (min 2.55 s)",
+     "note": "Relative to step durations of 6,850~14,000 s, this is on the order of 1/10,000"
+    },
+    {
+     "label": "outcome_write_seconds max",
+     "value": "pro 1.60 s／flash 0.85 s",
+     "note": "Single-call duration for outcome writing"
+    },
+    {
+     "label": "late_finishes",
+     "value": "pro 0~47 (median 0, only steps 4, 7, 8, 9, 10, 21, 22 nonzero) / flash 0~210 (median 14, 17 steps nonzero)",
+     "note": "The dashboard gives no definition and no accompanying wait seconds; recorded only"
+    },
+    {
+     "label": "Jump in records at pro s17",
+     "value": "1.63e6 → 3.27e6 (roughly doubled), with writer_seconds_sum 5,000 → 8,000 s over the same period",
+     "note": "Concurrent with the parallel strategy adjustment at s17, but the field has no definition; only a clue"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pipeline-report-4",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "reward-ceiling-pinned",
+   "kind": "counterintuitive",
+   "title": "The upper bound of reward was pinned at 1 from step 1: max is exactly equal to 1 on pro 24/24 steps and flash 30/30 steps; only the middle rose",
+   "summary": "critic/score/max has only one value 1.000 on pro 24/24 steps and flash 30/30 steps; \"rewards concentrating toward a few high-scoring samples\" cannot happen. critic/score/mean rises from 0.5522 to 0.5963 (pro, r=0.904) and from 0.5167 to 0.6005 (flash, r=0.939), with all changes in the middle of the distribution. Only the lower bound diverges: pro's mean−min narrows from 1.2593 to 0.7384, while flash expands from 1.3139 to 1.4005 (p=0.003).",
+   "body": [
+    "On the dashboard, critic/score/max and critic/rewards/max are the same quantity (pointwise maximum absolute difference 0); it is \"the trajectory with the highest score in this step's training batch\". Intuitively one would assume that as training progresses → more good samples → max rises, but the data gives a simpler answer: max has been 1.000 since the first step, and did not change even once across 24 steps (pro) and 30 steps (flash). This indicates that the reward function has a hard upper bound, and the model was already able to reach it at the first step.",
+    "So any discussion about \"changes in the shape of the reward distribution\" can, in this data, only fall below max. Look at max−mean and mean−min separately: max−mean drops significantly in both runs (pro 0.4478→0.4037, r=−0.904, p=1.4e-9; flash 0.4833→0.3995, r=−0.939, p=1.8e-14) — this is a result of mean rising, not of max falling (max is constant at 1). mean−min is the quantity that actually carries direction: pro 1.2593→0.7384 (the worst samples are catching up to the mean, r=0.159, p=0.46 not significant but the magnitude is large), flash 1.3139→1.4005 (the worst samples fall further behind, r=0.523, p=0.003).",
+    "At the dataset level, this divergence is clearer: among pro's 23 datasets with data, 18 have first and last values of score/min both 0, while flash has only 7; pro has 3 datasets (code/bvg7, code/yfch, cyber/9aui) whose score/min touches −0.8 at least once, while flash has 6 (bvg7, obg8, v7yx, yfch, zg6q, cyber/9aui). In other words, the −0.8 floor of the global score/min is, on flash, a normal occurrence repeatedly triggered by multiple datasets, and on pro an occasional occurrence in a minority of datasets.",
+    "Chart-reading rule: when you see critic/score/max, first check whether it is constant. In this data it is the only constant (nDistinct=1), whereas critic/advantages/max is not (pro has 11 distinct values, flash has 13). To treat \"max rising\" as evidence of reward concentration, you must first rule out the possibility that \"max is already at the upper bound\" — once it is at the upper bound, the value of max no longer carries any information; all information is in mean and min.",
+    "Also note the cross-dataset non-additivity of critic/score/min: at pro step 14 the global min=−0.8000, whereas in the same period the min of the vast majority of datasets is 0.000; the −0.8 comes only from cyber/dataset-9aui (which itself only reports up to step 14). The global min is the minimum taken across 23 datasets; its jumps are essentially determined by a single dataset's single step, so do not use it to represent any subset."
+   ],
+   "facts": [
+    {
+     "label": "critic/score/max values throughout",
+     "value": "pro 24/24 steps = 1.000; flash 30/30 steps = 1.000 (nDistinct=1)",
+     "note": "Maximum absolute pointwise difference from critic/rewards/max is 0; A3-reward-numbers.json → runs.<run>.groups.globalReward[\"critic/score/max\"]"
+    },
+    {
+     "label": "critic/score/mean first→last (trend)",
+     "value": "pro 0.5522→0.5963（r=0.904, p=1.4e-9）；flash 0.5167→0.6005（r=0.939, p=1.8e-14）",
+     "note": "Pointwise equal to critic/rewards/mean (maximum absolute difference 0); n=24 / n=30"
+    },
+    {
+     "label": "score/mean − score/min first→last (trend)",
+     "value": "pro 1.2593→0.7384 (r=0.159, p=0.46, not significant); flash 1.3139→1.4005 (r=0.523, p=0.003)",
+     "note": "Correlation with avg@n: pro r=−0.265 (p=0.21), flash r=−0.386 (p=0.035), both not significant or weak"
+    },
+    {
+     "label": "Share of steps where the score is at the −0.8 floor",
+     "value": "pro 2/24 = 8.3%；flash 10/30 = 33.3%",
+     "note": "Share of steps with score/min ≤ −0.5: pro 37.5%, flash 80.0%; A3-reward-numbers.json → runs.<run>.shape.global"
+    },
+    {
+     "label": "Dataset-level: number with score/min first and last values = 0 / number at the floor",
+     "value": "pro 18/23 with first and last = 0, 3 touched −0.8 (bvg7, yfch, cyber/9aui); flash 7/23 with first and last = 0, 6 touched −0.8 (bvg7, obg8, v7yx, yfch, zg6q, cyber/9aui)",
+     "note": "Floor test |score/min + 0.8| < 1e-12; A3-reward-numbers.json → runs.<run>.shape.perDatasetSummary.<ds>.scoreMin.atFloorShare"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-reward-ceiling-pinned",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "pool-shrink-netted-out",
+   "kind": "numeric",
+   "title": "Trainable pool contraction on flash offset 58% of the all-correct rate gain: a 0.1659 pool-share loss for a 0.1700 all-correct rate contribution",
+   "summary": "Decomposed with avg@n = p1 + M·m: flash's trainable pool M drops from 0.7188 to 0.5528, all-correct rate rises from 0.1208 to 0.2907. Δavg@n=+0.1298 splits into all-correct rate +0.1700, pool contraction −0.0983, within-pool improvement +0.0582 (residual 0), pool contraction eats 58% of the all-correct rate gain; pro's pool barely moves (0.6759→0.6545), decomposing to +0.0236/−0.0125/+0.0207. pro's avg@n peaks at 0.6431 at step 20 then falls back to 0.5964.",
+   "body": [
+    "The rule of dynamic sampling is to discard prompts that are all-correct and all-wrong — after subtracting the baseline within the group, the advantage of these two categories is identically zero, producing no gradient. So the stronger the model and the higher the all-correct rate, the smaller the trainable pool. This can be precisely quantified in this data, because the dashboard gives both p0 (dynsam/passrate/zero) and p1 (dynsam/passrate/one), and avg@n satisfies avg@n = p1 + M·m (M = 1−p0−p1), so the in-pool average pass rate m can be back-solved pointwise.",
+    "flash is a textbook case of this: M drops from 0.7188 to 0.5528, down 16.6 percentage points; the all-correct rate rises from 0.1208 to 0.2907 (a 2.4-fold increase); the in-pool pass rate rises from 0.5467 to 0.6382. After decomposing Δavg@n=+0.1298 into three terms, pool shrinkage contributes −0.0983, exactly eating 58% of the all-correct rate contribution +0.1700. The pro side is completely different: M only goes from 0.6759 to 0.6545, the all-correct rate from 0.1779 to 0.2014, and pool shrinkage deducts only 0.0125.",
+    "Here we need to correct a causal direction that is easy to get backwards. \"Pool shrinkage causes avg@n growth to slow\" sounds plausible, but arithmetically pool shrinkage is a negative term in Δavg@n; it makes avg@n lower, not the slope smaller. Slowing growth is a different matter, and in this data it cannot be detected in either run: regressing the point-by-point increments of avg@n on the increment index gives pro r=−0.305 (p=0.16), flash r=−0.076 (p=0.69). pro looks more like \"peak then pullback\" — step 20's 0.6431 is the highest over the whole run, after which four steps drop to 0.5964 (−7.3%), and the mean of the last 11 increments is negative.",
+    "What really deserves vigilance is \"headroom being eaten by itself\": flash still has 55% of the trainable pool left, pro still has 65%. If the all-correct rate continues to rise at the current speed, M will bottom out first, and by then avg@n will approach 1 but the training signal will be exhausted first. The direct readout for this risk is the relationship between M and avg@n — the level correlation is strong in both runs (pro r=−0.852 p=1.3e-7, flash r=−0.957 p=1.2e-16); after detrending, pro is still significant (r=−0.650, p=5.9e-4) while flash is not (r=−0.199, p=0.29), indicating that flash's relationship is mainly a common trend.",
+    "One definition that must be stated clearly: train/passrate/passrate_0_ratio and passrate_1_ratio look like \"all-wrong rate / all-correct rate\", but their denominator is the trajectories that entered the training batch, whereas the denominator of dynsam/passrate/* is the measured candidate pool. The two differ in value by an order of magnitude (pro's p0 is 0.0092→0.0389 versus 0.1462→0.1440), cannot be converted into each other, and the train/passrate pair cannot be used for the decomposition in this section."
+   ],
+   "facts": [
+    {
+     "label": "Trainable pool M = 1 − dynsam/passrate/zero − dynsam/passrate/one",
+     "value": "pro 0.6759→0.6545（−0.0213，−3.2%）；flash 0.7188→0.5528（−0.1659，−23.1%）",
+     "note": "A3-reward-numbers.json → runs.<run>.poolDecomposition.first/last/delta；n=24 / n=30"
+    },
+    {
+     "label": "Δavg@n three-term decomposition (all-correct rate / pool contraction / within-pool improvement)",
+     "value": "pro +0.0236 / −0.0125 / +0.0207 (sum +0.0318); flash +0.1700 / −0.0983 / +0.0582 (sum +0.1298)",
+     "note": "Interaction residual 0; formula Δavg@n = Δp1 + m̄·ΔM + M̄·Δm, with m̄ and M̄ taken as the mean of the first and last"
+    },
+    {
+     "label": "In-pool average pass rate m (back-solved from avg@n = p1 + M·m)",
+     "value": "pro 0.5723→0.6035；flash 0.5467→0.6382",
+     "note": "Each can be solved point by point, see poolDecomposition.rows"
+    },
+    {
+     "label": "Slope test of the avg@n increment",
+     "value": "pro first-half mean +0.0049 / second-half mean −0.0025 (r=−0.305, p=0.16); flash +0.0054 / +0.0035 (r=−0.076, p=0.69)",
+     "note": "The \"growth slowdown\" of both runs is not significant; pro's avg@n peaks at 0.6431 at step 20 then falls to 0.5964"
+    },
+    {
+     "label": "Correlation between M and avg@n",
+     "value": "Level: pro r=−0.852 (p=1.3e-7), flash r=−0.957 (p=1.2e-16); detrended pro r=−0.650 (p=5.9e-4), flash r=−0.199 (p=0.29)",
+     "note": "Both series are monotonic over time, so the level correlation is inflated; after detrending, flash is not significant."
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-pool-shrink-netted-out",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "grader-tightens-not-loosens",
+   "kind": "structural",
+   "title": "Grading did not become more lenient: over 24 steps the five-dimensional rubric score fell from 4.4051 to 4.2902 (r=−0.874), the post-processing multiplier fell in tandem, while the grading completion rate and failure rate stayed flat throughout.",
+   "summary": "The shape of the grading funnel did not change: groups_total and groups_judged trends are all not significant (p≥0.37); failure share of accepted pro 3.52%→4.16% (p=0.61); end2end_success_rate typically 0.94~0.97. But the scale for grading scores is tightening: equal-weight mean of the five-dimensional rubric score pro fell from 4.4051 to 4.2902 (r=−0.874), flash from 4.3919 to 4.3108. The “above reference solution” share select_above_gold_share is completely flat in pro (r=−0.003).",
+   "body": [
+    "To answer \"is grading getting looser or tighter\", first separate two things: the throughput/health of the grading pipeline, and the scores the grader gives. The former can be verified directly with count-type metrics; the latter requires the grader's own absolute scores and post-processing coefficients.",
+    "On the throughput side, there is no change at all. The pro mean of groups_total is 1811 (n=24) and flash 1750 (n=30); their r against step number is −0.192 (p=0.37) and −0.004 (p=0.98) respectively; likewise for groups_judged (pro r=−0.094, p=0.66; flash r=0.053, p=0.78). The grading completion rate (groups_judged / groups_attempted) has pro mean 0.9498 and flash 0.9594, with no trend throughout. In the failed, skipped, and expired family, groups_failed_pass1/pass2, groups_skipped_unbalanced, groups_skipped_empty_inputs, judge_aux_missing_rollouts, keep_mass_capped, rollouts_masked, select_r2_capped_rate, dev_neg_turns, and select_r3_gold_fails are all identically zero in both runs; groups_expired_unjudged is 0 or 1 throughout pro, and in flash this tag does not even exist. The only low point in pro's end2end_success_rate is 0.7662 at step 14, which temporally matches the previous announcement (the network between the training cluster and the grading deployment was unreachable), and is a single-step infrastructure event.",
+    "On the scoring side, it is a different picture. The means of the five rubric dimensions A/B/E/P/S all have negative signs in both runs; among them, pro's E (r=−0.955, p=4.6e-13), B (r=−0.927), A (r=−0.787), and S (r=−0.640) are all significant, while flash's B (r=−0.710) and E (r=−0.628) are significant. After equal-weight averaging, pro drops from 4.4051 to 4.2902 (−0.1150), and flash goes from 4.3919 to 4.3108 (−0.0811). At the same time, select_factor_mean drops from 0.8319 to 0.8033 (pro), select_renorm_k_mean rises from 1.1852 to 1.2179, and select_renorm_capped_rate rises from 0.0346 to 0.0639 (r=0.574, p=0.003). These three point in the same direction: grading is being multiplied by a smaller factor, requires stronger renormalization compensation, and hits the renormalization cap more often.",
+    "So the hypothesis of “grading leniency” finds no supporting evidence in this dataset. Conversely, there is also no evidence that “the model truly surpassed the reference solution”—select_above_gold_share is completely flat over 24 steps on pro (r=−0.003, p=0.99), and the weak rise on flash (0.3018→0.3261, level r=0.377, p=0.040) does not hold under first differences (r=−0.341, p=0.071) or detrending (r=−0.058, p=0.76). To distinguish “capability improvement” from “grading relaxation”, the strongest evidence this dashboard can provide is that “the absolute scores of grading are moving in the tighter direction”, while the determination “surpassing the reference solution” itself lies in flatness or noise, and neither explanation can be ruled out.",
+    "An easily overlooked definitional fact: select_above_gold_share and select_v4/select_above_gold_share are exactly equal pointwise (maximum absolute difference 0), whereas under select_v4_nogold this field does not exist. That is, “exceeds the reference solution” is computed only on the grading path that has gold — this is its denominator basis, not a global proportion."
+   ],
+   "facts": [
+    {
+     "label": "Equal-weight mean of five-dimensional rubric score (A/B/E/P/S), first→last",
+     "value": "pro 4.4051→4.2902（r=−0.874, p=2.5e-8）；flash 4.3919→4.3108（r=−0.482, p=0.007）",
+     "note": "A3-reward-numbers.json → runs.<run>.constancy.scoreRubricMean; the five dimensions are select_score_{A,B,E,P,S}_mean"
+    },
+    {
+     "label": "Grading funnel scale trend",
+     "value": "groups_total pro r=−0.192（p=0.37）、flash r=−0.004（p=0.98）；groups_judged pro r=−0.094（p=0.66）、flash r=0.053（p=0.78）",
+     "note": "Mean pro 1811 / 794, flash 1750 / 786; n=24 / n=30"
+    },
+    {
+     "label": "Grading failures and expiration",
+     "value": "select_groups_failed/groups_attempted pro 3.52%→4.16% (r=0.109, p=0.61), flash 4.01%→3.64% (r=0.020, p=0.93); groups_expired_unjudged pro 0~1 throughout (mean 0.29), flash does not have this tag",
+     "note": "groups_failed_pass1/pass2, groups_skipped_*, judge_aux_missing_rollouts, keep_mass_capped, rollouts_masked, select_r2_capped_rate, dev_neg_turns, select_r3_gold_fails are all identically zero in both runs"
+    },
+    {
+     "label": "Post-processing multiplier and renormalization",
+     "value": "select_factor_mean pro 0.8319→0.8033 (r=−0.767, p=1.2e-5), flash 0.8338→0.8038 (r=−0.407, p=0.026); select_renorm_k_mean pro 1.1852→1.2179 (r=0.854, p=1.1e-7); mean product pro 0.985, flash 0.981",
+     "note": "The two are not exactly mutually inverse; there is a systematic gap of 1.5%~1.9%"
+    },
+    {
+     "label": "select_above_gold_share first→last",
+     "value": "pro 0.3185→0.3182 (r=−0.003, p=0.99, flat); flash 0.3018→0.3261 (level r=0.377 p=0.040; first difference r=−0.341 p=0.071; detrended r=−0.058 p=0.76)",
+     "note": "Pointwise equal to select_v4/select_above_gold_share (difference 0), indicating it is computed only on the grading path where gold exists"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-grader-tightens-not-loosens",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  },
+  {
+   "id": "grader-disagreement-60pct-rising",
+   "kind": "structural",
+   "title": "The grading probe inconsistency rate is at a high level of 0.586~0.606 and significantly rising, but over the same period the number of review red flags for “confirmed errors” is declining",
+   "summary": "select_probe_disagree_rate is high and rising significantly: pro mean 0.6059 (0.5748→0.6331, p=2.1e-4), flash mean 0.5857 (0.5460→0.6018, p=1.4e-5). The external reading “grader inconsistency rate 60% and rising” can find a counterpart in this family; both magnitude and direction line up. But over the same period the review counts closer to “confirmed error” are declining: select_r2_flagged as a share of judged groups pro 0.3212→0.2080 (p=3.2e-5), flash 0.3129→0.2200.",
+   "body": [
+    "select_probe_disagree_rate is the only metric in this dashboard that directly names “grader internal inconsistency.” It has no official definition; judging from its name and data shape, it is the proportion of cases where, during grading, multiple decision paths (probes) are used to verify the same batch of samples and the conclusions conflict. The mean over pro's 24 steps is 0.6059, and over flash's 30 steps is 0.5857, both around “sixty percent,” and both rise significantly with step number.",
+    "Compare the external readout item by item: the magnitude matches (0.586~0.606 vs “60%”), the direction matches (the p-values for the two runs are 2.1e-4 and 1.4e-5, respectively), and the existence also matches (this is not a metric that needs to be pieced together; the dashboard provides it directly). So that external readout is verifiable in this data.",
+    "But this cannot be read directly as “grading has collapsed.” On the same set of steps, counts that require multiple rounds of review to confirm are declining: the share of the completed-grading group held by select_r2_flagged falls for pro from 0.3212 to 0.2080 (r=−0.743), and for flash from 0.3129 to 0.2200 (r=−0.706); the share of the completed-grading group held by select_process_severe (graded as “severe process problem”) falls for flash from 0.0533 to 0.0188 (r=−0.545, p=0.002). Meanwhile, select_r1_masked's share of the completed-grading group is rising (pro 0.3822→0.4716, r=0.675; flash 0.3058→0.4515, r=0.542). That is: more disagreements appear in the first round and more samples need masking, but fewer need to reach a second round of review before being flagged red.",
+    "The most reasonable reading of this combination is “tasks became harder / samples are closer to the margin,” not “grading quality deteriorated” — but this is an inference, not directly proven by the data. The dashboard does not give a definition of probe_disagree, so “disagreement” cannot be equated with “misgrading”: for the same problem there are multiple reasonable solutions, so probe disagreement is inevitable.",
+    "There is also a methodological warning that must be written out: probe_disagree vs step is “a single series vs time,” with no object to detrend against, and monotonic trends over 24/30 points are naturally prone to producing significant results. When probe_disagree is correlated with avg@n, the level correlation looks strong (pro r=0.645, flash r=0.667); after first differencing, pro becomes −0.241 (p=0.27) and flash becomes −0.380 (p=0.042, significantly negative). So the reading that “grading disagreement rises as scores rise” does not hold in this data; the only thing that holds is “this readout itself is drifting.”"
+   ],
+   "facts": [
+    {
+     "label": "select_probe_disagree_rate first→last (mean, trend)",
+     "value": "pro 0.5748→0.6331（0.6059），r=0.687, p=2.1e-4；flash 0.5460→0.6018（0.5857），r=0.704, p=1.4e-5",
+     "note": "A3-reward-numbers.json → runs.<run>.groups.graderQuality；n=24 / n=30"
+    },
+    {
+     "label": "Correlation with avg@n (three specifications)",
+     "value": "Level pro r=0.645 (p=6.7e-4), flash r=0.667 (p=5.7e-5); first difference pro r=−0.241 (p=0.27), flash r=−0.380 (p=0.042); detrended pro r=0.180 (p=0.40), flash r=−0.090 (p=0.64)",
+     "note": "Level correlation is caused by a common trend; under the differenced specification, flash's sign flips."
+    },
+    {
+     "label": "Review-flagged proportion (count / groups_judged)",
+     "value": "select_r2_flagged pro 0.3212→0.2080（r=−0.743, p=3.2e-5）、flash 0.3129→0.2200（r=−0.706, p=1.3e-5）",
+     "note": "The normalized rate is constructed by the script: derived/select_r2_flagged_per_judged_group; there is no corresponding official rate field"
+    },
+    {
+     "label": "Other inconsistency proxy metrics",
+     "value": "select_process_severe/groups_judged flash 0.0533→0.0188（r=−0.545, p=0.002）；select_tier_mismatch/groups_judged pro 0.3576→0.3192（r=−0.430, p=0.036）；select_r1_masked/groups_judged pro 0.3822→0.4716（r=0.675, p=2.9e-4）",
+     "note": "The normalized rates of select_rank_invalid, select_rank_score_conflict, and select_regression_flagged show no significant trend in either run"
+    }
+   ],
+   "sources": [
+    {
+     "ref": "self-grader-disagreement-60pct-rising",
+     "stance": "support",
+     "note": "The calculation basis for this insight; for the recalculation methodology and key numbers, see the citation."
+    }
+   ]
+  }
+ ],
+ "lang": "en",
+ "translated_from_updated_at": 1789812614,
+ "translated_at": "2026-09-20T07:52:54Z",
+ "translation_note": "Generated by src/translate_content.ts. The Chinese files (metrics.json, insights.json, sources.json) are canonical; edit those and re-run translate:content, never this file."
+}

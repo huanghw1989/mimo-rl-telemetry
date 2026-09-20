@@ -1,0 +1,227 @@
+{
+  "agent": "self_a3",
+  "topics": [
+    "A3 深挖各方向的自有核算"
+  ],
+  "fetched": "2026-09-19",
+  "note": "上一轮六个方向深挖产生的自有核算条目。原先只落在 content/sources.json 里，没有对应的 _research 文件，重建登记表时会丢；这里补齐源文件。",
+  "items": [
+    {
+      "id": "self-passrate-ratio-is-running-mean",
+      "kind": "self",
+      "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+      "year": "2026",
+      "quote": "复算口径：取 `series['train/passrate/passrate_0_ratio']` 与 `..._1_ratio` 的非空数组，逐项求一阶差分并统计符号。flash 30 步全部差分 >0；pro 24 步中第 15 步差分 -0.050687、第 23 步 -0.009173，其余为正。样本为 2026-09-18 快照（pro 24 步、flash 30 步）。",
+      "topic": "累计口径指标被误读成瞬时比例"
+    },
+    {
+      "id": "self-zero-passrate-means-no-sample",
+      "kind": "self",
+      "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+      "year": "2026",
+      "quote": "复算口径：对每个 `dynsam/<cat>/dataset-<id>/num_accepted/step` 对应的数据集，取 `train/passrate/avg_passrate/<cat>/dataset-<id>` 的 0 值步集合 A、`partial/<cat>/dataset-<id>/1/frac` 的 null 步集合 B、以及 `num_accepted/step == num_accepted/held` 的步集合 C，逐元素比较。pro 上 A=B=C={1,2,3,11,15,17,23}（ol8x、gtav 各 7 步）；flash 上 A=B=C={1,3,16,25,28}（各 5 步）。快照 2026-09-18。",
+      "topic": "把「未采样」编码成 0 而不是 null"
+    },
+    {
+      "id": "self-partial-ntokens-scope-collapse",
+      "kind": "self",
+      "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+      "year": "2026",
+      "quote": "复算口径：逐桶比较 `partial/<k>/n_tokens`、`partial/agentic/<k>/n_tokens`、`partial/code/dataset-yfch/<k>/n_tokens` 三个数组是否逐元素相等（含 null 位置）。pro 在 k=4,5,6,7 上相等（分别覆盖 8/6/3/2 步），flash 在 k=4..9 上相等（15/13/11/9/7/5 步）；k≤3 上不相等。快照 2026-09-18。",
+      "topic": "分桶统计里不同切片口径回退成同一个值"
+    },
+    {
+      "id": "self-two-context-length-caps",
+      "kind": "self",
+      "title": "指标可信度审计（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/audit_report.ts",
+      "year": "2026",
+      "quote": "复算口径：对每个 `ctx_{total,prompt,response}_length/*/(max|p99|p90)` 指标，取其非空值中出现次数最多的值 v；若 v 同时等于该指标全期最大值、出现次数 ≥3、且 |v−2^k|/2^k < 1e-5，判为上限档。结果：pro 命中 7 个（1048570 档 5 个、262144 档 2 个），flash 命中 10 个（1048570 档 7 个、262144 档 3 个）。快照 2026-09-18。",
+      "topic": "同一族指标走两套不同的截断阈值"
+    },
+    {
+      "id": "self-bench-mde",
+      "kind": "self",
+      "title": "A3 评测榜测量误差与饱和预测复算（第 3 节）",
+      "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）",
+      "year": "2026",
+      "quote": "复算口径：读 benchmarks.json 的稀疏逐步成绩，对每个 (榜, run) 先做 Theil–Sen 拟合，取残差标准差为单点噪声 σ_pt，MDE=1.96·σ_pt·√2；再对每个相邻步变化算 z=Δ/(σ_pt·√2) 与偏离趋势的 z=(Δ−τ·gap)/(σ_pt·√2)，最后在每个 (榜, run) 组内做 Holm-Bonferroni。结果：MDE 依次为 DeepSWE 4.56/6.43、In-house 1.55/1.68、Automation 2.20/2.70（pro/flash）；115 个变化朴素显著 9 个、Holm 后 1 个（In-house/pro 16→18 步 +1.99，原始 p=0.0019）、相对趋势 + Holm 后 0 个。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts，种子 20260919。",
+      "topic": "评测榜的测量误差与最小可检测变化（MDE）"
+    },
+    {
+      "id": "self-bench-cross-run",
+      "kind": "self",
+      "title": "A3 评测榜测量误差与饱和预测复算（第 8 节）",
+      "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）",
+      "year": "2026",
+      "quote": "复算口径：同步号对齐只取两条 run 都有读数的步；按成本对齐用 cost(step)=rate_per_s×(walls[step−1]−run_start) 把每个有读数的步映射到成本，再对每 $0.1M 网格线性插值；tokens 用 perf/total_num_tokens 逐步累加。结果：同步号上 avg@n pro 高 22/24、DeepSWE 16/16、In-house 15/15；同成本上 flash 全部领先（avg@n 均值 +2.80pp、DeepSWE +2.48 分、In-house +1.45 分、Automation +3.71 分）；同 token 上 20B 处 DeepSWE pro 63.53 > flash 58.90。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts。",
+      "topic": "两条 run 的横向对比与对齐口径"
+    },
+    {
+      "id": "self-bench-saturation",
+      "kind": "self",
+      "title": "A3 评测榜测量误差与饱和预测复算（第 7 节）",
+      "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）",
+      "year": "2026",
+      "quote": "复算口径：对每条序列拟合四种模型 exp_saturation `a−b·exp(−cx)`、gompertz `a·exp(−b·exp(−cx))`、logistic `K/(1+exp(−r(x−x0)))`、piecewise_linear_plateau `min(α+βx,P)`；参数用 profile + 黄金分割求，区间用残差 bootstrap 500 次；可识别判据 = 平台 95% CI 宽度 ≤ 2 倍数据极差。flash avg@n（n=30）结果：分段平台 0.6483 [0.6331,0.6598]、逻辑斯蒂 0.7271 [0.6792,0.8948]、Gompertz 0.7415 [0.6847,0.9745]、指数不可识别；最后一步 0.6435，MDE 3.08pp。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts，种子 20260919。",
+      "topic": "饱和曲线外推的参数不确定性与「什么时候该停」"
+    },
+    {
+      "id": "self-bench-gap",
+      "kind": "self",
+      "title": "A3 评测榜测量误差与饱和预测复算（第 9 节）",
+      "venue": "我方实测（本地遥测 tasks/mimo-rl-telemetry/data/store 复算）+ 外部文献",
+      "year": "2026",
+      "quote": "复算口径：在两条 run 的各自共同步号上，分别对 In-house Coding 与 DeepSWE 序列做 Theil–Sen 拟合，斜率之差用配对 bootstrap 4000 次取 95% 区间；gap 定义为 dynsam/avg@n×100 减榜分，斜率同样用 Theil–Sen + bootstrap。结果：斜率差 pro −0.176 [−0.355,−0.041]、flash −0.177 [−0.266,−0.042]，两个 run 方向一致且均排除 0；gap 斜率 Automation pro +0.178、flash +0.160，In-house flash +0.197，DeepSWE pro −0.163。脚本 codes/scripts/mimo_rl_telemetry/bench_report.ts。",
+      "topic": "边训边测与评测集污染的可判定边界"
+    },
+    {
+      "id": "self-a3-dataset-composition",
+      "kind": "self",
+      "title": "本地遥测复算：25 个数据集的总体通过率三项 shift-share 分解（A3-dataset-numbers.json 的 S3_composition / S3c_dashboardVsPanelGap）",
+      "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+      "year": "2026",
+      "quote": "复算口径：对每个数据集 d，p_d(t)=train/passrate/avg_passrate/<cat>/dataset-<id>[t]（哨兵 0 当缺失），w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t]，s_d(t)=w_d(t)/Σw(t)；面板取首末两步 p 与 w 都非空且 w>0 的数据集，pro 22 个、flash 23 个。分解式 ΔA=Σs_d(0)Δp_d+ΣΔs_d·p_d(0)+ΣΔs_d·Δp_d，脚本输出 checkSumError=0。pro：+3.5437=+3.8128+0.1623−0.4314；flash：+9.1494=+8.3071+0.0077+0.8346。等价对照曲线：固定第 1 步配比下 pro 末值 60.6717 vs 实际 60.4026（+0.2691pp），flash 61.0930 vs 61.1559（−0.0630pp）。",
+      "topic": "训练看板-数据集层-构成效应与辛普森悖论"
+    },
+    {
+      "id": "self-a3-dataset-composition-length",
+      "kind": "self",
+      "title": "本地遥测复算：生成长度的总体变化三项分解（A3-dataset-numbers.json 的 S3_composition 中 pro_length_accW / flash_length_accW）",
+      "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+      "year": "2026",
+      "quote": "复算口径：p_d(t)=ctx_response_length/<cat>/dataset-<id>/mean[t]，w_d(t)=dynsam/<cat>/dataset-<id>/num_accepted/step[t]，s_d(t)=w_d(t)/Σw(t)，分解式同通过率那条。pro：totalChange=58110.0677，withinBaseWeights=53292.5038，compositionBaseRates=2292.1952，interaction=2525.3687；flash：94262.4931 / 72194.9915 / 5765.1180 / 16302.3836。冻结第 1 步配比后 pro 末值 118318.3177 vs 实际 123135.8816，flash 139159.3777 vs 161226.8792。",
+      "topic": "训练看板-数据集层-长度的构成效应"
+    },
+    {
+      "id": "self-a3-dataset-restart-gap",
+      "kind": "self",
+      "title": "本地遥测复算：重启耦合的上报缺口（A3-dataset-numbers.json 的 S8_mechanicalChecks.sentinelEvidence 与 S7_dynsam.*.heldIdentity）",
+      "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+      "year": "2026",
+      "quote": "复算口径：重启受影响步 = 遍历 axis.walls，若 status.json 的 events[].kind==='restart' 的时间戳落在 walls[k-1] 与 walls[k] 之间，则记第 k+1 步；哨兵 0 = train/passrate/avg_passrate/visual/dataset-{gtav,ol8x} 上取值精确为 0 的步。pro 的 0 步 = [1,2,3,11,15,17,23]，重启受影响步 = [3,11,15,17,23]，同期 critic score = [0.569136,0.532828,0.547952,0.542567,0.552110,0.566738,0.566313]（gtav）；flash 的 0 步 = [1,3,16,25,28]，重启受影响步 = [16,25,28]。held 检验：|held(t)−(step(t)+carryover(t−1))|/max(1,held(t)) ≤ 0.05 记通过，pro 422 通过 / 143 失败，flash 629 通过 / 96 失败。",
+      "topic": "训练看板-数据集层-数据质量与重启耦合"
+    },
+    {
+      "id": "self-a3-dataset-crossrun",
+      "kind": "self",
+      "title": "本地遥测复算：pro 与 flash 的逐数据集涨幅秩相关（A3-dataset-numbers.json 的 S6b_crossRun 与 S2_perDataset）",
+      "venue": "本项目本地遥测 tasks/mimo-rl-telemetry/data/store（我方实测，脚本 codes/scripts/mimo_rl_telemetry/dataset_report.ts）",
+      "year": "2026",
+      "quote": "复算口径：对每个数据集取 train/passrate/avg_passrate/<cat>/dataset-<id> 的第一个非空值与最后一个非空值，相减乘 100 得 Δpp；pro 有 24 步、flash 有 30 步，25 个数据集全部可用（cyber 在 pro 只到第 14 步，用第 1→14 步）。Spearman 用平均秩处理并列，p 值用 t 近似。实测 rho=0.5823、p=0.002258、n=25，临界值 spearmanCrit(25)=0.3961。",
+      "topic": "训练看板-数据集层-跨 run 可复现性"
+    },
+    {
+      "id": "self-effective-dof-is-twelve",
+      "kind": "self",
+      "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+      "year": "2026",
+      "quote": "复算口径：读 `series.json` 全部键，覆盖率 ≥0.8（pro ≥20/24 步、flash ≥24/30 步非空），线性插值后每个指标单独 z-score（除以总体标准差），零方差指标剔除（pro 294 个、flash 277 个），得 pro 1389×24、flash 1465×30。构造 G = Z Zᵀ（步×步），自写 Jacobi 循环旋转求特征值（脚本自检 max|Av−λv| = 9.3e-15），方差占比 = λ/(d·N)，参与率 = (Σλ)²/Σλ²。贪心前向选择：维护残差矩阵 R，每步取使 r_jᵀ(RᵀR)r_j/(r_jᵀr_j) 最大的候选 j，把 R 沿 r_j 方向投影掉，累计解释方差 = Σ_d(||z_d||²−||r_d||²)/(d·N)。快照时刻：pro 2026-09-19 08:58:10Z（第 24 步）、flash 2026-09-19 03:07:03Z（第 30 步）。全部数字见 tasks/mimo-rl-training/analysis/A3-factor-numbers.json。",
+      "topic": "指标空间的有效维度与最小指标集"
+    },
+    {
+      "id": "self-copies-are-names-not-signals",
+      "kind": "self",
+      "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+      "year": "2026",
+      "quote": "复算口径：对分析集（pro 1389×24、flash 1465×30，覆盖率 ≥0.8、非常数、z-score）计算全部指标对的 Pearson ρ，得 pro 963,  966 对（1389×1388/2 = 963,966）、flash 1,071,780 对；统计 |ρ| 分位数与各阈值占比。副本组：键经 normalizeKey 后相同（dataset-xxxx→dataset-<id>、harness-[A-Z]→harness-<x>、partial/<数字>/→partial/<k>/、类别段→<cat>）；组内平均 |ρ| 再取组间中位数。零方差指标在预处理阶段（标准差为 0）统计。快照：pro 2026-09-19 08:58:10Z、flash 2026-09-19 03:07:03Z。数字见 A3-factor-numbers.json 的 clusters.{pro,flash}.rho_stats 与 copy_groups。",
+      "topic": "指标数量是命名复制而非信号冗余"
+    },
+    {
+      "id": "self-trend-control-which-relations-survive",
+      "kind": "self",
+      "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+      "year": "2026",
+      "quote": "复算口径：取两条序列的成对非空点（pro 24 个、flash 30 个），算 Pearson 得“原始”列；控制变量 t = 步序号（0-based，重编号后），对每条序列做最小二乘 x = a + b·t 取残差，再算残差的 Pearson 得“偏相关”列。例：pro 的 `ctx_response_length/mean` 与 `dynsam/avg@n` 原始 0.766、偏 −0.013；`partial/avg_staleness` 与 `train_infer_diff/new_infer/kl` 原始 0.923、偏 0.941。注意 `notes/09-生成长度相关性分析.md` 已用一阶差分给出长度~通过率的同类结论，本条的新内容是与“陈旧度~KL 扛过控制”的对照以及熵的变号。脚本输出见 A3-factor-numbers.json 的 partial_corr 字段。",
+      "topic": "偏相关：区分共同趋势与真实关系"
+    },
+    {
+      "id": "self-regimes-are-ops-not-model",
+      "kind": "self",
+      "title": "指标空间与潜在因子（我方实测，本地遥测仓库原始序列）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{series,axis,status,tags}.json 与 data/store/notices.json；脚本 codes/scripts/mimo_rl_telemetry/factor_report.ts",
+      "year": "2026",
+      "quote": "复算口径：取分析集（pro 1389×24、flash 1465×30）的前 3 个主成分得分，各自标准化成单位方差，得 N×3 的步坐标矩阵；对每个候选位置 p∈[2, N−2] 算两段均值差的统计量 (p(N−p)/N)·Σ_dim(m1−m2)²（脚本中的 splitProfile），再按统计量排序取 Top6。回退比 = ‖mean(步 p+3..N) − mean(步 p..p+2)‖ / ‖mean(步 p..p+2) − mean(步 p−3..p−1)‖（欧氏）。运维事件对齐：status.json 的 events[kind=restart].t 与 tags.json 的 versions[].at 分别用 axis.walls 映射到步并算小时差。pro 最大统计量 19.138 位于 p=14（=第 15 步），回退比 0.97；flash 24.9 位于 p=14，回退比 0.93。数字见 A3-factor-numbers.json 的 regimes 与 regime_ops。",
+      "topic": "阶段边界是运维事件还是模型状态"
+    },
+    {
+      "id": "self-pipeline-report",
+      "kind": "self",
+      "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/timeline.jsonl + series.json，脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+      "year": "2026",
+      "quote": "复算口径：对 timeline.jsonl 的 27 行逐行验证 progress 与 since/expected 相等；对每行取「已完成步号 k 的最近 3 步上报耗时中位数」比 expected；取「上一步 outer_gen ÷ 上一步 timing_s/step」比 gen_frac。样本 pro 24 步 / flash 30 步，数据切口 2026-09-19T08:58Z（pro s24 完成、flash s30 完成并 end）。",
+      "topic": "看板字段口径 / 步内进度可信度"
+    },
+    {
+      "id": "self-pipeline-report-2",
+      "kind": "self",
+      "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{axis,status,events}.json，脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+      "year": "2026",
+      "quote": "复算口径：真实步耗时 = axis.walls 相邻之差（第 1 步从 run_start 起）；上报 = series['timing_s/step']；restart 事件 t 视为恢复运行时刻（由 timeline.restarted_at 与 step.since 的起点验证）。缺口口径 A：pro 26.147 h / $537,478（账单 27.7%）、flash 14.147 h / $145,403（17.0%）。作废重算由 events.json 中同一步号出现两次且第二次 redo=true 判定。",
+      "topic": "重启成本 / 机时账"
+    },
+    {
+      "id": "self-pipeline-report-3",
+      "kind": "self",
+      "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/{series,axis,events}.json，脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+      "year": "2026",
+      "quote": "复算口径：avg_staleness 与 Σ k×frac_k 逐点对减；段内位置 = 距上一次 restart 事件的步数（段首记为 0）；相关性用 Spearman，剔除重启步本身（重启会让陈旧度归零）。样本 pro 17 个非重启步 / flash 25 个非重启步。",
+      "topic": "数据陈旧度 / 排队延迟"
+    },
+    {
+      "id": "self-pipeline-report-4",
+      "kind": "self",
+      "title": "本站看板遥测的异步管线与机时账复算（我方实测）",
+      "venue": "tasks/mimo-rl-telemetry/data/store/runs/{pro,flash}/series.json（train/trace/*），脚本 codes/scripts/mimo_rl_telemetry/pipeline_report.ts",
+      "year": "2026",
+      "quote": "复算口径：对 train/trace 下 6 个溢出型计数器逐列统计 n_nonnull 与 n_nonzero；pro 24 步、flash 30 步，全部 n_nonzero = 0。drain_wait_seconds / outcome_write_seconds / late_finishes 另给 min/median/max。",
+      "topic": "流水线背压 / 吞吐瓶颈"
+    },
+    {
+      "id": "self-reward-ceiling-pinned",
+      "kind": "self",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "year": "2026",
+      "quote": "复算口径：critic/score/max 取 clean(values) 后统计 nDistinct 与 modalShare，得 pro nDistinct=1 modalShare=1.0（n=24）、flash nDistinct=1 modalShare=1.0（n=30）；critic/score/mean 对步号 1..n 做 Pearson，pro r=0.9039 p=1.38e-9、flash r=0.9389 p=1.76e-14；mean−min 序列由 critic/score/mean 减 critic/score/min 逐点构造后统计趋势，pro 首值 1.2593 末值 0.7384 r=0.1594 p=0.4567，flash 首值 1.3139 末值 1.4005 r=0.5234 p=0.0030；贴地板判定为 |score/min + 0.8| < 1e-12。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts，执行 bun codes/scripts/mimo_rl_telemetry/reward_report.ts。",
+      "topic": "奖励信号分布形状"
+    },
+    {
+      "id": "self-pool-shrink-netted-out",
+      "kind": "self",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "year": "2026",
+      "quote": "复算口径：M_i = 1 − dynsam/passrate/zero_i − dynsam/passrate/one_i；m_i = (dynsam/avg@n_i − one_i) / M_i；分解取首末步 Δp1、ΔM、Δm，m̄=(m_first+m_last)/2、M̄=(M_first+M_last)/2，三项为 Δp1、m̄·ΔM、M̄·Δm，交互残差 = Δavg@n − 三项和（实测两端都是 0）。pro：M 0.675889→0.654545、p1 0.177866→0.201426、Δavg@n=0.031755，三项 0.023560 / −0.012544 / 0.020713，残差 0。flash：M 0.718784→0.552846、p1 0.120756→0.290720、Δavg@n=0.129833，三项 0.169964 / −0.098311 / 0.058195，残差 0。增量斜率：对 avg@n 的一阶差分按序号 1..n−1 做 OLS 与 Pearson。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts → poolDecomposition。",
+      "topic": "动态采样的样本池收缩"
+    },
+    {
+      "id": "self-grader-tightens-not-loosens",
+      "kind": "self",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "year": "2026",
+      "quote": "复算口径：五维等权均值为 derived/score_rubric_mean = mean(select_score_{A,B,E,P,S}_mean) 逐步计算，再对步号做 Pearson；失败占比 = select_groups_failed / groups_attempted；end2end 与 pass1 只做同量级核对。相关性口径：水平（原始值）、一阶差分（Δx vs Δy，n−1 点）、去线性趋势残差（两边各对步号 OLS 取残差）。pro n=24、flash n=30；p 为双侧 t 检验。关键值：scoreRubricMean pro first 4.40509 last 4.29016 r=−0.8736 p=2.49e-8；flash first 4.39191 last 4.31082 r=−0.4820 p=6.99e-3。above_gold vs step：pro r=−0.0026 p=0.9904，flash r=0.3770 p=0.0400；flash above_gold vs avg@n 一阶差分 r=−0.3413 p=0.0705、去趋势 r=−0.0579 p=0.7603。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts。",
+      "topic": "判分侧松紧的观测口径"
+    },
+    {
+      "id": "self-grader-disagreement-60pct-rising",
+      "kind": "self",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "year": "2026",
+      "quote": "复算口径：select_probe_disagree_rate 直接取原序列对步号做 Pearson（pro n=24 r=0.6874 p=2.06e-4；flash n=30 r=0.7039 p=1.42e-5），与 dynsam/avg@n 的相关同时给水平、一阶差分（Δx vs Δy，n−1 点）与去线性趋势残差三个口径。复核计数类指标的官方 rate 字段多数不存在，脚本自建 count/groups_judged 的归一化率（derived/select_*_per_judged_group）。脚本 codes/scripts/mimo_rl_telemetry/reward_report.ts。核对外部读数「判分器不一致率到 60% 且在上升」：本数据命中 select_probe_disagree_rate，量级 0.586~0.606、两个 run 均显著上行。",
+      "topic": "判分器不一致/信用分配的观测口径"
+    }
+  ],
+  "gaps": []
+}

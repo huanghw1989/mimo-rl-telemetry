@@ -1,0 +1,281 @@
+{
+  "agent": "self",
+  "topics": ["自有数据分析"],
+  "fetched": 0,
+  "note": "这一份不是文献调研，是我们自己对遥测仓库做的独立核算。quote 字段写的是被逐点验证过的数据关系（不是引文），attaches 写的是它能佐证哪一句解读。凡是文献里找不到对应物的读法，都挂在这里；页面上 kind=self，和论文、博客并列但标注来源不同。",
+  "items": [
+    {
+      "id": "self-kl-mixture",
+      "kind": "self",
+      "title": "本站核算：全局 KL 是各新鲜度桶 KL 的加权平均",
+      "venue": "遥测仓库 check.ts / analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "逐点验证 全局 KL = Σ(桶 token 占比 × 桶 KL)：pro 19 步、flash 26 步，桶占比合计均为 1.0000，最大相对误差 0.15%。",
+      "topic": "CL 混合口径",
+      "attaches": [
+        {
+          "metric": "partial/<k>/frac",
+          "stance": "support",
+          "note": "桶占比不是附带信息，它是全局 KL 的权重。占比一变，全局 KL 就会跟着动，而每个桶自己的 KL 可能毫无变化。"
+        },
+        {
+          "metric": "partial/avg_staleness",
+          "stance": "support",
+          "note": "既然全局 KL 是加权平均、而陈旧度是桶号的加权和，两者天然同向。实测相关性 pro 0.930 / flash 0.925 —— 高相关是口径决定的，不能拿它当「陈旧度导致 KL 变差」的证据。"
+        }
+      ]
+    },
+    {
+      "id": "self-kl-decompose",
+      "kind": "self",
+      "title": "本站核算：把全局 KL 拆成「配比变化」与「桶内变化」两部分",
+      "venue": "遥测仓库 analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "固定配比、只代入各步真实桶 KL 的还原曲线，与真实全局 KL 的相关只有 pro 0.53 / flash 0.55；只代入真实配比、桶 KL 取平均，还原度 R² 反而有 pro 0.79 / flash 0.90。",
+      "topic": "变差的是配比还是桶",
+      "attaches": [
+        {
+          "metric": "partial/<k>/frac",
+          "stance": "support",
+          "note": "反过来的检验更说明问题：配比几乎能单独还原全局 KL 的走势，而桶内 KL 不能。全局 KL 上行主要由训练 batch 里陈旧 token 的占比变化驱动，不是每个新鲜度桶都变差了。"
+        },
+        {
+          "metric": "partial/code/dataset-yfch/avg_staleness",
+          "stance": "context",
+          "note": "同理，任何按数据源拆开的陈旧度读数都要先问一句：是这一类数据真的更旧，还是它在 batch 里的占比变大了。"
+        }
+      ]
+    },
+    {
+      "id": "self-avgn-decompose",
+      "kind": "self",
+      "title": "本站核算：avg@n 的三项分解",
+      "venue": "遥测仓库 analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "avg@n = p1 + M·m（p1 全对占比，M 中间池占比，m 中间池平均通过率）。pro 第 1→19 步 +6.88pp = 全对率 +8.41 − 中间池缩小 4.16 + 中间题变好 2.62；flash 第 1→26 步 +12.43pp = +17.08 − 8.52 + 3.88，三项代数相加与实测一致。",
+      "topic": "涨的是哪一部分",
+      "attaches": [
+        {
+          "metric": "dynsam/avg@n",
+          "stance": "support",
+          "note": "avg@n 一个数里混了三件事：多少题变全会了、多少题从「部分会」变成「全会/全不会」而退出中间池、剩下的中间题好了多少。只看总分会把「中间池缩小」的负贡献误读成能力下降。"
+        },
+        {
+          "metric": "dynsam/passrate/one",
+          "stance": "support",
+          "note": "全对占比是这三项里唯一稳定单项贡献最大的一项（pro +8.41 / flash +17.08 个百分点），它才是 avg@n 上行的主引擎。"
+        },
+        {
+          "metric": "dynsam/passrate/zero",
+          "stance": "support",
+          "note": "全对占比涨得再多也可能只是「本来就会的题被反复采样到」。要判断能力墙有没有动，得看另一端的全错占比：pro 只降 1.14pp、flash 只降 1.49pp，26 步之后仍有一成多 prompt 一次都没做对。"
+        }
+      ]
+    },
+    {
+      "id": "self-per-token-throughput",
+      "kind": "self",
+      "title": "本站核算：每步训练 token 数 = 1568 × 16 × 上下文长度",
+      "venue": "遥测仓库 check.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "perf/total_num_tokens ≈ 1568×16×ctx_total_length/mean，pro 19 步最大相对误差 1.2%，flash 最大 2.7%。由此反推每个 prompt 采样 16 次。",
+      "topic": "采样次数怎么来的",
+      "attaches": [
+        {
+          "metric": "perf/total_num_tokens",
+          "stance": "support",
+          "note": "这个恒等式说明训练 token 数完全由「prompt 数 × 采样数 × 上下文长度」决定，没有额外的重复训练。上下文长度一变，token 数同比例变，两者不能互相当作独立证据。"
+        },
+        {
+          "metric": "dynsam/num_measurable",
+          "stance": "support",
+          "note": "抓到 n=16 之后，passrate 的标准误就能算了：p≈0.15 时 16 次采样的标准误约 0.52~0.88pp。低于这个量级的两步差异不要当信号读。"
+        }
+      ]
+    },
+    {
+      "id": "self-time-accounting",
+      "kind": "self",
+      "title": "本站核算：上报的每步耗时之和比墙钟少三成，缺的几乎全是重启等待",
+      "venue": "遥测仓库 analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "pro 墙钟 72.18h，Σtiming_s/step 只有 48.43h，缺口 23.74h（32.9%）折合约 48.8 万美元；其中 6 次重启后紧跟新步的等待占 20.76h，即缺口的 87.4%。非重启步的上报值与墙钟差不到 10 秒。",
+      "topic": "少报的时间去哪了",
+      "attaches": [
+        {
+          "metric": "timing_s/step",
+          "stance": "challenge",
+          "note": "这个字段不是墙钟：重启、排队、环境搭建等待都不在内。直接把 Σtiming_s/step 当训练总时长会低估三成，pro 的缺口比 flash 大（32.9% vs 21.6%）正是因为 pro 重启更多。"
+        },
+        {
+          "metric": "timing_s/trainer_ops",
+          "stance": "challenge",
+          "note": "同理，训练器耗时占比（pro 一度到 62%）是用「已上报的步」做分母算的。分母本身漏了重启等待，占比会被系统性放大，不要拿它和生成占比做严格的工时对比。"
+        }
+      ]
+    },
+    {
+      "id": "self-cost-basis",
+      "kind": "self",
+      "title": "本站核算：成本是按墙钟时间线性累计的",
+      "venue": "遥测仓库 check.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "cost = rate × (now − start) 在 21 个同步点上全部精确成立（rate：pro $5.71/s，flash $2.855/s）。换算到训练 token：pro $35,181 / 1B tokens，flash $10,690 / 1B tokens，相差 3.3 倍。",
+      "topic": "成本口径",
+      "attaches": [
+        {
+          "metric": "perf/total_num_tokens",
+          "stance": "support",
+          "note": "成本随墙钟走，而墙钟里有三成是重启等待。按 token 折算时，重启多的 run 会被显著抬高单价 —— pro 的 3.3 倍差距里有一部分不是算力效率差异，而是等待时间。"
+        },
+        {
+          "metric": "ctx_response_length/mean",
+          "stance": "context",
+          "note": "单 token 成本差异的另一半来自上下文长度：flash 平均 104,203 token 比 pro 的 88,878 高 17%，但单价仍低得多，说明差异主要不在序列长度上。"
+        }
+      ]
+    },
+    {
+      "id": "self-penalty-identity",
+      "kind": "self",
+      "title": "本站核算：正负优势的「抽质量—补质量—按符号缩放回原值」",
+      "venue": "遥测仓库 analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "pos_scale ≈ 1 + pos_mass_removed / adv_pos_sum_pre_penalty（残差 5.2e-6 / 7.9e-6），neg_scale ≈ 1 − neg_mass_added / |adv_neg_sum_pre_penalty|（残差 6.3e-5 / 8.2e-4）；同时 adv_pos_sum 与 adv_neg_sum 的 pre/post 值逐点完全相等（最大差 0）。",
+      "topic": "惩罚项的守恒结构",
+      "attaches": [
+        {
+          "metric": "train/adv_pos_sum_post_penalty",
+          "stance": "support",
+          "note": "前后完全相等很容易被读成「这一步没做任何处理」。其实质量被移走了、又按符号缩放回原总量，所以总量守恒并不意味着没有干预 —— 要看 pos_scale/neg_scale 和 mass_removed/mass_added 的配对。"
+        },
+        {
+          "metric": "penalty/signed/neg_scale",
+          "stance": "support",
+          "note": "负侧的处理量级远大于正侧（flash 末段 neg_mass_added 一度到 683 万），而它被归一化回原总量，所以从「优势总和」这一个数上完全看不出来，必须单独看这个缩放因子。"
+        }
+      ]
+    },
+    {
+      "id": "self-judge-identity",
+      "kind": "self",
+      "title": "本站核算：判分流水线的三条恒等式",
+      "venue": "遥测仓库 analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "groups_total = routed/off + select_v4 + select_v4_nogold（全步精确）；groups_attempted = select_v4/attempted + select_v4_nogold/attempted（全步精确）；attempted − judged ≈ select_groups_failed（差值 ≤4）。",
+      "topic": "判分口径",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/routed/off",
+          "stance": "support",
+          "note": "前一条恒等式说明「判了多少组」只由三条路由之和构成，没有第四去处。这也意味着 routed/off 不是可有可无的统计噪声，它占了全部候选组的近一半。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/groups_total",
+          "stance": "support",
+          "note": "既然 groups_total 严格等于三条路由之和，它就不是「模型产出的全部候选组」，而是已经过一次路由筛选之后的量。拿它当分母算判分覆盖率会高估。"
+        }
+      ]
+    },
+    {
+      "id": "self-judge-throughput",
+      "kind": "self",
+      "title": "本站核算：判分饱和与二审未启用",
+      "venue": "遥测仓库 analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "judge_pending ≈ judge_pool_in_flight（pro 95 vs 94，flash 114 vs 113），队列里没有堆积；单组判分约 562 秒（pro）/ 570 秒（flash），其中 97% 花在一审；pass2_success_rate 恒为 1.0，而 judge_pass2_attempts 恒为 0。",
+      "topic": "判分词条解读",
+      "attaches": [
+        {
+          "metric": "penalty/stage_credit_group/pass2_success_rate",
+          "stance": "support",
+          "note": "成功率恒等于 1 而尝试数恒等于 0：这不是「二审全过」，而是二审从未真正执行过。只看成功率会把「没跑」读成「跑了且完美」。"
+        },
+        {
+          "metric": "penalty/stage_credit_group/judge_pending",
+          "stance": "support",
+          "note": "待判数几乎等于在飞池大小，说明判分端一直是满负荷在跑、没有积压。这种形态下「判分慢」不是流程卡住，而是产能上限。"
+        }
+      ]
+    },
+    {
+      "id": "self-clip-inert",
+      "kind": "self",
+      "title": "本站核算：裁剪比例与 PPO KL 全程恒等于 0（是 0，不是空）",
+      "venue": "遥测仓库 check.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "actor/pg_clipfrac 与 actor/ppo_kl 在两个 run 的全部步上等于数值 0：pro 50 个 tag / 940 个取值，flash 50 个 tag / 1250 个取值，全部非空且为 0。",
+      "topic": "恒零怎么读",
+      "attaches": [
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "support",
+          "note": "先排除「没上报」：这些点是数值 0 而不是空值。按 clipfrac 的定义，新旧策略比值恒为 1 时它按定义就是 0，这同时说明这一步只做了一轮更新、裁剪区间从未被触发。"
+        },
+        {
+          "metric": "actor/ppo_kl",
+          "stance": "support",
+          "note": "同一个原因：ppo_kl 量的是更新前后策略的差，单轮更新下恒为 0。所以「信任域没有生效」不是异常，而是这套训练流程的必然结果 —— 它不能用来判断策略变化大不大。"
+        }
+      ]
+    },
+    {
+      "id": "self-grad-spike-isolated",
+      "kind": "self",
+      "title": "本站核算：pro 第 19 步的梯度尖峰在被记录范围内是孤立的",
+      "venue": "遥测仓库 analyze.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "pro 第 19 步 grad_norm 0.0335148，是其余 18 步中位数 0.005626 的 5.96 倍；同一步的 pg_loss、entropy_loss、rewards/mean、train_infer_diff/new_infer/kl、avg@n、passrate/zero 全部在正常波动区间内；flash 全程无同类尖峰（25 步范围 0.004928~0.009054）。",
+      "topic": "尖峰是不是异常",
+      "attaches": [
+        {
+          "metric": "actor/grad_norm",
+          "stance": "support",
+          "note": "把它判成「单步异常」的依据是：同一批效果指标都没有跟着动。但注意第 19 步就是记录范围内的最后一步，没有后续步可以验证它是新常态还是孤立事件 —— 这属于证据不足，不是已证清白。"
+        },
+        {
+          "metric": "env/possible_leak",
+          "stance": "context",
+          "note": "同一段记录里只有这一步的 env/possible_leak 为 1。两者同时出现不构成因果，但值得并列记录，因为异常样本正是尖峰的常见来源之一。"
+        }
+      ]
+    },
+    {
+      "id": "self-reward-vs-avgn",
+      "kind": "self",
+      "title": "本站核算：奖励均值不等于 avg@n",
+      "venue": "遥测仓库 check.ts",
+      "year": "2026",
+      "url": "",
+      "quote": "critic/rewards/mean 与 critic/score/mean 在每一步都精确相等；但两者与 dynsam/avg@n 的差最大到 pro 0.044750、flash 0.059080，方向还不固定。",
+      "topic": "两个「平均」不是一回事",
+      "attaches": [
+        {
+          "metric": "critic/rewards/mean",
+          "stance": "support",
+          "note": "rewards/mean 是训练 batch 上的平均奖励（可能带权重与过滤），avg@n 是全部采样 prompt 的平均通过率。两者分母不同，不能拿其中一个去校验另一个。"
+        },
+        {
+          "metric": "critic/score/mean",
+          "stance": "support",
+          "note": "它与 rewards/mean 逐点精确相等，说明这一步没有对奖励做任何改写（例如长度惩罚）；一旦两者开始分叉，就说明奖励侧被动了手脚。"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    "本站核算都是「数据内部的关系」，它们能证明口径与恒等式，不能证明某个读法在方法上是最优的 —— 这一层只能靠公开文献。",
+    "pro 第 19 步是记录范围内的最后一步，无法验证梯度尖峰是否会变成新常态。"
+  ]
+}

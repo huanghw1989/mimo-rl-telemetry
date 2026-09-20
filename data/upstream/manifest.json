@@ -1,0 +1,34 @@
+{
+  "index.html": {
+    "sha256": "9c9d78f4507f689eddb980c7a3025f6a14641f25550db6d8c785c4d7d6b7e628",
+    "bytes": 1997
+  },
+  "style.css": {
+    "sha256": "b791b430e9c9c2f16e38a99e119228986c41c5e1fcd37c602549e5e45d795cd2",
+    "bytes": 23162
+  },
+  "favicon.svg": {
+    "sha256": "40624f413c55913ecdab116d576dced07413b592914236144560ccea49093ac4",
+    "bytes": 298
+  },
+  "fonts/InterVariable.woff2": {
+    "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+    "bytes": 352240
+  },
+  "js/theme.js": {
+    "sha256": "638e7988b471838eaeeecf2cdbc2e8c0c0cadac448d5e3dd23531f18856beb64",
+    "bytes": 452
+  },
+  "js/format.js": {
+    "sha256": "2d418fb3d9e1164a3262190d0f535030ec3fc68ffac6219daf5fd018a6968f18",
+    "bytes": 6442
+  },
+  "js/charts.js": {
+    "sha256": "c63953e47d4ecc53a688a0b6179ae8c8e14e4a8c7c46f60efb4e46d41b119b62",
+    "bytes": 23140
+  },
+  "js/app.js": {
+    "sha256": "c54b8a6d1d2ab458a8d770af5cc185d07fd2d6a8704033f2b9f49fdced1f08da",
+    "bytes": 51958
+  }
+}

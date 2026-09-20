@@ -1,0 +1,731 @@
+[
+  {
+    "id": "train_infer_diff/new_infer/kl",
+    "name": "训练器与推理引擎的 KL（全局）",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "KL 散度（nats，非负，量级 1e-3）",
+    "what": "官方说明是 KL between inference-engine and trainer log-probs on the same tokens。同一批 token，rollout 时由推理引擎算一遍 log-prob，训练时由 trainer 前向再算一遍，两个分布之间的 KL。它量的不是策略和参考模型的偏离，而是「生成这条轨迹的那台引擎」和「正在训练的这个模型」之间的数值分歧。看板上这条是整步 batch 的汇总值，而它的涨落主要被数据新鲜度支配，不是被引擎分歧支配。",
+    "how": "这一步训练的 token 会按数据新鲜度放进若干桶，每桶各自的 KL 是桶内所有 token 的平均；全局值约等于 Σ(桶权重 frac_k × 桶 KL_k)。我逐桶重算并核对过：pro 19 步、flash 25 步，重算值与看板值的相关系数 1.000000，相对误差中位数 0.11%~0.12%、最大 0.15%（绝对误差约 1e-5）。桶权重之和每步都等于 1.000000（偏差不超过 1e-6），且 frac_k 恰好等于该桶 n_tokens 占全部桶 n_tokens 的比例（最大偏差 7.5e-7）。另外 Σ_k n_tokens_k 只有 perf/total_num_tokens 的 44%~56%，所以 frac 是在 partial 这个口径内归一，不是相对整步 token 数。",
+    "why": "这是训练稳定性的头号仪表。训练器和推理引擎数值不一致（不同的 CUDA kernel、不同的精度、MoE 路由实现差异、不同的 attention 后端），会让重要性采样比一开头就偏离 1，PPO 的 ratio 带偏、clip fraction 上升、梯度里混进系统性噪声。KL 大到一定程度，等于在用严重偏离当前策略的数据做 on-policy 更新。它同时也是数据新鲜度的下游指标：涨了必须先把「引擎分歧变大」和「数据变陈旧」两件事分开，否则会去调不该调的东西。",
+    "read": [
+      "只看这条全局曲线会误判：它约等于 Σ(frac_k × KL_k)，而 frac 随训练节奏大幅摆动，所以曲线形状主要由桶的配比决定。要判断引擎分歧本身，看桶 0（最新鲜数据）的 KL，也就是 partial/0/train_infer_diff/new_infer/kl。",
+      "重启后的第一步是天然标定点：此时 staleness 为 0、所有数据都在桶 0，全局 KL 应该等于桶 0 的 KL。pro 第 1 步（0.002189 vs 0.002193）、第 15 步（0.002577 vs 0.002580）、flash 第 1 步（0.002868 vs 0.002872）、第 16 步（0.003267 vs 0.003271）都满足这个关系。",
+      "桶 0 的 KL 是慢变量：pro 19 步全程只在 0.002170~0.002660，flash 25 步在 0.002544~0.003549。它缓慢上行的斜率才是真正的引擎趋同/发散信号，约 +20%~+24% 每 19~25 步。",
+      "全局 KL 与 partial/avg_staleness 高度同步（pro 0.9300、flash 0.9252），而桶 0 KL 与 avg_staleness 基本无关（pro -0.1939、flash 0.1965）。这一对相关系数的反差就是「全局 KL 是新鲜度指标」的直接证据。",
+      "把桶 KL 用各桶的历史均值固定住、只用每步真实 frac 去预测全局 KL：pro 的 R²=0.789、flash 的 R²=0.895，相关系数 0.9463 / 0.9552。反过来把 frac 用历史均值固定、只用真实桶 KL 去预测，相关系数只有 0.5311 / 0.5498，均方根误差也大 2.6~4.3 倍。贡献几乎全在配比上。"
+    ],
+    "observed": "pro 从第 1 步 0.002189 涨到第 19 步 0.007688（3.5 倍），峰值 0.009801 在第 9 步；flash 从 0.002868 涨到 0.005971（2.1 倍），峰值 0.010106 在第 24 步。同期桶 0 的 KL：pro 0.002193→0.002642（+20%），flash 0.002872→0.003549（+24%）。也就是全局涨了 250% 和 108%，而最新鲜数据上的引擎分歧只涨了 20% 和 24%。最干净的对照是 flash 第 25 步：第 24 步 staleness 2.1832、全局 KL 0.010106；第 25 步重启后 staleness 掉到 0.3198、全局 KL 掉到 0.005971（-41%），但桶 0 的 KL 从 0.003407 只变到 0.003549（+4%）。对这一步做逐桶 shift-share 分解：全局变化 -4.136e-3 里，配比项贡献 -5.708e-3（占 138%），桶自身 KL 变化项贡献 +1.528e-3（占 -37%），新开桶贡献 +4.1e-5。桶自身的 KL 按陈旧度单调上升：pro 桶 0 均值 2.400e-3、桶 1 7.394e-3、桶 2 1.464e-2、桶 7 2.755e-2；flash 桶 0 3.116e-3、桶 1 6.075e-3、桶 9 2.791e-2。",
+    "traps": [
+      "不要把它当「策略漂移」或「训练发散」。它是同一批 token 上两个引擎的数值差，和策略好坏没有直接关系；也不要用它的绝对值设阈值或跨 run 比，pro 只上报 8 个桶（partial/0..7）、flash 上报 10 个（partial/0..9），桶越深全局值被拉得越高。",
+      "重启步会让它断崖式下跌（pro 第 15 步 0.002577、flash 第 16 步 0.003267、第 25 步 0.005971），这是流水线清空在途数据的正常结果，不是异常。",
+      "桶 KL 单调上升是常态，因为旧桶是更早的策略版本采样出来的，和当前 trainer 本来就差得远（pro 桶 0 与桶 7 差 11 倍）。别把「最旧桶 KL 2e-2」读成引擎坏了。",
+      "两个 run 的桶 5 都缺 F(tau=2)、F(tau=3)、F(tau=5) 和 diff_abs_max 这几个 tag。跨桶对比时会出现断点，是数据缺失不是值变成 0。"
+    ],
+    "related": [
+      "partial/avg_staleness",
+      "partial/0/train_infer_diff/new_infer/kl",
+      "train_infer_diff/new_infer/diff_abs_mean",
+      "train_infer_diff/new_infer/F(tau=1.5)",
+      "train_infer_diff/nll_loss/log_probs",
+      "train_infer_diff/nll_loss/rollout_log_probs"
+    ],
+    "sources": [
+      {
+        "ref": "tis-blog",
+        "stance": "support",
+        "note": "我们写「它量的不是策略和参考模型的偏离，而是生成这条轨迹的那台引擎和正在训练的这个模型之间的数值分歧」。这篇博客正是这条读法的原始出处：同一份参数下 vLLM 与 FSDP 的 token 概率可以矛盾到一边是 1、一边是 0，作者把它称为 implementation gap 造成的隐式 off-policy。"
+      },
+      {
+        "ref": "tis-blog-kl-bias",
+        "stance": "challenge",
+        "note": "我们强调这条 KL 全程为正、量级 1e-3，把它当引擎一致性的头号仪表。博客指出：当 rollout 实际来自 π_vllm 而不是 π_fsdp 时，k1 型 KL 估计本身有偏，训练失稳时会频繁给出负值；所以「恒正」只能说明本站用的是非负估计量（K3 一类），不能反过来当成引擎没问题的证据。"
+      },
+      {
+        "ref": "when-speed-kills",
+        "stance": "support",
+        "note": "我们写「这是训练稳定性的头号仪表……KL 大到一定程度等于在用严重偏离当前策略的数据做 on-policy 更新」。该文用 called vllm-kl 的同一类指标证明：vllm-kl 的尖峰几乎精确触发 fsdp-ppl 与梯度范数爆炸，随后奖励崩溃。"
+      },
+      {
+        "ref": "wsk-hardware",
+        "stance": "support",
+        "note": "我们这条全局 KL 在 2e-3~1e-2（桶 0 在 2.2e-3~3.5e-3），正好落在该文「正常硬件」的 L20/H20 区间；该文明确只有在 1e-2~1 那一档训练才会变得不可行。这给了我们「1e-3 量级本身离危险很远」一个逐字可引的标尺，同时说明这个量主要由硬件/后端决定。"
+      },
+      {
+        "ref": "verl-rollout-corr",
+        "stance": "support",
+        "note": "该文档把 off-policy 场景显式分成 Policy Mismatch（不同精度/不同后端/相同权重不同实现）与 Temporal Lag（Model Staleness）两类，正对应我们把 new_infer/kl（引擎差异）与 avg_staleness（时间滞后）当成两条独立轴来读的写法。"
+      },
+      {
+        "ref": "fp16-mismatch",
+        "stance": "challenge",
+        "note": "我们写「训练器和推理引擎数值不一致（不同 CUDA kernel、不同精度、MoE 路由实现差异、不同 attention 后端）会让重要性采样比一开头就偏离 1」。该文说只要统一换成 FP16 就能基本消除这个不一致，说明它更像可配置的精度选择而不是引擎架构的固有属性，我们列的「必然存在」清单偏强。"
+      },
+      {
+        "ref": "fp8-rl",
+        "stance": "support",
+        "note": "我们写「不同的 CUDA kernel、不同的精度、MoE 路由实现差异、不同的 attention 后端」是分歧来源。该文正是这一清单的工程实现：它把 FP8 扩展到 KV-cache（per-step QKV scale 重校准）来加速长上下文 rollout，代价就是要显式处理由此产生的 train-inference mismatch。"
+      },
+      {
+        "ref": "stabilizing-rl",
+        "stance": "support",
+        "note": "我们写「涨了必须先把引擎分歧变大和数据变陈旧两件事分开，否则会去调不该调的东西」。该文把 training-inference discrepancy 与 policy staleness 并列成同一个代理目标成立的两个前提，正是「两件事要分开看」的理论依据（Qwen 团队，30B MoE，数十万 GPU 小时）。"
+      },
+      {
+        "ref": "beyond-precision-dynamic",
+        "stance": "challenge",
+        "note": "我们写「训练器和推理引擎数值不一致……会让重要性采样比一开头就偏离 1」，把它当成一个相对静态的引擎属性，只在桶 0 上看慢变量。该文说 mismatch 是与模型优化耦合的动态失效（梯度噪声与 mismatch 同步升级），所以全局 KL 上行不能只读成「引擎变差」，也不能指望桶 0 的斜率完全代表引擎固有水平。"
+      },
+      {
+        "ref": "drpo",
+        "stance": "context",
+        "note": "该文同时指出重要性比值在长尾词表下是分布偏移的劣质代理，提示我们不要只靠比值类读数判断 trust region；这与我们把 new_infer/kl 与 staleness 拆开、并用桶 0 做引擎基准的做法同向。"
+      },
+      {
+        "ref": "mimo-v2-flash-readme-infra",
+        "stance": "support",
+        "note": "这是小米官方对「rollout 与训练重算不一致」的正面说明：MoE 路由的数值精度差异是被官方承认的真实来源，并用 R3（训练时复用 rollout 的专家路由）来消除。直接支持 B 组把 train_infer_diff/* 读成训练推理不一致的度量；本条属越界补给，B 组可优先采用。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/diff_abs_mean",
+    "name": "trainer 与推理引擎 log-prob 绝对差的均值",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "nats（每个 token 的平均绝对差）",
+    "what": "同一批 token 上，trainer 算的 log-prob 减去推理引擎算的 log-prob，取绝对值以后求平均。它直接回答「平均每个 token 上两个引擎差多少」。看板未给官方说明，22 条官方说明里没有它；按 tag 名字直译就是绝对差的均值。",
+    "how": "和 new_infer/kl 用同一批对比数据，只是汇总方式不同：KL 是分布层面的散度，这个是逐 token 绝对差的一阶平均。桶级版本也在（partial/<k>/train_infer_diff/new_infer/diff_abs_mean），所以可以单独看新鲜数据。看板未给官方说明。",
+    "why": "它比 KL 好读，单位就是 nats；也不像 diff_abs_max 那样被单个异常 token 支配，适合当长期趋势线。但它把整步的 token 混在一起算，会被陈旧桶抬起来，所以它衡量「数据旧不旧」的能力远大于衡量「引擎好不好」的能力。",
+    "read": [
+      "正常范围 0.02~0.05 nats。它的曲线和全局 KL 几乎是同一条（相关系数 pro 0.9965、flash 0.9911），所以它同样不能用来判断引擎一致性。",
+      "要判断引擎一致性看桶 0：pro 桶 0 全程 0.02289~0.02673，flash 0.02422~0.03236，都只有小幅漂移。",
+      "它和 avg_staleness 的相关系数是 0.9171（pro 与 flash 完全相同），和桶 0 KL 几乎不相关（pro 0.0475、flash 0.4099）。这两个数字合起来就说明它是新鲜度温度计。",
+      "最低点总是出现在 staleness 接近 0 的步，可以作为「这一步数据全新」的旁证。",
+      "它和 diff_abs_std 高度共线（相关 pro 0.9952、flash 0.9849），所以这两个数不要当两条独立证据用。"
+    ],
+    "observed": "pro 首末 0.023767→0.041376（+74%），峰值 0.046246 在第 9 步；flash 首末 0.027036→0.039026（+44%），峰值 0.050068 在第 24 步。桶 0 同期只从 0.02380 涨到 0.02646（pro，+11%）、从 0.02708 涨到 0.03236（flash，+19%）。最低点都落在 staleness 归零的步附近：pro 第 1 步 0.023767、第 15 步 0.026099；flash 第 1 步 0.027036、第 16 步 0.030576。",
+    "traps": [
+      "不要把它和 train_infer_diff/nll_loss 的差值（log_probs 减 rollout_log_probs）混为一谈。那个是带符号的平均，只有 0.006~0.010 nats；这个取绝对值，有 0.039~0.050 nats。两者相差约 5 倍，说明逐 token 的正负差抵消掉了 79%~91%。",
+      "它仍然被陈旧数据污染，不是「两个引擎真实分歧」的纯净读数。",
+      "看板只给了均值，没给中位数，所以少数极端 token 仍会把它抬高：同一步的 std 是它的 2.5~3.1 倍。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/diff_abs_std",
+      "train_infer_diff/new_infer/diff_abs_max",
+      "train_infer_diff/new_infer/kl",
+      "partial/0/train_infer_diff/new_infer/diff_abs_mean"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-nonfirst-round",
+        "stance": "support",
+        "note": "我们写「它和 avg_staleness 的相关系数是 0.9171……是新鲜度温度计」。该文显示平均绝对差在非首轮（更陈旧、更 OOD 的上下文）输出上系统性更大，与我们把均值差读成新鲜度/OOD 程度的温度计一致。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/diff_abs_std",
+    "name": "log-prob 绝对差的标准差",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "nats",
+    "what": "逐 token 的 |trainer log-prob 减推理引擎 log-prob| 的标准差。均值只告诉你「平均差多少」，标准差告诉你「差得有多不齐」。看板未给官方说明。",
+    "how": "同一批对比数据，对逐 token 的绝对差求标准差。桶级版本 partial/<k>/train_infer_diff/new_infer/diff_abs_std 也在。看板未给官方说明。",
+    "why": "重要性采样比的方差主要来自那些差得特别离谱的 token，而不是平均差多少。std 与 mean 的比值能反映这个差的分布形状：比值稳定说明重尾程度没恶化，比值突然变大说明少数 token 的分歧在爆炸，那比 mean 上涨更值得报警。",
+    "read": [
+      "std/mean 的比值在全程都很稳：pro 2.60~3.13、flash 2.50~3.03。这个比值本身比两个数各自的水平更有信息量。",
+      "比值的最低点出现在重启步（pro 第 15 步 2.603、flash 第 16 步 2.495），也就是数据全新、桶结构最简单的时候，说明重尾里有一部分就是陈旧数据贡献的。",
+      "它和全局 KL 的相关系数 pro 0.9957、flash 0.9967，和 diff_abs_mean 的相关系数 0.9952 / 0.9849。这一轮里三者基本是同一个信号。",
+      "要看趋势同样应该看桶 0 的版本。"
+    ],
+    "observed": "pro 首末 0.063351→0.124422（+96%），峰值 0.141710 在第 9 步；flash 首末 0.072203→0.107227（+48%），峰值 0.142213 在第 24 步。桶 0 同期只从 0.06339 到 0.06883（pro，+9%）、从 0.07225 到 0.07930（flash，+10%）。两个 run 的全局 std 峰值与全局 KL 峰值同步（pro 都在第 9 步，flash 都在第 24 步）。",
+    "traps": [
+      "在 |差| 这种重尾量上，标准差的采样噪声很大。单步跳一下（比如 flash 第 3 步 0.095453 到第 5 步 0.122288）不代表分布形态变了。",
+      "它和 diff_abs_mean 共线到 0.98~0.99，不要当成第二个独立证据。",
+      "它反映的是两个引擎的一致性，同时又受数据新鲜度驱动，所以跨步的涨落不能直接读成「训练稳定性下降」。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/diff_abs_mean",
+      "train_infer_diff/new_infer/diff_abs_max",
+      "train_infer_diff/new_infer/kl"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-lowprob",
+        "stance": "support",
+        "note": "我们写「比值突然变大说明少数 token 的分歧在爆炸，那比 mean 上涨更值得报警」。该文正是这个机制：分歧集中在低概率 token 上、可以差若干数量级，所以在 |差| 这种重尾量上标准差主要由少数爆炸 token 驱动。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/diff_abs_max",
+    "name": "log-prob 绝对差的最大值",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "nats（单 token 极值）",
+    "what": "这一步里最大的那一个 |trainer log-prob 减推理引擎 log-prob|，也就是单个 token 上的极端分歧。看板未给官方说明。",
+    "how": "同一批对比数据里取最大值。桶级版本 partial/<k>/train_infer_diff/new_infer/diff_abs_max 也在，但两个 run 的桶 5 都没有这个 tag。看板未给官方说明。",
+    "why": "它是这一组里唯一能看到尾部有多长的量。log-prob 差 60 nats 意味着两个引擎认为同一个 token 的概率相差 e^60 量级，这种 token 的重要性采样比会直接爆掉，是 clip 和 ratio 裁剪机制必须存在的理由。它同时也是「为什么不能只看 mean」的直接答案：mean 是 0.04，max 是 90，相差 600~2500 倍。",
+    "read": [
+      "它是这组里唯一不被 staleness 支配的量：与全局 KL 的相关系数只有 pro 0.5123、flash 0.2119；与 diff_abs_mean 的相关系数 pro 0.5113、flash 0.2378。",
+      "所以它适合当异常探测器而不是趋势指标。平时在 20~90 nats 之间无规律跳，重启不重启都可能出高点。",
+      "桶 0 的 max 也在同一量级（pro 12.13~60.00、flash 15.33~51.37），和全局的 pro 20.27~97.97、flash 27.99~89.38 分不开。极端 token 不是陈旧数据独有的问题。",
+      "跨步比较基本是噪声，只有「量级突然整体抬升一个数量级」才值得查。"
+    ],
+    "observed": "pro 首末 60.0009→49.2879，最小 20.2746 在第 2 步，最大 97.9694 在第 14 步；flash 首末 38.0661→38.4528，最小 27.9940 在第 9 步，最大 89.3838 在第 21 步。两个 run 的第一步就分别是 60.0 和 38.1，属于典型水平。最大的两步（pro 第 14 步 staleness 1.2125、flash 第 21 步 staleness 1.8013）都没有什么特殊之处，说明这个量与新鲜度无关。",
+    "traps": [
+      "单个 token 决定读数，逐步差异主要是噪声。它下降不代表训练变稳。",
+      "量级（几十 nats）远超 diff_abs_mean（零点零几），不要放在同一坐标轴上比绝对值。",
+      "两个 run 的桶 5 都缺这个 tag，做分桶曲线时会缺一段。",
+      "它的数值受推理引擎和训练器的数值精度影响很大：一个 token 上概率算到 1e-30 还是 1e-40，决定了 max 是 30 还是 90。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/diff_abs_mean",
+      "train_infer_diff/new_infer/diff_abs_std",
+      "train_infer_diff/new_infer/F(tau=10)"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-lowprob",
+        "stance": "support",
+        "note": "我们写「它在这一组里唯一能看到尾部有多长……一个 token 上概率相差 e^60 量级」。该文给出了机制：分歧随推理侧概率趋零而急剧放大，可以差若干数量级，所以 mean 是 0.04 而 max 是几十 nats 是同一现象的两端。"
+      },
+      {
+        "ref": "fp16-mismatch",
+        "stance": "support",
+        "note": "我们写「它的数值受推理引擎和训练器的数值精度影响很大：一个 token 上概率算到 1e-30 还是 1e-40 决定了 max 是 30 还是 90」。该文把整个 TIM 的根因归给 BF16 的舍入误差，正是这条「极值由精度决定」的公开依据。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/F(tau=1.5)",
+    "name": "绝对差超过 1.5 的 token 占比（tau=1.5）",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "比例 0~1（看板按 pct 格式化）",
+    "what": "同一批 token 里，|trainer log-prob 减推理引擎 log-prob| 超过 1.5 的那部分 token 的占比。也就是「有多少比例的 token 已经严重不一致」。看板未给官方说明：22 条官方说明里没有 F(tau) 这一族，F 和 tau 的含义都没有解释，下面是基于数据形态的推断。",
+    "how": "推断依据有三条。第一，同一批对比里 F 随 tau 单调下降，tau=1.5/2/3/5/10 恒有 F(1.5) 大于 F(2) 大于 F(3) 大于 F(5) 大于 F(10)，符合「超过阈值的累积尾部占比」，而不是「小于阈值的占比」。第二，它和全局 KL 在整段 run 上的相关系数是 0.9999（pro 与 flash 都是），和 diff_abs_mean 同向（0.9965 / 0.9911），说明它和 KL 是同一个发散程度的另一种刻画。第三，量级自洽：pro 第 9 步 F(1.5)=0.024959，同一步 diff_abs_mean 0.046246、diff_abs_std 0.141710、diff_abs_max 90.02，需要很重的尾部才能让 2.5% 的 token 落在 1.5 nats 之外。以上属于推断，看板没有说明。",
+    "why": "均值会把「少数 token 上两个引擎概率差好几个数量级」这件事抹平，而那正是破坏重要性采样比的东西。F(tau) 是分位数式的读数：直接告诉你有多少比例的 token 已经越过了某个分歧门槛。tau=1.5 nats 已经相当于两个引擎对同一个 token 的概率差 e^1.5 约 4.5 倍，是个相当宽松的警戒线。",
+    "read": [
+      "数值全程很小（1e-2 量级及以下），不要用百分比大小的直觉去读，要和它自己的历史比。",
+      "它的曲线和全局 KL 几乎重合（相关 0.9999），所以同样被数据新鲜度污染。判断引擎一致性要看桶 0 的 F(tau)，也就是 partial/0/train_infer_diff/new_infer/F(tau=1.5)。",
+      "桶 0 的 F(1.5) 是慢变量：pro 0.003872→0.005236（19 步 +35%），flash 0.006029→0.007767（25 步 +29%）。全局同期分别涨了 396% 和 139%。",
+      "相邻 tau 之间高度相关（F(1.5) 与 F(2) 的相关系数 pro 0.9992、flash 0.9986），看一条就够；但 F(1.5) 与 F(10) 的相关系数仍有 0.9939 / 0.9913，说明它们并未完全独立。"
+    ],
+    "observed": "pro 从第 1 步 0.003866 涨到第 19 步 0.019168，峰值 0.024959 在第 9 步；flash 从第 1 步 0.006020 涨到第 25 步 0.014386，峰值 0.025903 在第 24 步。桶 0 同期分别是 pro 0.003872→0.005236、flash 0.006029→0.007767。用 log F 对 log tau 回归，斜率从 -4.23（1.5 到 2）一路缓到 -1.84（5 到 10），说明尾部不是单一幂律，越往极端衰减越慢。flash 第 25 步重启后全局 F(1.5) 从 0.025903 掉到 0.014386（-44%），同期桶 0 的 F(1.5) 从 0.007611 微涨到 0.007767。",
+    "traps": [
+      "看板未给官方说明，tau 的单位没有写出来。按取值（1.5/2/3/5/10）和与 log-prob 差的关系，最合理的解释是 nats，但这是推断，不要当既成事实引用。",
+      "不要因为 F(1.5) 只有 2% 就断言引擎很一致：它意味着每步都有约百分之几的 token 概率偏差超过 4.5 倍。",
+      "两个 run 的桶 5 都没有上报 F(tau=2/3/5)，做分桶曲线时会缺一段。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/F(tau=2)",
+      "train_infer_diff/new_infer/F(tau=10)",
+      "train_infer_diff/new_infer/diff_abs_max",
+      "train_infer_diff/new_infer/kl",
+      "partial/0/train_infer_diff/new_infer/F(tau=1.5)"
+    ],
+    "sources": [
+      {
+        "ref": "verl-rollout-corr-threshold",
+        "stance": "support",
+        "note": "我们写「tau 的单位没有写出来……最合理的解释是 nats，但这是推断」。verl 文档给出的 token 级截断阈值典型区间正是 1.5–5.0，与本看板 F(tau) 用的 1.5/2/3/5 完全同尺度；文档还把指标 rollout_is_ratio_fraction_high 定义为「权重超过上阈的占比」，这是公开材料里最接近 F(tau) 的口径，但它是按 IS 权重阈值而非 log-prob 差阈值定义的。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/F(tau=2)",
+    "name": "绝对差超过 2 的 token 占比（tau=2）",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "比例 0~1（看板按 pct 格式化）",
+    "what": "同一批 token 里 |trainer log-prob 减推理引擎 log-prob| 超过 2 的占比，比 F(1.5) 更严的门槛。tau=2 nats 相当于两个引擎对同一个 token 的概率差 e^2 约 7.4 倍。看板未给官方说明，含义是基于数据形态的推断（见 F(tau=1.5) 那条的推断依据）。",
+    "how": "与 F(1.5) 同源，只是阈值不同。桶级版本 partial/<k>/train_infer_diff/new_infer/F(tau=2) 也存在，但两个 run 的桶 5 都没有上报这个 tag。看板未给官方说明。",
+    "why": "tau 越大，越只反映真正失控的那部分 token。F(1.5) 里混着一批「差一点但不算严重」的 token，F(2) 开始接近「这些 token 的两个概率估计已经不像同一个模型给的」。它对少数爆炸 token 比 F(1.5) 敏感，适合和 diff_abs_max 对照着看。",
+    "read": [
+      "它和 F(1.5) 的比值长期稳定在 2.8~3.5，可以当作一个形状指标：比值突然变小说明尾部在加重。",
+      "与全局 KL 的相关系数 pro 0.9995、flash 0.9987，仍然完全被新鲜度支配。桶 0 版本才是引擎信号。",
+      "桶 0 的 F(2)：pro 0.000617→0.000874，flash 0.001078→0.001306，都比全局稳定得多。",
+      "重启步会看到它和 F(1.5) 一起掉下来，这是配比变化，不是引擎变好。"
+    ],
+    "observed": "pro 首末 0.000616→0.006469，峰值 0.008922 在第 9 步；flash 首末 0.001076→0.004100，峰值 0.008898 在第 24 步。全局涨幅分别是 950% 和 281%，而桶 0 只有 +42% 和 +21%。flash 第 24 到 25 步：全局 0.008898→0.004100（-54%），桶 0 从 0.001300 到 0.001306（几乎不变）。F(1.5)/F(2) 的比值在 pro 是 2.79~6.28（第 1 步和第 15 步这两个重启步最高），flash 是 2.84~5.95（第 1 步和第 16 步最高）。",
+    "traps": [
+      "重启步的 F(1.5)/F(2) 比值明显偏大（pro 第 1 步 6.28、第 15 步 6.17；flash 第 1 步 5.59、第 16 步 5.95），因为此时桶 0 之外的样本消失了，桶 0 本身的分布更干净。不要把这种跳变读成引擎行为变了。",
+      "数值到 1e-3 量级，看板数据是 6 位有效数字，末位已经有噪声，不要做小数点后四位的比较。",
+      "pro 桶 5、flash 桶 5 缺这个 tag。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/F(tau=1.5)",
+      "train_infer_diff/new_infer/F(tau=3)",
+      "train_infer_diff/new_infer/kl"
+    ],
+    "sources": [
+      {
+        "ref": "verl-rollout-corr-threshold",
+        "stance": "support",
+        "note": "我们写「tau 越大，越只反映真正失控的那部分 token」「F(1.5)/F(2) 的比值长期稳定在 2.8~3.5 可以当形状指标」。verl 的 token 级截断阈值典型区间 1.5–5.0 把 tau=2 也包在里面，说明这一档仍属于工程上默认的「正常容许范围」边界，而不是极端离群档。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/F(tau=3)",
+    "name": "绝对差超过 3 的 token 占比（tau=3）",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "比例 0~1（看板按 pct 格式化）",
+    "what": "|trainer log-prob 减推理引擎 log-prob| 超过 3 的 token 占比。tau=3 nats 相当于概率差 e^3 约 20 倍，已经属于「两边对这个 token 的判断不是一回事」。看板未给官方说明，含义基于数据形态推断。",
+    "how": "与 F(1.5) 同源，阈值不同。看板未给官方说明。",
+    "why": "到了 3 nats，被算进来的基本就是真正会让 ratio 爆炸的 token 了。它是从「有噪声」过渡到「有坏点」的分界，配合 diff_abs_max 用可以判断坏点是个别现象还是成片出现。",
+    "read": [
+      "它的量级已经在 1e-4~3e-3，单步噪声比 F(1.5) 大。",
+      "桶 0 的 F(3) 尤其平：pro 全程 1.047e-4~1.470e-4（只涨 40%），flash 1.728e-4~2.551e-4。也就是说在最新鲜数据上，每百万 token 里只有约 100~200 个 token 的 log-prob 差超过 3 nats。",
+      "与全局 KL 的相关系数 pro 0.9986、flash 0.9970，仍被新鲜度支配。",
+      "跨 tau 的比值 F(2)/F(3) 稳定在 3.2~3.5（pro 2.82~6.02、flash 2.90~5.84，重启步最高）。"
+    ],
+    "observed": "pro 首末 0.000105→0.001962，峰值 0.002784 在第 9 步；flash 首末 0.000196→0.001145，峰值 0.002754 在第 11 步（flash 在 tau=3 上的峰值不再落在第 24 步，说明更极端的尾部开始脱离 staleness 的形状）。桶 0 首末：pro 1.047e-4→1.470e-4，flash 1.963e-4→2.187e-4。全局与桶 0 的差距在这一档拉得最大：pro 第 19 步全局是桶 0 的 13.3 倍，flash 第 24 步全局是桶 0 的 12.4 倍。",
+    "traps": [
+      "tag 在两个 run 的桶 5 上都不存在。",
+      "flash 的峰值出现在第 11 步而不是第 24 步，和 F(1.5) 的峰值位置不同。越往极端尾部，staleness 的解释力越弱，不要强求这一族曲线形状一致。",
+      "数值小不代表可以忽略：它对应的是每步几十万到几百万个坏点 token（按 flash 第 24 步约 17.6 亿桶内 token、3e-3 占比估算）。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/F(tau=2)",
+      "train_infer_diff/new_infer/F(tau=5)",
+      "train_infer_diff/new_infer/kl"
+    ],
+    "sources": [
+      {
+        "ref": "verl-rollout-corr-threshold",
+        "stance": "support",
+        "note": "我们写「到了 3 nats，被算进来的基本就是真正会让 ratio 爆炸的 token 了……每百万 token 里只有约 100~200 个」。verl 文档把 token 级截断阈值上限定在典型 1.5–5.0，tau=3 落在其中，支持把这一档理解为「工程容许带的内部刻度」而非极端尾部。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/F(tau=5)",
+    "name": "绝对差超过 5 的 token 占比（tau=5）",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "比例 0~1（看板按 pct 格式化）",
+    "what": "|trainer log-prob 减推理引擎 log-prob| 超过 5 的 token 占比，即概率差 e^5 约 148 倍以上。看板未给官方说明，含义基于数据形态推断。",
+    "how": "与 F(1.5) 同源，阈值不同。看板未给官方说明。",
+    "why": "到了这个门槛，剩下的基本是明确的数值坏点。它和 diff_abs_max 一起回答「最坏的那批 token 有多少、最坏到什么程度」。",
+    "read": [
+      "量级 2e-5~9e-4，已经在噪声区边缘，单步抖动明显。",
+      "桶 0 的值几乎是常数：pro 2.122e-5~2.842e-5，flash 3.842e-5~5.379e-5。这是这一族里最像「引擎固有噪声底」的一条。",
+      "全局峰值位置进一步飘移：pro 在第 7 步（0.000865），不在第 9 步；flash 在第 11 步（0.000851），不在第 24 步。",
+      "与全局 KL 的相关系数下降到 pro 0.9973、flash 0.9949，但仍在 0.99 以上。"
+    ],
+    "observed": "pro 首末 0.000021→0.000590，最小 0.000021 在第 1 步、最大 0.000865 在第 7 步；flash 首末 0.000043→0.000333，最小 0.000043 在第 1 步和第 16 步（两个重启步）、最大 0.000851 在第 11 步。桶 0 首末 pro 2.122e-5→2.823e-5、flash 4.268e-5→4.569e-5。这个 tag 在两个 run 的桶 5 上都缺失。",
+    "traps": [
+      "数值已经小到 1e-5，看板 6 位有效数字的表示在末两位不可靠，不要拿来做精细比较。",
+      "峰值位置和 F(1.5) 不一致，容易被误读成「数据变新鲜了所以坏点变少」。实际上是这一档的坏点主要由个别极端 token 驱动，和平均陈旧度脱钩。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/F(tau=3)",
+      "train_infer_diff/new_infer/F(tau=10)",
+      "train_infer_diff/new_infer/diff_abs_max"
+    ],
+    "sources": [
+      {
+        "ref": "verl-rollout-corr-threshold",
+        "stance": "support",
+        "note": "我们写「到了这个门槛，剩下的基本是明确的数值坏点」。verl 文档的 token 级阈值典型上限是 5.0，tau=5 正好是该区间的上端点，支持把 F(5) 当作「容许带最外侧」的读数。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/new_infer/F(tau=10)",
+    "name": "绝对差超过 10 的 token 占比（tau=10）",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "比例 0~1（看板按 pct 格式化）",
+    "what": "|trainer log-prob 减推理引擎 log-prob| 超过 10 的 token 占比，即概率差 e^10 约 2.2 万倍以上。这一档只看得到真正的数值离群点。看板未给官方说明，含义基于数据形态推断。",
+    "how": "与 F(1.5) 同源，阈值不同。看板未给官方说明。",
+    "why": "它是极端尾部的量化版本，和 diff_abs_max 配成一对：diff_abs_max 告诉你最坏有多坏，F(10) 告诉你这么坏的有几个。如果 F(10) 突然抬高而 diff_abs_max 没变，说明坏点变多了而不是单个点变坏了，这是两种不同的故障模式。",
+    "read": [
+      "量级 5e-6~2.5e-4，已经非常小，噪声占主导。",
+      "桶 0 的 F(10) 近乎死平：pro 5.096e-6~6.181e-6（25 步左右只涨 15%），flash 9.011e-6~1.19e-5（涨 17%）。这基本就是引擎之间的数值噪声底，不再随策略演进变化。",
+      "与全局 KL 的相关系数在这一族里最低：pro 0.9951、flash 0.9920，但依然很高。",
+      "它和 diff_abs_max 的相关系数更低（pro 0.5123、flash 0.2119 是 diff_abs_max 对 KL 的数字；这一族同样与 max 脱钩），所以两者确实提供了不同的信息。"
+    ],
+    "observed": "pro 首末 0.000005→0.000165，最大 0.000254 在第 7 步；flash 首末 0.000010→0.000092，最大 0.000246 在第 11 步。两个 run 的最小值都出现在第 1 步（5.09e-6 和 9.72e-6），flash 第 16 步也回到 1.00e-5。桶 0 首末 pro 5.096e-6→5.853e-6、flash 9.732e-6→1.054e-5。这个 tag 在两个 run 的桶 5 上都缺失。",
+    "traps": [
+      "看板对它的格式化是 pct，所以界面上显示的可能是 0.00%；不代表它是 0，只是位数不够。",
+      "不要用这一条判断训练是否健康。它的值几乎完全由数值精度和个别 token 决定，与策略质量无关。",
+      "tau 是否为 nats 是推断而来的；如果 tau 的真实单位不是 nats，这一族所有的绝对阈值都要重新理解，但「随 tau 单调下降」「与 KL 同向」这两条形态结论不受影响。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/F(tau=5)",
+      "train_infer_diff/new_infer/diff_abs_max",
+      "train_infer_diff/new_infer/kl"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-lowprob",
+        "stance": "support",
+        "note": "我们写「这一档只看得到真正的数值离群点」。该文说明极端分歧只发生在推理概率趋零的那批 token 上，因此 F(10) 这种极端阈值统计的必然是同一小撮 token，量级小但不可忽略。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/nll_loss/log_probs",
+    "name": "训练器侧的 token log-prob 均值",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "nats/token（看板归在 nll_loss 组下，数值为正值）",
+    "what": "这一步训练 batch 里的 token，用 trainer 的前向重新算一遍 log-prob，再对该 batch 求平均。它是「训练器视角」的对数似然水平。看板未给官方说明。",
+    "how": "它是 train_infer_diff 那批对比里的一侧，和 rollout_log_probs 逐 token 一一对应、用同一套符号约定，所以两者可以直接相减。看板未给官方说明；从它被归在 nll_loss 组下、且数值恒为正（pro 0.339~0.367、flash 0.359~0.404）来看，最合理的读法是取负号后的负对数似然 -log p（nats/token），也就是平常说的 NLL，但这是推断。桶级版本 partial/<k>/train_infer_diff/nll_loss/log_probs 也有。",
+    "why": "它和 rollout_log_probs 是同一批 token 上的两个独立前向，两者的差就是「训练器认为这批数据有多不像自己的输出」。这个差直接进入重要性采样比，是 off-policy 修正强度的来源。单看绝对值意义不大，它主要随任务难度和策略熵变。",
+    "read": [
+      "单独看它只反映任务难度和策略置信度，0.34~0.40 的涨落属于正常；它不是 loss 曲线。",
+      "真正的信息在它与 rollout_log_probs 的差：差值大就等于两个引擎分歧大。参考 nll_loss/rollout_log_probs 那条。",
+      "桶 0 的版本比全局稳定得多，因为最新鲜数据上的分歧不随 staleness 变。",
+      "它和 actor/entropy_loss 走势同步（flash 从 0.376 涨到 0.404 的同时，actor/entropy_loss 从 0.41331 涨到 0.45611），两者都指向 flash 的策略在变平。"
+    ],
+    "observed": "pro 19 步在 0.339485（第 5 步）到 0.367159（第 18 步）之间，首末 0.362124→0.364244，几乎没有趋势。flash 25 步在 0.367508（第 5 步）到 0.403591（第 25 步）之间，首末 0.376213→0.403591，末步就是该 run 的最大值，即 flash 的训练数据在持续变「难」或策略在持续变平。两个 run 的最低点都在第 5 步。",
+    "traps": [
+      "tag 叫 log_probs 但数值恒正，容易被误读成就是 log π（那样应该是负数）。看板没有说明符号约定，这里是推断。",
+      "绝对值不能跨 run 比：flash 整体比 pro 高 0.02~0.04，主要是任务分布和数据源配比不同，不代表训练器更差。",
+      "不是 loss：它没有 advantage 加权、没有 clip、也不含 KL 正则项。",
+      "它和 rollout_log_probs 是同一批 token 上的两个前向，不是两个不同 batch，不要当成两次独立采样。"
+    ],
+    "related": [
+      "train_infer_diff/nll_loss/rollout_log_probs",
+      "train_infer_diff/new_infer/kl",
+      "actor/entropy_loss",
+      "partial/0/train_infer_diff/nll_loss/log_probs"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-logppl-sign",
+        "stance": "support",
+        "note": "我们观察到「差值是正值且符号从不翻转：pro 每步 log_probs 比 rollout_log_probs 大 2.2e-3~9.8e-3」，并据此推断 log_probs 是训练侧的 -log p。该文在 FSDP/vLLM 组合上独立报告了同一方向：训练侧 log-ppl 恒大于推理侧，因为训练引擎给低概率 token 的概率更低。"
+      },
+      {
+        "ref": "score-centering",
+        "stance": "support",
+        "note": "我们观察到带符号的平均差值恒为正、从不翻转（pro 2.2e-3→7.7e-3），并把它解释为「剩下的才是系统性偏移」。该文给这个系统性偏移命名并给出机制：drift，即两个引擎之间随每个训练步累积的持续性偏置——正对应我们看到的差值随步放大 3.5 倍。"
+      }
+    ]
+  },
+  {
+    "id": "train_infer_diff/nll_loss/rollout_log_probs",
+    "name": "推理引擎侧的 token log-prob 均值",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "nats/token（与 log_probs 同一约定）",
+    "what": "同一批 token，rollout 生成时由推理引擎记录的 log-prob 的平均。它代表「采样出这批数据的那个引擎」对数据的自信程度。看板未给官方说明。",
+    "how": "与 log_probs 完全对应的另一侧，同样一批 token、同一套符号约定，因此可以直接相减，差值就是逐 token 差值的平均。桶级版本 partial/<k>/train_infer_diff/nll_loss/rollout_log_probs 也在。看板未给官方说明。",
+    "why": "两个数相减得到的是 train/infer 分歧的「均值版」，KL 是同一分歧的分布版。它比 KL 好读的地方是单位就是 nats/token，可以直接说「平均每个 token 上训练器和推理引擎的 log-prob 差了多少」。它同时也是判断差值是系统性偏移还是随机噪声的入口：带符号的平均很小、绝对值的平均很大，就说明主要是随机性的逐 token 抖动。",
+    "read": [
+      "差值是正值且符号从不翻转：pro 每步 log_probs 比它大 2.192e-3~9.822e-3，flash 大 2.867e-3~1.013e-2。",
+      "差值在同一量级上和 KL 同向：桶 0 上 pro 的 KL 是 0.002193、差值是 0.002400；flash 的 KL 是 0.002872、差值是 0.003117。新鲜数据上「平均每 token log-prob 差」和「两个分布的 KL」几乎一样大（差约 10%），说明此时两个分布的分歧接近纯平移。",
+      "相对量级：pro 差值占 rollout 值的 0.61%~2.90%，flash 0.77%~2.69%。",
+      "带符号的平均远小于绝对值的平均：pro 的 |差值|/diff_abs_mean 只有 0.092~0.213，flash 0.106~0.207。也就是说逐 token 的正负差抵消掉了 79%~91%，剩下的才是系统性偏移。"
+    ],
+    "observed": "pro 首末 0.359932→0.356543，对应的全局差值 2.192e-3→7.701e-3（放大 3.5 倍）；flash 首末 0.373346→0.397612，对应差值 2.867e-3→5.979e-3。两者都在 staleness 归零的步回到最小差值：pro 第 1 步 2.192e-3、第 15 步 2.579e-3（该步 staleness 0）；flash 第 1 步 2.867e-3、第 16 步 3.267e-3（该步 staleness 0）。桶 0 的差值几乎是常数：pro 2.172e-3~2.663e-3（19 步），flash 2.538e-3~3.548e-3（25 步）。flash 第 25 步重启后差值从 1.0133e-2 降到 5.979e-3（-41%），而桶 0 的差值同期只从 0.003407 变到 0.003549。",
+    "traps": [
+      "不要反过来读成「推理引擎算错了」。两个前向用不同 kernel、不同精度、不同并行策略，差 0.2%~3% 属于预期范围。",
+      "差值是平均差值，符号一致不代表每个 token 符号一致。同一步的 diff_abs_mean 是 0.039~0.050，而差值是 0.006~0.010，说明大多数 token 的方向是相反的、只是幅度小。",
+      "同样被 staleness 污染，跨步趋势不能直接当引擎分歧趋势。",
+      "和 log_probs 一样，绝对水平不能跨 run 比。"
+    ],
+    "related": [
+      "train_infer_diff/nll_loss/log_probs",
+      "train_infer_diff/new_infer/kl",
+      "train_infer_diff/new_infer/diff_abs_mean",
+      "partial/0/train_infer_diff/nll_loss/rollout_log_probs"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-logppl-sign",
+        "stance": "support",
+        "note": "我们写「不要反过来读成推理引擎算错了」。该文把方向性偏差归因于两个引擎对低概率 token 的处理不同（p 越小差距越大），说明恒正的差值是两个前向的数值特性，不是推理侧的错误。"
+      }
+    ]
+  },
+  {
+    "id": "partial/avg_staleness",
+    "name": "平均数据陈旧度",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "策略版本数（0 表示全新，范围 0~2.2）",
+    "what": "官方说明是 policy versions between sampling and training, on average。也就是这一步训练用的 token，从被推理引擎采样出来、到被训练器吃进去，中间隔了几个策略更新，按 token 加权平均。0 表示数据就是当前这一步采的，1.8 表示平均落后将近两个策略版本。",
+    "how": "我验算过：这个数精确等于 Σ_k (k × frac_k)，k 是新鲜度桶编号、frac_k 是桶的 token 占比。pro 19 步、flash 25 步的最大偏差分别是 4.0e-6 和 6.7e-6，纯粹是看板四舍五入造成的。这同时反证了桶编号 k 就是陈旧度本身（k 等于落后几个策略版本），不是随意的分箱序号。桶的数量和上报步数：pro 有 partial/0..7 共 8 个桶，多步只上报前几个（第 12 步只有 2 个、第 10 和第 11 步才是完整 8 个）；flash 有 partial/0..9 共 10 个桶，第 12~15 步和第 25 步是完整 10 个。",
+    "why": "它是整个看板最容易被误读的指标，也是解释全局 KL 的关键。staleness 上涨本身不一定是坏事，异步流水线本来就有一到两个版本的固有延迟；但它会同时抬高全局 KL、全局 nll 差值、全局 F(tau) 和全局 diff_abs_*，让所有「训练推理一致性」指标看起来在恶化。看到这类指标恶化，先看 staleness，再决定要不要动引擎或调并行策略。",
+    "read": [
+      "稳定期的正常水平是 1.2~1.9（pro 第 5~10 步 1.1668~1.8208，flash 第 5~15 步 1.2779~1.8895）。低于 1.0 说明流水线很紧，是好状态。",
+      "0.0000 是好消息：pro 第 1 步和第 15 步、flash 第 1 步和第 16 步都是 0，重启清空了在途数据，全部 token 都是当前版本采的。",
+      "逐步爬升、被重启打断、再爬升的锯齿轮廓是正常形态（pro 第 4 步 0.8151 爬到第 9 步 1.8208，重启后第 11 步掉到 0.4403，再爬到第 14 步 1.2125，再重启归零）。",
+      "要警惕的是「没有重启、staleness 却持续顶在高位」：flash 第 21~24 步 1.8013→1.9269→2.0337→2.1832 连续四步创新高且不见回落，说明 rollout 侧跟不上训练器。",
+      "判断引擎一致性要配桶 0 的 KL 一起看：staleness 高、桶 0 KL 平，说明只是流水线松了。"
+    ],
+    "observed": "pro 首末 0.0000→1.0133，峰值 1.8208 在第 9 步，最小值是第 1、15 步的 0.0000，全程均值 0.8777。flash 首末 0.0000→0.3198，峰值 2.1832 在第 24 步，最小值是第 1、16 步的 0.0000，全程均值 1.3595。它和全局 KL 的相关系数是 pro 0.9300、flash 0.9252，而桶 0 的 KL 与它几乎无关（pro -0.1939、flash 0.1965）。flash 第 24 到 25 步是最干净的对照实验：staleness 2.1832→0.3198（-85%），全局 KL 0.010106→0.005971（-41%），而桶 0 的 KL 0.003407→0.003549（+4%）。",
+    "traps": [
+      "桶的数量两个 run 不一样（pro 8 个、flash 10 个），这决定了两边 staleness 的可达上限不同。flash 能到 2.1832、pro 只到 1.8208，不代表 flash 的流水线更差，而是它的桶开得更深。跨 run 比这个数要小心。",
+      "它是 token 加权平均，不是按 rollout 条数平均，长序列会主导这个数。",
+      "归零不代表训练变好了，只代表重启清空了在途数据。pro 的第 15 步和 flash 的第 16 步都是重启步。",
+      "重启后的第一步是标定全局 KL 的天然基准：此时全局 KL 就等于桶 0 的 KL（pro 第 15 步 0.002577 对 0.002580，flash 第 16 步 0.003267 对 0.003271）。"
+    ],
+    "related": [
+      "train_infer_diff/new_infer/kl",
+      "partial/0/train_infer_diff/new_infer/kl",
+      "partial/<k>/frac",
+      "partial/agentic/avg_staleness",
+      "partial/code/dataset-yfch/avg_staleness"
+    ],
+    "sources": [
+      {
+        "ref": "when-speed-kills",
+        "stance": "context",
+        "note": "我们写「看到这类指标恶化，先看 staleness，再决定要不要动引擎或调并行策略」。该文给出的是一半的答案：它把崩溃归因于引擎侧数值不一致（同一批 in-flight 数据），说明 staleness 之外的引擎轴同样能独立造成崩溃，两条轴要分开排查。"
+      },
+      {
+        "ref": "verl-rollout-corr",
+        "stance": "support",
+        "note": "我们写「staleness 上涨本身不一定是坏事，异步流水线本来就有一到两个版本的固有延迟」。文档把 temporal lag 列为需要 IS/RS 修正的正常工程场景之一，而不是故障，佐证了这个判断。"
+      },
+      {
+        "ref": "m2po",
+        "stance": "context",
+        "note": "我们写「它整个看板最容易被误读……staleness 上涨本身不一定是坏事」。该文的 prosperity-before-collapse 现象支持「陈旧数据可以和在策略数据一样有信息量」，即 staleness 高本身不等于训练变坏。"
+      },
+      {
+        "ref": "stabilizing-rl",
+        "stance": "support",
+        "note": "我们写「判断引擎一致性要配桶 0 的 KL 一起看：staleness 高、桶 0 KL 平，说明只是流水线松了」。该文把 policy staleness 单列为可独立恶化代理目标有效性的因素，支持我们把它当作与引擎差异正交的一维。"
+      },
+      {
+        "ref": "missing-old-logits",
+        "stance": "support",
+        "note": "我们写「全局 KL 约等于 Σ(frac_k × KL_k)……桶 0 的 KL 与 avg_staleness 基本无关」，据此把全局指标拆成配比项与桶自身项。该文从重要性比值的语义层面给了同一个拆分：总比值应分解为「同一行为版本上的训练-推理性差异项」和「历史策略到当前策略的陈旧度项」，而且延迟更新/partial rollout 会让这两项纠缠——正是我们观察到「全局 KL 与 staleness 相关 0.93、桶 0 KL 与它无关」的原因。"
+      },
+      {
+        "ref": "pipeline-rl",
+        "stance": "support",
+        "note": "我们写「异步流水线本来就有一到两个版本的固有延迟」「0 表示数据就是当前这一步采的」。该文的 in-flight weight update 机制正是让一条生成中的序列横跨策略版本的技术，给「落后 k 个策略版本」这个桶定义提供了物理来由；它也说明为什么要追新鲜度（否则退化成 stale off-policy 数据）。"
+      },
+      {
+        "ref": "grpo-offpolicy",
+        "stance": "support",
+        "note": "我们写「staleness 上涨本身不一定是坏事……低于 1.0 说明流水线很紧，是好状态」。该文从第一性原理证明组相对 REINFORCE 不依赖训练数据分布、天然有 off-policy 解释，处理 off-policy 的原则是正则化更新和塑造数据分布，而不是把陈旧度压到 0。"
+      },
+      {
+        "ref": "drpo",
+        "stance": "context",
+        "note": "我们写「它是整个看板最容易被误读的指标，也是解释全局 KL 的关键」，把 staleness 与引擎差异分开处理。该文把 training-inference mismatch 与 policy staleness 并列为 LLM RL 变成 off-policy 的两个来源，与这个两轴框架一致。"
+      },
+      {
+        "ref": "self-kl-mixture",
+        "stance": "support",
+        "note": "既然全局 KL 是加权平均、而陈旧度是桶号的加权和，两者天然同向。实测相关性 pro 0.930 / flash 0.925 —— 高相关是口径决定的，不能拿它当「陈旧度导致 KL 变差」的证据。"
+      }
+    ]
+  },
+  {
+    "id": "partial/<k>/frac",
+    "name": "新鲜度桶的 token 权重 frac_k",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "比例 0~1（同一口径内归一，Σ_k frac_k = 1）",
+    "what": "把这一步训练用的 token 按「从采样到被训练之间隔了几个策略版本」分桶，桶 0 是最新鲜的。frac_k 就是桶 k 的 token 在这一步内占的比重。它是理解全局 KL、全局 entropy、全局 nll 差值为什么波动的核心：这些全局量都是按 frac 加权的平均。k 的最大值在两个 run 不一样，pro 是 partial/0..7（8 个桶），flash 是 partial/0..9（10 个桶）。看板未给官方说明。",
+    "how": "frac_k 等于 n_tokens_k 除以全部桶的 n_tokens 之和。我验算过三件事：一是 pro 每步 8 个桶、flash 每步 10 个桶的 frac 之和都是 1.000000（偏差不超过 1e-6）；二是 frac_k 与 n_tokens 占比逐桶吻合到 7.5e-7；三是 Σ_k (k × frac_k) 精确复现 partial/avg_staleness（偏差 4.0e-6 / 6.7e-6）。另外要留意 Σ_k n_tokens_k 只有同一步 perf/total_num_tokens 的 44%~56%，所以这个 1.0 是在 partial 自己的口径里归一，不是相对整步 token 数。看板未给官方说明。",
+    "why": "它决定了全局 KL、全局 nll 差值、全局 F(tau) 会被多少陈旧数据拉高。frac_0 掉下去、大 k 的 frac 涨起来，说明训练在吃存货，是 rollout 生成跟不上训练器的信号：可能是生成慢、重启等待、或者远端 rollout 队列积压。反过来，如果 frac_0 一直很高而全局 KL 还在涨，那才是引擎本身的问题。",
+    "read": [
+      "frac_0 在稳定期通常在 0.12~0.20，重启后第一步是 1.0000，之后逐步回落。",
+      "权重的重心多数时候落在桶 1（pro 全期均值 0.4414、flash 0.4798），不是桶 0。这是异步流水线的正常相位：大约落后一个版本的数据占大头。",
+      "要看的是「最陈旧的几个桶有没有长起来」。flash 第 23 步桶 7 拿到 0.0926、第 24 步桶 8 拿到 0.0953，对应 staleness 冲到 2.1832 的历史峰值。",
+      "桶的分布形状比单个桶的值更有信息量。第 24 步 flash 的 frac 从桶 0 的 0.1607 一路铺到桶 8 的 0.0953，是一个很宽的长尾；第 25 步重启后 0.8445 集中在桶 0，桶 6/7/8 只剩 0.0002/0.0003/0.0005。",
+      "重启会把桶结构清零重来，所以早期步只上报 1~3 个桶，这时 frac_0 接近 1。"
+    ],
+    "observed": "pro 的 frac_0 在 0.1488~1.0000 之间：第 1 步和第 15 步是 1.0000，稳定期多在 0.16~0.27（第 9 步 0.1965、第 14 步 0.2740）。flash 的 frac_0 在 0.1136~1.0000 之间：第 1 步和第 16 步是 1.0000，稳定期 0.12~0.18，第 25 步重启后回到 0.8445。桶 1 的权重最高可达 pro 0.8234（第 16 步）、flash 0.8519（第 2 步）和 0.8437（第 4 步）。pro 桶 7 只出现过两次，占比 0.0017~0.0036；flash 桶 9 出现过五次，最小 0.0009。",
+    "traps": [
+      "桶编号不是全局单调的。pro 第 12 步只上报 2 个桶、第 14 步 4 个、第 10 和第 11 步才是完整 8 个。桶 k 只表示「相对当前这一步的采样时点落后 k 个策略版本」，重启后重新计数。",
+      "frac_k 不是该数据集或该类目的 token 占整步的比例：分母只有整步 perf/total_num_tokens 的一半左右。",
+      "pro 8 个桶、flash 10 个桶，不要套用同一个上限，也不要直接比较同名 frac 的绝对值。",
+      "frac 之和等于 1 是构造出来的恒等式，不是健康信号；别把「和为 1」当成数据校验通过。"
+    ],
+    "related": [
+      "partial/<k>/n_tokens",
+      "partial/avg_staleness",
+      "train_infer_diff/new_infer/kl",
+      "partial/0/train_infer_diff/new_infer/kl"
+    ],
+    "sources": [
+      {
+        "ref": "pipeline-rl",
+        "stance": "context",
+        "note": "我们写「权重的重心多数时候落在桶 1（pro 全期均值 0.4414）不是桶 0，这是异步流水线的正常相位：大约落后一个版本的数据占大头」。该文描述的正是这种「生成与训练并发、数据平均落后一截」的运行形态。"
+      },
+      {
+        "ref": "self-kl-mixture",
+        "stance": "support",
+        "note": "桶占比不是附带信息，它是全局 KL 的权重。占比一变，全局 KL 就会跟着动，而每个桶自己的 KL 可能毫无变化。"
+      },
+      {
+        "ref": "self-kl-decompose",
+        "stance": "support",
+        "note": "反过来的检验更说明问题：配比几乎能单独还原全局 KL 的走势，而桶内 KL 不能。全局 KL 上行主要由训练 batch 里陈旧 token 的占比变化驱动，不是每个新鲜度桶都变差了。"
+      }
+    ]
+  },
+  {
+    "id": "partial/<k>/n_tokens",
+    "name": "新鲜度桶的 token 量 n_tokens_k",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "token 数",
+    "what": "每个新鲜度桶里的 token 绝对量。因为看板上的全局指标都是 token 加权的，桶里的绝对 token 量决定了它对全局曲线的影响有多大；同时它也决定桶级指标（KL、entropy、F(tau)）可不可信。看板未给官方说明。",
+    "how": "与 frac 同源，frac_k 等于 n_tokens_k 除以全部桶的 n_tokens 之和（验算吻合到 7.5e-7）。桶级 tag 形如 partial/0/n_tokens 到 partial/7/n_tokens（pro）、partial/0/n_tokens 到 partial/9/n_tokens（flash）。看板未给官方说明。",
+    "why": "它是判断桶级读数能不能用的前提。桶里 token 少于百万级时，KL、entropy、F(tau) 都会开始剧烈跳动，因为样本太少。它也让你能换算「这一步有多少 token 是落后的」：把 n_tokens_k 乘以 k 再求和就是「落后版本数」的总量。",
+    "read": [
+      "桶 0 的 token 量在 1.3e8~1.3e9 量级，最陈旧的桶通常只有 1e6~4e6，相差三个数量级。",
+      "小桶的桶级指标不可信。flash 第 25 步桶 6 只有 321,727 个 token，它报出的 KL 是 0.000606、entropy 是 0.0126，而同一步其它桶的 KL 在 0.0149~0.0302、entropy 在 0.42~0.51。这个桶的读数几乎肯定是小样本/边界情况造成的，不能用它支持任何结论。",
+      "重启后第一步所有 token 都在桶 0，所以那一步的 n_tokens_0 就是这一步整个 partial 口径的总量。",
+      "要看趋势应该看 n_tokens_0 和 Σ_k n_tokens_k 的相对变化，而不是看单个小桶的绝对值。"
+    ],
+    "observed": "pro 桶 0 的 n_tokens 在 158,133,000（第 6 步）到 1,131,070,000（第 15 步）之间，均值 4.47e8；最陈旧的桶 7 只出现过两次，均值 2,922,060，最小 1,811,550。flash 桶 0 在 130,855,000（第 5 步）到 1,300,260,000（第 25 步）之间，均值 3.40e8；桶 9 出现过五次，均值 2,780,618，最小 1,315,060。整个 partial 口径的 token 总和（Σ_k n_tokens_k）在 pro 是 7.93e8~1.41e9，只占同一步 perf/total_num_tokens 的 45%~55%；flash 是 8.17e8~1.78e9，占 44%~56%。",
+    "traps": [
+      "不要把 Σ_k n_tokens 当成「这一步训练了多少 token」。它系统性只有 perf/total_num_tokens 的一半左右，看板没有解释这个差异，两个 tag 的口径就是不一样。",
+      "flash 第 25 步桶 6/7/8 分别只有 321,727 / 385,133 / 835,957 个 token，这几个桶的所有桶级指标都不可比。",
+      "桶级 tag 不是每步都有：pro 桶 3 只上报 7 步、桶 7 只上报 2 步（第 10、11 步），null 表示没上报，不是 0。",
+      "flash 的 partial/cyber/dataset-9aui/ 下面完全没有桶级 n_tokens 和 frac，只有 avg_staleness 一个 tag。"
+    ],
+    "related": [
+      "partial/<k>/frac",
+      "partial/<k>/entropy_loss",
+      "perf/total_num_tokens",
+      "partial/avg_staleness"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-sample-size",
+        "stance": "support",
+        "note": "我们写「桶里 token 少于百万级时，KL、entropy、F(tau) 都会开始剧烈跳动，因为样本太少」，并用 flash 第 25 步桶 6（32 万 token）作为不可信的例子。该文做同一类「按不一致程度分组的统计」时，每组用了约 5M token 才敢下结论，给「桶级读数需要百万级以上 token」提供了一个逐字可引的量级参照。"
+      }
+    ]
+  },
+  {
+    "id": "partial/<k>/entropy_loss",
+    "name": "各新鲜度桶的平均 per-token 熵",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "nats/token",
+    "what": "每个新鲜度桶内部的平均 per-token 熵，定义和 actor/entropy_loss 同源（官方对 actor 版本的说法是 mean per-token entropy of the policy），只是按数据陈旧度分了桶。它回答的问题是：陈旧数据和新鲜数据的熵是不是不一样。看板未给官方说明。",
+    "how": "对每个桶内的 token 求平均熵。用 n_tokens 加权把各桶的熵合起来，和全局 actor/entropy_loss 基本对得上：pro 多数步差在 -0.003~+0.016 nats，flash 在 -0.012~+0.027 nats，pro 第 17 步两者完全一致（都是 0.40874）。所以两者大概率是同一定义的两种切法，但看板没有说明这个差距的来源。看板未给官方说明。",
+    "why": "熵是策略探索度的度量。如果旧桶的熵系统性偏高，说明用更早策略采的样本分布更平、off-policy 程度更高，训练时这些 token 的梯度方向更不确定；如果旧桶熵偏低，说明那些桶偏向已经收敛、高置信度的样本。分桶看熵的价值在于：能把「全局熵变化」拆成「策略本身变了」和「batch 里塞进了不同新鲜度的数据」两件事。",
+    "read": [
+      "这一轮的数据里，越旧的桶熵确实偏高，但只是弱趋势、不单调。按 token 加权、把 pro 19 步 / flash 25 步全部池化后，桶序号与熵的相关系数是 pro +0.2551、flash +0.1780；不加权的池化相关是 pro +0.2490、flash +0.1346。",
+      "不单调的证据很明确：flash 桶 2 的池化均值 0.40417 反而低于桶 1 的 0.44010；pro 桶 4 的 0.37550 也低于桶 3 的 0.41834。不要把「越旧越熵高」当定律。",
+      "逐桶和桶 0 对比反而更稳：pro 有 16 步是「最旧桶熵高于桶 0 熵」、只有 1 步相反（第 11 步 -0.0363）；flash 是 23 步对 0 步，全部同向，最大差 +0.2287。",
+      "单步内的桶序号与熵的相关系数：pro 均值 +0.5928（11 个可算的步里 10 个为正），flash 均值 +0.4088（20 步里 18 个为正）。",
+      "跨桶比较前必须先看 n_tokens：token 少于百万的桶会给出 0.01 量级的离谱低熵。"
+    ],
+    "observed": "池化（按 token 加权）后的桶均值熵，pro 桶 0 是 0.39524、桶 1 0.40488、桶 2 0.40618、桶 3 0.41834、桶 4 0.37550、桶 5 0.41192、桶 6 0.45464、桶 7 0.43428；flash 桶 0 是 0.42296、桶 1 0.44010、桶 2 0.40417、桶 3 0.44039、桶 4 0.42664、桶 5 0.42502、桶 6 0.46165、桶 7 0.47791、桶 8 0.50889、桶 9 0.50745。最干净的单步对照是 flash 第 14 步：桶 0 的熵 0.4101，桶 9 的熵 0.6388，差 +0.2287；第 15 步桶 0 是 0.4100、桶 8 是 0.5378、桶 9 是 0.5281。pro 第 10 步也一样：桶 0 是 0.3749，桶 7 是 0.4683。反面例子是 flash 第 24 步桶 4 只有 0.1832、第 25 步桶 6 只有 0.0126，而这两个桶分别只有 3,170,140 和 321,727 个 token，属于小样本异常；同一步的第 25 步桶 9 反而报 0.4968，说明这不是「旧数据熵变低」。全局 actor/entropy_loss 同期是缓慢上升的：pro 0.39526→0.40627，flash 0.41331→0.45611。",
+    "traps": [
+      "「越旧熵越高」是弱趋势、不是每步都成立，而且相关系数只有 0.18~0.26，解释力有限。写成结论时要带上这个强度。",
+      "桶级熵和 actor/entropy_loss 不严格相等：加权合并后在多数步差 0.005~0.015 nats，个别步完全一致。看板没说明口径差别，不要假定两者可直接互换。",
+      "极端小桶（token 少于 1e6）的熵会掉到 0.01 量级，这是样本/数值问题，不是策略突然变确定。flash 第 25 步桶 6 是典型例子。",
+      "熵高不等于训练有问题。旧数据的熵高本身是「旧策略分布更平」的自然结果，只有在它同时拉高了全局熵、掩盖了策略自身的熵走势时才需要处理。"
+    ],
+    "related": [
+      "actor/entropy_loss",
+      "partial/<k>/frac",
+      "partial/<k>/n_tokens",
+      "partial/avg_staleness"
+    ],
+    "sources": [
+      {
+        "ref": "entropy-mechanism",
+        "stance": "challenge",
+        "note": "该文的经验律只针对单一全局熵 H，完全没有“按数据陈旧度分桶的熵”这一层；所以我们那条“越旧的桶熵越高”的读法在公开材料里没有对应物，只能算本地观察，不能引用该文来背书。"
+      },
+      {
+        "ref": "estr",
+        "stance": "challenge",
+        "note": "我们观察到「越旧的桶熵确实偏高，但只是弱趋势（相关 0.18~0.26）」，并建议把全局熵变化拆成「策略本身变了」和「buckets 里塞进不同新鲜度的数据」。该文说 off-policy 偏差的自然尺度与 token 熵系统相关：低熵处 train-infer 差异被放大成采样噪声。所以分桶比熵时必须先控制熵与陈旧度的交互，「旧桶熵高」不能直接读成 off-policy 更严重。"
+      }
+    ]
+  },
+  {
+    "id": "partial/agentic/avg_staleness",
+    "name": "agentic 切片的平均数据陈旧度",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "策略版本数（0~2.3）",
+    "what": "只按 agentic 这一层切出来的 staleness，定义与 partial/avg_staleness 相同：采样到训练之间隔了几个策略版本的平均值。看板未给官方说明。注意 meta.json 里声明的 categories 是 code、general、cyber、visual、chat，并不包含 agentic，所以它是独立于那五个数据源的一个切片，看板没有说明这个切片覆盖的是哪部分流量。",
+    "how": "与全局 staleness 同一算法，只是限定在 agentic 相关的 token 上。它的桶级 tag 也存在（pro 有 partial/agentic/0..7/n_tokens 和 frac，flash 有 partial/agentic/0..9/...）。有一个必须留意的口径问题：把 partial/agentic/<k>/n_tokens 各桶加起来，能达到 partial/<k>/n_tokens 总量的 92%~95%；把 partial/<类目>/<数据集>/<k>/n_tokens 各桶加起来，是总量的 76%~95%；两者相加超过 1.6 倍。这说明 agentic 切片和数据集切片不是同一个划分的两半，它们各自的分母是什么，看板没有说明。看板未给官方说明。",
+    "why": "它的用途是判断全局 staleness 的上涨是「某一类任务拖的」还是全局现象。如果 agentic 明显比全局更陈旧，就该去查 agent 任务的 rollout 时延、环境启动排队、判分耗时；如果它和全局同步，那就不是 agentic 特有的问题。",
+    "read": [
+      "它几乎就是全局 staleness 的翻版：与 partial/avg_staleness 的相关系数在两个 run 上都是 0.9999，水平只比全局高一点点（pro 均值 0.9096 对全局 0.8777，flash 1.4077 对 1.3595）。",
+      "因此它现在提供不了额外信息。真要看类目差异，应该看 partial/<类目>/<数据集>/avg_staleness。",
+      "它的每一次归零都和全局同步（pro 第 1、15 步，flash 第 1、16 步），说明重启对全体数据一视同仁。",
+      "峰值也和全局同步，峰值高低只差 0.03~0.09。"
+    ],
+    "observed": "pro 首末 0.0000→1.0502，峰值 1.8974 在第 9 步（全局同一步是 1.8208），最小值是第 1、15 步的 0.0000，全程均值 0.9096。flash 首末 0.0000→0.3392，峰值 2.2717 在第 24 步（全局同一步是 2.1832），最小值是第 1、16 步的 0.0000，全程均值 1.4077。两个 run 的相关系数都是 0.9999。",
+    "traps": [
+      "不要以为它揭示了 agentic 类目的特殊问题。它和全局曲线几乎重合（0.9999），水平差只有 0.03~0.09，信息量基本为零。",
+      "agentic 不在 meta.json 声明的 categories 里，把它和 code/general/cyber/visual/chat 并列做类目对比在口径上是不成立的。",
+      "partial/agentic/<k>/n_tokens 与 partial/<类目>/<数据集>/<k>/n_tokens 的分母关系不明（两者相加超过总量），不要试图把它们当成互补的两半去还原整步 token 构成。"
+    ],
+    "related": [
+      "partial/avg_staleness",
+      "partial/code/dataset-yfch/avg_staleness",
+      "partial/cyber/dataset-9aui/avg_staleness"
+    ],
+    "sources": [
+      {
+        "ref": "wsk-nonfirst-round",
+        "stance": "support",
+        "note": "我们写「它的用途是判断全局 staleness 的上涨是某一类任务拖的还是全局现象，如果 agentic 明显更陈旧就该去查 agent 任务的 rollout 时延」。该文给出机制侧的对应证据：agentic 多轮输出（非首轮）承受 OOD 工具返回，train/infer 差距最大，且 tool call 上限越高崩溃越早——所以 agentic 切片值得单独看，尽管本站它与全局相关 0.9999。"
+      }
+    ]
+  },
+  {
+    "id": "partial/code/dataset-yfch/avg_staleness",
+    "name": "code/dataset-yfch 的平均数据陈旧度",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "策略版本数（0~7.3）",
+    "what": "code 类目下 dataset-yfch 这一个数据集的 staleness，定义同 partial/avg_staleness。它是全看板最陈旧的一个数据集。看板未给官方说明。",
+    "how": "与全局 staleness 同一算法，限定在这个数据集上。桶级 tag 也在，而且桶开得和全局一样深：pro 是 partial/code/dataset-yfch/0..7（8 个桶），flash 是 partial/code/dataset-yfch/0..9（10 个桶）。看板未给官方说明。",
+    "why": "它是「哪个数据源拖慢了训练」这个问题的答案之一。flash 第 24 步全局 staleness 冲到 2.1832 的历史峰值时，这个数据集是 7.2748，比全局高两倍多；也就是说流量占比不算大的一个数据集，把整个 batch 的平均陈旧度往上顶了一大截。看到 avg_staleness 冲高，先去查它。",
+    "read": [
+      "它的量级比同 run 的其它数据集高一个数量级：flash 全程均值 3.1660，而同 run 的 general/dataset-epqd 只有 0.4867、chat/dataset-lm3t 只有 0.4083。pro 全程均值 1.6804，同 run 的 chat/dataset-lm3t 只有 0.3192。",
+      "它的桶深度和全局一致（pro 8 个、flash 10 个），说明它几乎总是排在队尾，正是它把全局桶撑到最深的。",
+      "和全局 staleness 的相关系数 pro 0.890、flash 0.892，虽然不是最高，但它贡献的是绝对水平而不是形状。",
+      "重启会让它归零，然后重新爬升，所以它的锯齿比全局更陡（pro 第 10 步 4.5652 到第 11 步 1.8480，flash 第 24 步 7.2748 到第 25 步 1.5555）。"
+    ],
+    "observed": "pro 首末 0.0000→1.5929，峰值 4.5652 在第 10 步（pro 全场所有数据集里最大的值），全程均值 1.6804，最小值是第 1、15 步的 0.0000。flash 首末 0.0000→1.5555，峰值 7.2748 在第 24 步（flash 全场所有数据集里最大的值），全程均值 3.1660。两个 run 的走势都和全局同步：pro 第 4~10 步从 0.7499 单调爬到 4.5652，flash 第 17~24 步从 0.9449 单调爬到 7.2748。",
+    "traps": [
+      "它是单个数据集的 staleness，不能代表 code 类目整体。同 run 的其它 code 数据集（如 code/dataset-dnpn，flash 均值 0.5082）低得多。",
+      "它高达 7.27 说明这个数据集的 rollout 严重滞后，但因为它的 token 占比不高（flash 桶 9 总共只出现过 5 次、均值 2,780,618 个 token），它对全局的影响是拉高平均值而不是占满 batch。不要高估它的绝对影响。",
+      "重启步归零会让曲线出现深 V，别把深 V 当成这个数据集的问题被修好了。"
+    ],
+    "related": [
+      "partial/avg_staleness",
+      "partial/agentic/avg_staleness",
+      "partial/cyber/dataset-9aui/avg_staleness",
+      "partial/<k>/frac"
+    ],
+    "sources": [
+      {
+        "ref": "self-kl-decompose",
+        "stance": "context",
+        "note": "同理，任何按数据源拆开的陈旧度读数都要先问一句：是这一类数据真的更旧，还是它在 batch 里的占比变大了。"
+      }
+    ]
+  },
+  {
+    "id": "partial/cyber/dataset-9aui/avg_staleness",
+    "name": "cyber/dataset-9aui 的平均数据陈旧度（已被移除）",
+    "group": "训练推理一致性与数据新鲜度",
+    "unit": "策略版本数（0~2.8）",
+    "what": "cyber 类目下唯一的数据集的 staleness，定义同 partial/avg_staleness。这个数据集在 pro 上已被官方下线。看板未给官方说明。",
+    "how": "与全局 staleness 同一算法，限定在这一个数据集上。桶级 tag 在 pro 上是 partial/cyber/dataset-9aui/0..3（4 个桶），在 flash 上完全没有桶级 tag，只有 avg_staleness 一个。看板未给官方说明。",
+    "why": "它是两个不同问题的观测窗口。第一，它是全看板 staleness 最高的数据集之一，说明 cyber 类任务的环境准备和判分耗时长、rollout 严重滞后；第二，它的上报中断是「数据集被移除」这件事在数据上的直接痕迹，照它可以看出一次配置变更什么时候生效。",
+    "read": [
+      "两个 run 都远高于同 run 的其它数据集：pro 全程均值 1.5335，而 pro 的 general 类目普遍在 0.35 左右；flash 全程均值 1.4290，同 run 的 general/dataset-1doa 只有 0.5548。",
+      "它的值在停止上报前一直很高，pro 最后一根（第 14 步）还有 2.0896，flash 最后五根（第 16~20 步）是 0.0000、0.9015、1.5095、2.1223、1.4910。没有看到「被移除前先降下来」的迹象。",
+      "和全局 staleness 的相关系数 pro 0.946、flash 0.825，是 pro 上所有数据集里最高的一个。",
+      "pro 从第 15 步起全部为 null，正好接在 notices 里「从 pro 的下一轮移除 cyber 数据集」的公告之后。"
+    ],
+    "observed": "pro 上报第 1~14 步，峰值 2.6476 在第 7 步，末值（第 14 步）2.0896，全程均值 1.5335，第 15 步起为 null。flash 上报第 1~20 步，峰值 2.8061 在第 6 步，末值（第 20 步）1.4910，全程均值 1.4290，第 21 步起为 null。pro 的桶级 tag 只有 0..3 共 4 个桶，且和 avg_staleness 同时断供；flash 则完全没有桶级 tag。",
+    "traps": [
+      "它的断供是配置变更，不是数据丢失或指标失灵。看到 null 不要当成异常告警。",
+      "flash 上这个数据集没有桶级 frac / n_tokens，无法做分桶分析，也不能和 pro 做桶结构对比。",
+      "它虽然是 staleness 最高的数据集之一，但把它当成「cyber 类任务拖慢训练」的证据要谨慎：它在 pro 上已经下线，在 flash 上第 21 步起也停了。",
+      "两个 run 的断供步不一样（pro 第 15 步、flash 第 21 步），做 pro 与 flash 对齐比较时会出现一段只有一边有值的区间。"
+    ],
+    "related": [
+      "partial/avg_staleness",
+      "partial/code/dataset-yfch/avg_staleness",
+      "partial/agentic/avg_staleness"
+    ]
+  }
+]

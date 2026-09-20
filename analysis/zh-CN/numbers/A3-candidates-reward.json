@@ -1,0 +1,185 @@
+[
+  {
+    "id": "reward-ceiling-pinned",
+    "kind": "counterintuitive",
+    "title": "奖励的上限从第 1 步就被钉死在 1：max 在 pro 24/24 步、flash 30/30 步精确等于 1，涨的只有中段",
+    "summary": "critic/score/max 在 pro 24/24 步、flash 30/30 步只有一个取值 1.000，「奖励向少数高分样本集中」不可能发生。critic/score/mean 从 0.5522 涨到 0.5963（pro，r=0.904）、0.5167 到 0.6005（flash，r=0.939），变化全在分布中段。下限才分化：pro 的 mean−min 从 1.2593 收到 0.7384，flash 从 1.3139 扩到 1.4005（p=0.003）。",
+    "body": [
+      "看板上 critic/score/max 和 critic/rewards/max 是同一个量（逐点最大绝对差 0），它是「这一步训练 batch 里得分最高的那条轨迹」。直觉上会以为训练推进 → 好样本变多 → max 抬升，但数据给的答案更简单：max 从第一步起就是 1.000，24 步（pro）和 30 步（flash）里一次都没变。这说明奖励函数有硬上界，而且模型在第一步就已经能触到它。",
+      "所以任何关于「奖励分布形状变化」的讨论，在本数据里都只能落在 max 以下。把 max−mean 和 mean−min 分开看：max−mean 在两个 run 都显著下降（pro 0.4478→0.4037，r=−0.904，p=1.4e-9；flash 0.4833→0.3995，r=−0.939，p=1.8e-14）——这是 mean 上升的结果，不是 max 下降（max 恒 1）。mean−min 才是真正携带方向的量：pro 1.2593→0.7384（最差样本在追上均值，r=0.159，p=0.46 不显著但幅度大），flash 1.3139→1.4005（最差样本掉得更远，r=0.523，p=0.003）。",
+      "数据集级看，这个分化更清楚：pro 的 23 个有数据的数据集里 18 个的 score/min 首末值都是 0，flash 只有 7 个；pro 有 3 个数据集（code/bvg7、code/yfch、cyber/9aui）的 score/min 至少一次贴到 −0.8，flash 有 6 个（bvg7、obg8、v7yx、yfch、zg6q、cyber/9aui）。也就是说全局 score/min 那个 −0.8 的地板，在 flash 上是被多个数据集反复触发的常态，在 pro 上是少数数据集的偶发。",
+      "读图规则：看到 critic/score/max 先查它是不是常数。本数据里它是唯一的常数（nDistinct=1），而 critic/advantages/max 不是（pro 11 个不同取值、flash 13 个）。把「max 抬升」当成奖励集中度的证据，必须先排除「max 已贴在上界」这个可能——一旦贴上界，max 的量就不再携带任何信息，全部信息在 mean 和 min 上。",
+      "另外注意 critic/score/min 的跨数据集不可加性：pro 第 14 步全局 min=−0.8000，而同期绝大多数数据集的 min 是 0.000，−0.8 只来自 cyber/dataset-9aui（它本身只上报到第 14 步）。全局 min 是跨 23 个数据集取最小，其跳变基本由单个数据集的单步决定，不要用它代表任何子集。"
+    ],
+    "facts": [
+      {
+        "label": "critic/score/max 全程取值",
+        "value": "pro 24/24 步 = 1.000；flash 30/30 步 = 1.000（nDistinct=1）",
+        "note": "与 critic/rewards/max 逐点最大绝对差 0；A3-reward-numbers.json → runs.<run>.groups.globalReward[\"critic/score/max\"]"
+      },
+      {
+        "label": "critic/score/mean 首→末（趋势）",
+        "value": "pro 0.5522→0.5963（r=0.904, p=1.4e-9）；flash 0.5167→0.6005（r=0.939, p=1.8e-14）",
+        "note": "与 critic/rewards/mean 逐点相等（最大绝对差 0）；n=24 / n=30"
+      },
+      {
+        "label": "score/mean − score/min 首→末（趋势）",
+        "value": "pro 1.2593→0.7384（r=0.159, p=0.46 不显著）；flash 1.3139→1.4005（r=0.523, p=0.003）",
+        "note": "与 avg@n 的相关：pro r=−0.265（p=0.21）、flash r=−0.386（p=0.035），均为不显著或弱"
+      },
+      {
+        "label": "得分贴地板 −0.8 的步占比",
+        "value": "pro 2/24 = 8.3%；flash 10/30 = 33.3%",
+        "note": "score/min ≤ −0.5 的步占比：pro 37.5%、flash 80.0%；A3-reward-numbers.json → runs.<run>.shape.global"
+      },
+      {
+        "label": "数据集级 score/min 首末值为 0 的个数 / 贴到底板的个数",
+        "value": "pro 18/23 首末为 0，3 个贴过 −0.8（bvg7、yfch、cyber/9aui）；flash 7/23 首末为 0，6 个贴过 −0.8（bvg7、obg8、v7yx、yfch、zg6q、cyber/9aui）",
+        "note": "贴底板判定 |score/min + 0.8| < 1e-12；A3-reward-numbers.json → runs.<run>.shape.perDatasetSummary.<ds>.scoreMin.atFloorShare"
+      }
+    ],
+    "source": {
+      "id": "A3-reward-numbers.json",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "quote": "复算口径：critic/score/max 取 clean(values) 后统计 nDistinct 与 modalShare，得 pro nDistinct=1 modalShare=1.0（n=24）、flash nDistinct=1 modalShare=1.0（n=30）；critic/score/mean 对步号 1..n 做 Pearson，pro r=0.9039 p=1.38e-9、flash r=0.9389 p=1.76e-14；mean−min 序列由 critic/score/mean 减 critic/score/min 逐点构造后统计趋势，pro 首值 1.2593 末值 0.7384 r=0.1594 p=0.4567，flash 首值 1.3139 末值 1.4005 r=0.5234 p=0.0030；贴地板判定为 |score/min + 0.8| < 1e-12。脚本 src/reward_report.ts，执行 bun src/reward_report.ts。",
+      "topic": "奖励信号分布形状"
+    }
+  },
+  {
+    "id": "pool-shrink-netted-out",
+    "kind": "numeric",
+    "title": "可训练池收缩在 flash 上抵消了 58% 的全对率收益：0.1659 的池占比损失换 0.1700 的全对率贡献",
+    "summary": "用 avg@n = p1 + M·m 分解：flash 的可训练池 M 从 0.7188 掉到 0.5528，全对率从 0.1208 涨到 0.2907。Δavg@n=+0.1298 拆成全对率 +0.1700、池收缩 −0.0983、池内提升 +0.0582（残差 0），池收缩吃掉全对率收益的 58%；pro 池子几乎没动（0.6759→0.6545），分解为 +0.0236/−0.0125/+0.0207。pro 的 avg@n 第 20 步见顶 0.6431 后回落到 0.5964。",
+    "body": [
+      "动态采样的规则是丢掉全对和全错的 prompt——这两类在组内减基线后优势恒为 0，不产生梯度。所以模型越强、全对率越高，可训练的池子就越小。这件事在本数据里可以精确量化，因为看板同时给了 p0（dynsam/passrate/zero）和 p1（dynsam/passrate/one），而 avg@n 满足 avg@n = p1 + M·m（M = 1−p0−p1），可以逐点反解出池内平均通过率 m。",
+      "flash 是这件事的教科书案例：M 从 0.7188 掉到 0.5528，少了 16.6 个百分点；全对率从 0.1208 涨到 0.2907（翻 2.4 倍）；池内通过率从 0.5467 涨到 0.6382。把 Δavg@n=+0.1298 拆成三项后，池收缩贡献 −0.0983，正好吃掉全对率贡献 +0.1700 的 58%。pro 那边完全不同：M 只从 0.6759 到 0.6545，全对率从 0.1779 到 0.2014，池收缩只扣掉 0.0125。",
+      "这里要纠正一个容易搞反的因果方向。「池子收缩导致 avg@n 增速放缓」听上去顺，但算术上池收缩是 Δavg@n 里的一个负项，它让 avg@n 更低、而不是让斜率更小。增速放缓是另一件事，而且在本数据里两个 run 都测不出来：把 avg@n 的逐点增量对增量序号回归，pro r=−0.305（p=0.16）、flash r=−0.076（p=0.69）。pro 看起来更像「见顶后回落」——第 20 步 0.6431 是全程最高，之后四步掉到 0.5964（−7.3%），后 11 个增量的均值为负。",
+      "真正值得警惕的是「上升空间被自己吃掉」：flash 还剩 55% 的可训练池，pro 还剩 65%，如果全对率继续按当前速度涨，M 会先触底，届时 avg@n 会趋近 1 但训练信号先枯竭。看这个风险的直接读数是 M 与 avg@n 的关系——水平相关在两个 run 都强（pro r=−0.852 p=1.3e-7、flash r=−0.957 p=1.2e-16），去趋势后 pro 仍显著（r=−0.650，p=5.9e-4）而 flash 不显著（r=−0.199，p=0.29），说明 flash 的这条关系主要是共同趋势。",
+      "一个必须说清的口径：train/passrate/passrate_0_ratio 与 passrate_1_ratio 看起来像「全错率/全对率」，但它们的分母是进了训练 batch 的轨迹，而 dynsam/passrate/* 的分母是被测量的候选池。两者数值差一个量级（pro 的 p0 是 0.0092→0.0389 对 0.1462→0.1440），不能互相换算，也不能用 train/passrate 那一对做本节这个分解。"
+    ],
+    "facts": [
+      {
+        "label": "可训练池 M = 1 − dynsam/passrate/zero − dynsam/passrate/one",
+        "value": "pro 0.6759→0.6545（−0.0213，−3.2%）；flash 0.7188→0.5528（−0.1659，−23.1%）",
+        "note": "A3-reward-numbers.json → runs.<run>.poolDecomposition.first/last/delta；n=24 / n=30"
+      },
+      {
+        "label": "Δavg@n 三项分解（全对率 / 池收缩 / 池内提升）",
+        "value": "pro +0.0236 / −0.0125 / +0.0207（合 +0.0318）；flash +0.1700 / −0.0983 / +0.0582（合 +0.1298）",
+        "note": "交互残差 0；公式 Δavg@n = Δp1 + m̄·ΔM + M̄·Δm，m̄ 与 M̄ 取首末均值"
+      },
+      {
+        "label": "池内平均通过率 m（由 avg@n = p1 + M·m 反解）",
+        "value": "pro 0.5723→0.6035；flash 0.5467→0.6382",
+        "note": "每一都能逐点解出，见 poolDecomposition.rows"
+      },
+      {
+        "label": "avg@n 增量的斜率检验",
+        "value": "pro 前半均 +0.0049 / 后半均 −0.0025（r=−0.305, p=0.16）；flash +0.0054 / +0.0035（r=−0.076, p=0.69）",
+        "note": "两个 run 的「增速放缓」都不显著；pro 的 avg@n 第 20 步见顶 0.6431 后回落至 0.5964"
+      },
+      {
+        "label": "M 与 avg@n 的相关",
+        "value": "水平 pro r=−0.852（p=1.3e-7）、flash r=−0.957（p=1.2e-16）；去趋势 pro r=−0.650（p=5.9e-4）、flash r=−0.199（p=0.29）",
+        "note": "两条序列都随时间单调，水平相关虚高；去趋势后 flash 不显著"
+      }
+    ],
+    "source": {
+      "id": "A3-reward-numbers.json",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "quote": "复算口径：M_i = 1 − dynsam/passrate/zero_i − dynsam/passrate/one_i；m_i = (dynsam/avg@n_i − one_i) / M_i；分解取首末步 Δp1、ΔM、Δm，m̄=(m_first+m_last)/2、M̄=(M_first+M_last)/2，三项为 Δp1、m̄·ΔM、M̄·Δm，交互残差 = Δavg@n − 三项和（实测两端都是 0）。pro：M 0.675889→0.654545、p1 0.177866→0.201426、Δavg@n=0.031755，三项 0.023560 / −0.012544 / 0.020713，残差 0。flash：M 0.718784→0.552846、p1 0.120756→0.290720、Δavg@n=0.129833，三项 0.169964 / −0.098311 / 0.058195，残差 0。增量斜率：对 avg@n 的一阶差分按序号 1..n−1 做 OLS 与 Pearson。脚本 src/reward_report.ts → poolDecomposition。",
+      "topic": "动态采样的样本池收缩"
+    }
+  },
+  {
+    "id": "grader-tightens-not-loosens",
+    "kind": "structural",
+    "title": "判分没有变松：五维档位分 24 步从 4.4051 降到 4.2902（r=−0.874），后处理乘子同步下降，而判完率与失败率全程持平",
+    "summary": "判分漏斗形状没变：groups_total、groups_judged 趋势全不显著（p≥0.37），失败占受理比 pro 3.52%→4.16%（p=0.61），end2end_success_rate 常态 0.94~0.97。但判分给分的尺子在收紧：五维档位分等权均值 pro 从 4.4051 降到 4.2902（r=−0.874），flash 从 4.3919 到 4.3108。「超过参考解」比例 select_above_gold_share 在 pro 完全持平（r=−0.003）。",
+    "body": [
+      "要回答「判分在变松还是变紧」，先把两件事分开：判分流水线的产能/健康度，和判分给出的分数。前者可以用计数类指标直接验，后者要用判分自己的绝对分和后处理系数。",
+      "产能侧完全没有变化。groups_total 的 pro 均值 1811（n=24）、flash 1750（n=30），对步号的 r 分别是 −0.192（p=0.37）和 −0.004（p=0.98）；groups_judged 同理（pro r=−0.094, p=0.66；flash r=0.053, p=0.78）。判完率（groups_judged / groups_attempted）pro 均值 0.9498、flash 0.9594，全程无趋势。失败、跳过、过期这一族里，groups_failed_pass1/pass2、groups_skipped_unbalanced、groups_skipped_empty_inputs、judge_aux_missing_rollouts、keep_mass_capped、rollouts_masked、select_r2_capped_rate、dev_neg_turns、select_r3_gold_fails 在两个 run 全部恒为 0；groups_expired_unjudged 在 pro 全程 0 或 1，在 flash 连这个 tag 都没有。pro 的 end2end_success_rate 唯一一次低点是第 14 步 0.7662，与前一条公告（训练集群与判分部署之间网络不通）在时序上吻合，是单步基础设施事件。",
+      "给分侧则是另一幅图。五个档位维度 A/B/E/P/S 的均值在两个 run 全部为负号，其中 pro 的 E（r=−0.955, p=4.6e-13）、B（r=−0.927）、A（r=−0.787）、S（r=−0.640）都显著，flash 的 B（r=−0.710）、E（r=−0.628）显著。等权平均后 pro 从 4.4051 降到 4.2902（−0.1150），flash 从 4.3919 到 4.3108（−0.0811）。与此同时 select_factor_mean 从 0.8319 降到 0.8033（pro），select_renorm_k_mean 从 1.1852 升到 1.2179，select_renorm_capped_rate 从 0.0346 升到 0.0639（r=0.574, p=0.003）。这三条方向一致：判分在被乘上更小的因子、需要更强的重归一化补偿、更多次触及重归一化上限。",
+      "所以「判分放水」这个假说在这份数据里找不到支持证据。反过来说，「模型真的超过了参考解」也没有证据——select_above_gold_share 在 pro 上 24 步完全持平（r=−0.003, p=0.99），在 flash 上的弱上升（0.3018→0.3261，水平 r=0.377, p=0.040）在一阶差分（r=−0.341, p=0.071）和去趋势（r=−0.058, p=0.76）下都不成立。要区分「能力提升」和「判分放松」，这份看板能提供的最强证据是「判分的绝对分在往紧的方向走」，而「超过参考解」这个判定本身在平坦或噪声里，两种解释都无法排除。",
+      "一个容易被忽略的口径事实：select_above_gold_share 与 select_v4/select_above_gold_share 逐点完全相等（最大绝对差 0），而 select_v4_nogold 下没有这个字段。也就是说「超过参考解」只在有 gold 的那条判分路上计算——这是它的分母口径，不是全局比例。"
+    ],
+    "facts": [
+      {
+        "label": "五维档位分等权均值（A/B/E/P/S）首→末",
+        "value": "pro 4.4051→4.2902（r=−0.874, p=2.5e-8）；flash 4.3919→4.3108（r=−0.482, p=0.007）",
+        "note": "A3-reward-numbers.json → runs.<run>.constancy.scoreRubricMean；五维分别为 select_score_{A,B,E,P,S}_mean"
+      },
+      {
+        "label": "判分漏斗规模趋势",
+        "value": "groups_total pro r=−0.192（p=0.37）、flash r=−0.004（p=0.98）；groups_judged pro r=−0.094（p=0.66）、flash r=0.053（p=0.78）",
+        "note": "均值 pro 1811 / 794，flash 1750 / 786；n=24 / n=30"
+      },
+      {
+        "label": "判分失败与过期",
+        "value": "select_groups_failed/groups_attempted pro 3.52%→4.16%（r=0.109, p=0.61）、flash 4.01%→3.64%（r=0.020, p=0.93）；groups_expired_unjudged pro 全程 0~1（均值 0.29），flash 无此 tag",
+        "note": "groups_failed_pass1/pass2、groups_skipped_*、judge_aux_missing_rollouts、keep_mass_capped、rollouts_masked、select_r2_capped_rate、dev_neg_turns、select_r3_gold_fails 两 run 全恒 0"
+      },
+      {
+        "label": "后处理乘子与重归一化",
+        "value": "select_factor_mean pro 0.8319→0.8033（r=−0.767, p=1.2e-5）、flash 0.8338→0.8038（r=−0.407, p=0.026）；select_renorm_k_mean pro 1.1852→1.2179（r=0.854, p=1.1e-7）；乘积均值 pro 0.985、flash 0.981",
+        "note": "两者不是精确互逆，存在 1.5%~1.9% 的系统性缺口"
+      },
+      {
+        "label": "select_above_gold_share 首→末",
+        "value": "pro 0.3185→0.3182（r=−0.003, p=0.99 持平）；flash 0.3018→0.3261（水平 r=0.377 p=0.040；一阶差分 r=−0.341 p=0.071；去趋势 r=−0.058 p=0.76）",
+        "note": "与 select_v4/select_above_gold_share 逐点相等（差 0），说明只在有 gold 的判分路上计算"
+      }
+    ],
+    "source": {
+      "id": "A3-reward-numbers.json",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "quote": "复算口径：五维等权均值为 derived/score_rubric_mean = mean(select_score_{A,B,E,P,S}_mean) 逐步计算，再对步号做 Pearson；失败占比 = select_groups_failed / groups_attempted；end2end 与 pass1 只做同量级核对。相关性口径：水平（原始值）、一阶差分（Δx vs Δy，n−1 点）、去线性趋势残差（两边各对步号 OLS 取残差）。pro n=24、flash n=30；p 为双侧 t 检验。关键值：scoreRubricMean pro first 4.40509 last 4.29016 r=−0.8736 p=2.49e-8；flash first 4.39191 last 4.31082 r=−0.4820 p=6.99e-3。above_gold vs step：pro r=−0.0026 p=0.9904，flash r=0.3770 p=0.0400；flash above_gold vs avg@n 一阶差分 r=−0.3413 p=0.0705、去趋势 r=−0.0579 p=0.7603。脚本 src/reward_report.ts。",
+      "topic": "判分侧松紧的观测口径"
+    }
+  },
+  {
+    "id": "grader-disagreement-60pct-rising",
+    "kind": "structural",
+    "title": "判分探针不一致率在 0.586~0.606 的高位且显著上升，但同期「确认出错」的复核标红数在下降",
+    "summary": "select_probe_disagree_rate 高位且显著上行：pro 均值 0.6059（0.5748→0.6331，p=2.1e-4），flash 均值 0.5857（0.5460→0.6018，p=1.4e-5）。外网「判分器不一致率 60% 且在上升」的读数在这一族能找到对应项，量级与方向都对得上。但同期更接近「确认出错」的复核计数在下降：select_r2_flagged 占判完组 pro 0.3212→0.2080（p=3.2e-5），flash 0.3129→0.2200。",
+    "body": [
+      "select_probe_disagree_rate 是这份看板里唯一直接命名「判分器内部不一致」的指标。它没有官方定义，从命名和数据形态看，是判分时用多条判定路径（探针）求证同一批样本、统计结论打架的比例。pro 24 步的均值 0.6059、flash 30 步 0.5857，都在「六成」上下，且都对步号显著上升。",
+      "把外网的读数逐条对照：量级对得上（0.586~0.606 vs 「60%」），方向对得上（两个 run 的 p 值分别是 2.1e-4 和 1.4e-5），存在性也对得上（这不是一个需要拼凑的指标，看板直接给）。所以那条外部读数在本数据里是可核对的。",
+      "但不能直接读成「判分崩了」。同一批步上，需要多轮复核才能确认的计数在下降：select_r2_flagged 占判完组的比例 pro 从 0.3212 降到 0.2080（r=−0.743），flash 从 0.3129 到 0.2200（r=−0.706）；select_process_severe（被判「过程严重问题」）占判完组的比例 flash 从 0.0533 降到 0.0188（r=−0.545, p=0.002）。同时 select_r1_masked 占判完组的比例在上升（pro 0.3822→0.4716, r=0.675；flash 0.3058→0.4515, r=0.542）。也就是说：第一轮就出现更多分歧、更多样本需要遮罩，但需要走到第二轮复核才被标红的更少。",
+      "这个组合最合理的读法是「任务变难/样本更贴边」，而不是「判分质量恶化」——但这是推断，不是数据直接证明。看板没有给 probe_disagree 的定义，所以不能把「不一致」等同于「判错」：同一道题有多个合理解法，探针分歧是必然的。",
+      "还有一个方法学上的警告必须写出来：probe_disagree vs step 是「单一序列 vs 时间」，没有可去趋势的对象，24/30 个点上的单调趋势天然容易出显著结果。当把 probe_disagree 拿去和 avg@n 做相关时，水平相关看起来强（pro r=0.645、flash r=0.667），一阶差分后 pro 变成 −0.241（p=0.27）、flash 变成 −0.380（p=0.042，显著为负）。所以「判分分歧随成绩上升而上升」这个读法在本数据里不成立；能成立的只有「这条读数本身在漂移」。"
+    ],
+    "facts": [
+      {
+        "label": "select_probe_disagree_rate 首→末（均值，趋势）",
+        "value": "pro 0.5748→0.6331（0.6059），r=0.687, p=2.1e-4；flash 0.5460→0.6018（0.5857），r=0.704, p=1.4e-5",
+        "note": "A3-reward-numbers.json → runs.<run>.groups.graderQuality；n=24 / n=30"
+      },
+      {
+        "label": "与 avg@n 的相关（三个口径）",
+        "value": "水平 pro r=0.645（p=6.7e-4）、flash r=0.667（p=5.7e-5）；一阶差分 pro r=−0.241（p=0.27）、flash r=−0.380（p=0.042）；去趋势 pro r=0.180（p=0.40）、flash r=−0.090（p=0.64）",
+        "note": "水平相关由共同趋势造成；差分口径下 flash 符号翻转"
+      },
+      {
+        "label": "复核标红占比（count / groups_judged）",
+        "value": "select_r2_flagged pro 0.3212→0.2080（r=−0.743, p=3.2e-5）、flash 0.3129→0.2200（r=−0.706, p=1.3e-5）",
+        "note": "归一化率由脚本自建：derived/select_r2_flagged_per_judged_group；官方无对应 rate 字段"
+      },
+      {
+        "label": "其他不一致代理指标",
+        "value": "select_process_severe/groups_judged flash 0.0533→0.0188（r=−0.545, p=0.002）；select_tier_mismatch/groups_judged pro 0.3576→0.3192（r=−0.430, p=0.036）；select_r1_masked/groups_judged pro 0.3822→0.4716（r=0.675, p=2.9e-4）",
+        "note": "select_rank_invalid、select_rank_score_conflict、select_regression_flagged 的归一化率在两个 run 都无显著趋势"
+      }
+    ],
+    "source": {
+      "id": "A3-reward-numbers.json",
+      "title": "A3 奖励与判分结构复算产物",
+      "venue": "我方实测",
+      "quote": "复算口径：select_probe_disagree_rate 直接取原序列对步号做 Pearson（pro n=24 r=0.6874 p=2.06e-4；flash n=30 r=0.7039 p=1.42e-5），与 dynsam/avg@n 的相关同时给水平、一阶差分（Δx vs Δy，n−1 点）与去线性趋势残差三个口径。复核计数类指标的官方 rate 字段多数不存在，脚本自建 count/groups_judged 的归一化率（derived/select_*_per_judged_group）。脚本 src/reward_report.ts。核对外部读数「判分器不一致率到 60% 且在上升」：本数据命中 select_probe_disagree_rate，量级 0.586~0.606、两个 run 均显著上行。",
+      "topic": "判分器不一致/信用分配的观测口径"
+    }
+  }
+]

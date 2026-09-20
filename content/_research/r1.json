@@ -1,0 +1,750 @@
+{
+  "agent": "r1",
+  "topics": ["优化器与策略"],
+  "fetched": 20,
+  "items": [
+    {
+      "id": "ppo",
+      "kind": "paper",
+      "title": "Proximal Policy Optimization Algorithms",
+      "authors": "John Schulman et al.",
+      "venue": "arXiv:1707.06347",
+      "year": "2017",
+      "url": "https://arxiv.org/abs/1707.06347",
+      "quote": "Whereas standard policy gradient methods perform one gradient update per data sample, we propose a novel objective function that enables multiple epochs of minibatch updates.",
+      "topic": "PPO 裁剪代理目标与单轮/多轮更新",
+      "attaches": [
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "support",
+          "note": "论文把 PPO 的卖点定义为“同一批数据做多轮 minibatch 更新”，ratio 只有在多轮更新下才会偏离 1；本 run pg_clipfrac 全程恒 0，正说明这个前提没有兑现，而不是裁剪失效。"
+        },
+        {
+          "metric": "training/actor_optimizer_steps",
+          "stance": "support",
+          "note": "我们把 actor_optimizer_steps 恒为 1 读成“一个 global step 只做一次参数更新”；论文正是拿“一个样本一次更新”与“多轮更新”对立来立论，可作为该读法的背景。"
+        },
+        {
+          "metric": "actor/pg_loss",
+          "stance": "context",
+          "note": "这段话说明 pg_loss 是代理目标（surrogate objective）而不是监督损失，所以它的绝对值没有量纲意义，只有相对走势可读。"
+        }
+      ]
+    },
+    {
+      "id": "trpo",
+      "kind": "paper",
+      "title": "Trust Region Policy Optimization",
+      "authors": "John Schulman et al.",
+      "venue": "arXiv:1502.05477 (ICML 2015)",
+      "year": "2015",
+      "url": "https://arxiv.org/abs/1502.05477",
+      "quote": "We describe an iterative procedure for optimizing policies, with guaranteed monotonic improvement.",
+      "topic": "信任域方法的出发点",
+      "attaches": [
+        {
+          "metric": "actor/ppo_kl",
+          "stance": "context",
+          "note": "信任域这套“用距离约束换取单调改进”的思路是 ppo_kl 这条曲线存在的理由；本 run ppo_kl 恒 0 意味着约束从未被激活，所以“信任域不生效”不等于“策略没有更新”，后者要看 pg_loss/entropy_loss。"
+        }
+      ]
+    },
+    {
+      "id": "dapo",
+      "kind": "paper",
+      "title": "DAPO: An Open-Source LLM Reinforcement Learning System at Scale",
+      "authors": "Qiying Yu et al.",
+      "venue": "arXiv:2503.14476",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.14476",
+      "quote": "Unlike previous works that withhold training details, we introduce four key techniques of our algorithm that make large-scale LLM RL a success.",
+      "topic": "上下裁剪解耦（Decoupled Clip）",
+      "attaches": [
+        {
+          "metric": "actor/clip_low",
+          "stance": "support",
+          "note": "DAPO 的算法名本身就是 Decoupled Clip（上下裁剪解耦）；本 run clip_low=0.2 / clip_high=0.27 的不对称设置属于这一路做法，而不是 PPO 原文的对称 ε。"
+        },
+        {
+          "metric": "actor/clip_high",
+          "stance": "support",
+          "note": "同上：公开工作里确实存在“上界单独放宽”的裁剪配置，支持我们把 0.27 读成刻意放宽的上行空间，而不是配置笔误。"
+        }
+      ]
+    },
+    {
+      "id": "dapo-clip-higher",
+      "kind": "blog",
+      "title": "DAPO: an Open-Source LLM Reinforcement Learning System at Scale（官方项目页，Algorithm Insights）",
+      "authors": "ByteDance Seed / Tsinghua AIR / HKU",
+      "venue": "dapo-sia.github.io",
+      "year": "2025",
+      "url": "https://dapo-sia.github.io/",
+      "quote": "We observe an entropy-collapsing phenomenon in our initial experiments. We propose increasing the upper clip range of the importance sampling ratio in policy gradient loss to mitigate this problem.",
+      "topic": "Clip-Higher 与熵坍缩",
+      "attaches": [
+        {
+          "metric": "actor/clip_high",
+          "stance": "support",
+          "note": "官方页面把“提高重要性比值上界”直接当作避免熵坍缩的手段，支持我们把 clip_high(0.27) > clip_low(0.2) 读成“给探索留更大上行空间”。"
+        },
+        {
+          "metric": "actor/entropy_loss",
+          "stance": "support",
+          "note": "该页面把熵与“多样性/探索”直接挂钩，佐证我们把 actor/entropy_loss 上行读成探索强度上升这一句。"
+        },
+        {
+          "metric": "actor/clip_low",
+          "stance": "context",
+          "note": "DAPO 只动上界、下界保持常规值；本 run 下界 0.2 与 verl 默认一致，符合“只放宽上界”的做法。"
+        }
+      ]
+    },
+    {
+      "id": "dr-grpo",
+      "kind": "paper",
+      "title": "Understanding R1-Zero-Like Training: A Critical Perspective",
+      "authors": "Zichen Liu et al.",
+      "venue": "arXiv:2503.20783",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2503.20783",
+      "quote": "we identify an optimization bias in Group Relative Policy Optimization (GRPO), which artificially increases response length (especially for incorrect outputs) during training.",
+      "topic": "组相对目标的长度偏置",
+      "attaches": [
+        {
+          "metric": "actor/pg_loss",
+          "stance": "challenge",
+          "note": "论文指出 GRPO 类目标自带“人为拉长回答（尤其错误回答）”的优化偏置，所以 pg_loss 缓慢抬升不能直接读成“策略在变好”，我们那条趋势读法必须带上这个混杂因素。"
+        },
+        {
+          "metric": "actor/entropy_loss",
+          "stance": "context",
+          "note": "同一偏置会让回答变长、token 权重结构改变，因此 entropy_loss 上行有可能部分来自长度膨胀而不是分布变平——本 run 的 ctx_response_length/mean 在 flash 上正好明显变长。"
+        }
+      ]
+    },
+    {
+      "id": "gspo",
+      "kind": "paper",
+      "title": "Group Sequence Policy Optimization",
+      "authors": "Chujie Zheng et al.",
+      "venue": "arXiv:2507.18071",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2507.18071",
+      "quote": "Unlike previous algorithms that adopt token-level importance ratios, GSPO defines the importance ratio based on sequence likelihood and performs sequence-level clipping, rewarding, and optimization.",
+      "topic": "token 级 vs 序列级重要性比值",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "GSPO 明确说 token 级重要性比值方差高、改用序列级比值；所以本 run 这条 token 级截断比例很小，并不能推出“离策略偏差整体安全”，只能说 token 口径下被截断的少。"
+        },
+        {
+          "metric": "actor/code/dataset-yfch/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "同理：某个数据集在 token 级上截断比例低，也可能是序列级累积的比值偏差被 token 级平均掩盖了，不能据此断言该数据源的 rollout 与训练版本一致。"
+        }
+      ]
+    },
+    {
+      "id": "entropy-mechanism",
+      "kind": "paper",
+      "title": "The Entropy Mechanism of Reinforcement Learning for Reasoning Language Models",
+      "authors": "Ganqu Cui et al.",
+      "venue": "arXiv:2505.22617",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2505.22617",
+      "quote": "In practice, we establish a transformation equation R=-a*e^H+b between entropy H and downstream performance R.",
+      "topic": "熵与性能的权衡（熵坍缩叙事）",
+      "attaches": [
+        {
+          "metric": "actor/entropy_loss",
+          "stance": "challenge",
+          "note": "论文给的 R=-a·e^H+b 方向是“熵越高性能越低”，且把熵坍缩当成常态；本 run 熵上行而 avg@n 同时上行，与该经验律相反，所以“熵上行是良性”这条读法落在该文框架之外的边界情形。"
+        },
+        {
+          "metric": "actor/agentic/entropy_loss",
+          "stance": "challenge",
+          "note": "同上：该文观察的是熵单调下降并伴随性能饱和，本 run 全量与 agentic 分路都上行，不能把这篇的“熵坍缩”叙事直接套到本 run 上。"
+        },
+        {
+          "metric": "actor/code/entropy_loss",
+          "stance": "context",
+          "note": "该文把熵的变化归因于“动作概率与 logits 变化量的协方差”，并指出该协方差在训练中多为正——本 run code 各数据集的熵却一致上行，说明至少在这批数据上这个正协方差叙事不成立。"
+        },
+        {
+          "metric": "partial/<k>/entropy_loss",
+          "stance": "challenge",
+          "note": "该文的经验律只针对单一全局熵 H，完全没有“按数据陈旧度分桶的熵”这一层；所以我们那条“越旧的桶熵越高”的读法在公开材料里没有对应物，只能算本地观察，不能引用该文来背书。"
+        }
+      ]
+    },
+    {
+      "id": "spurious-rewards",
+      "kind": "paper",
+      "title": "Spurious Rewards: Rethinking Training Signals in RLVR",
+      "authors": "Rulin Shao et al.",
+      "venue": "arXiv:2506.10947",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2506.10947",
+      "quote": "we show that GRPO exhibits a clipping bias from the clip term, which can amplify high-prior behaviors learned during pretraining even without informative rewards.",
+      "topic": "裁剪项本身带来的偏置",
+      "attaches": [
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "challenge",
+          "note": "论文把 GRPO 的行为偏置归因于 clip 项；但本 run pg_clipfrac 恒 0（裁剪从未触发），说明这个机制在本 run 不活跃，不要把这篇描述的失效模式直接搬到本 run。"
+        },
+        {
+          "metric": "actor/pg_loss",
+          "stance": "context",
+          "note": "该文说明 clip 项即使不做“有用的奖励”也会影响优化方向，是理解 pg_loss 口径的一个必要背景。"
+        }
+      ]
+    },
+    {
+      "id": "adamw",
+      "kind": "paper",
+      "title": "Decoupled Weight Decay Regularization",
+      "authors": "Ilya Loshchilov, Frank Hutter",
+      "venue": "arXiv:1711.05101 (ICLR 2019)",
+      "year": "2017",
+      "url": "https://arxiv.org/abs/1711.05101",
+      "quote": "We provide empirical evidence that our proposed modification (i) decouples the optimal choice of weight decay factor from the setting of the learning rate for both standard SGD and Adam",
+      "topic": "自适应优化器里学习率与正则的耦合",
+      "attaches": [
+        {
+          "metric": "actor/lr",
+          "stance": "context",
+          "note": "论文说明在自适应优化器里 weight decay 与学习率并不等价、需要解耦；所以“actor/lr 恒为 3e-6”只能说明学习率配置没改，不能顺带断言有效步长或正则强度也没变。"
+        }
+      ]
+    },
+    {
+      "id": "muon",
+      "kind": "paper",
+      "title": "Muon is Scalable for LLM Training",
+      "authors": "Jingyuan Liu et al.",
+      "venue": "arXiv:2502.16982",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2502.16982",
+      "quote": "We identify two crucial techniques for scaling up Muon: (1) adding weight decay and (2) carefully adjusting the per-parameter update scale.",
+      "topic": "优化器不同导致同一 lr 数值不可比",
+      "attaches": [
+        {
+          "metric": "actor/lr",
+          "stance": "context",
+          "note": "论文强调换优化器必须重调 per-parameter update scale；同一个 lr 数值在 AdamW 与 Muon 下的有效步长不同，所以我们的 actor/lr=3e-6 离开“用的哪个优化器”就没有解释力。"
+        }
+      ]
+    },
+    {
+      "id": "adaptive-grad-lr",
+      "kind": "paper",
+      "title": "Disentangling Adaptive Gradient Methods from Learning Rates",
+      "authors": "Naman Agarwal et al.",
+      "venue": "arXiv:2002.11803",
+      "year": "2020",
+      "url": "https://arxiv.org/abs/2002.11803",
+      "quote": "We introduce a \"grafting\" experiment which decouples an update's magnitude from its direction, finding that many existing beliefs in the literature may have arisen from insufficient isolation of the implicit schedule of step sizes.",
+      "topic": "学习率指标的常见混淆",
+      "attaches": [
+        {
+          "metric": "actor/lr",
+          "stance": "challenge",
+          "note": "论文指出大量关于自适应优化器的结论来自“隐式步长 schedule 没被隔离”；本 run actor/lr 全程恒定虽然排除了 schedule 混淆，但也等于我们没做过任何 lr 敏感性实验，“lr 不变不是问题”只是配置事实，不是结论。"
+        }
+      ]
+    },
+    {
+      "id": "grad-clip-theory",
+      "kind": "paper",
+      "title": "Why gradient clipping accelerates training: A theoretical justification for adaptivity",
+      "authors": "Jingzhao Zhang et al.",
+      "venue": "arXiv:1905.11881",
+      "year": "2019",
+      "url": "https://arxiv.org/abs/1905.11881",
+      "quote": "Further, this smoothness positively correlates with the gradient norm, and contrary to standard assumptions in the literature, it can grow with the norm of the gradient.",
+      "topic": "梯度范数与不稳定性的理论联系",
+      "attaches": [
+        {
+          "metric": "actor/grad_norm",
+          "stance": "support",
+          "note": "论文证明梯度光滑度与梯度范数正相关、可随范数增长，即大范数步意味着有效曲率变大、单步更新可能失控；这支持把 pro 第 19 步的 6 倍尖峰当“单步异常”单独排查，而不是并进趋势里。"
+        }
+      ]
+    },
+    {
+      "id": "gradient-stabilizer",
+      "kind": "paper",
+      "title": "GradientStabilizer: Fix the Norm, Not the Gradient",
+      "authors": "Tianjin Huang et al.",
+      "venue": "arXiv:2502.17055",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2502.17055",
+      "quote": "Training instability in modern deep learning systems is frequently triggered by rare but extreme gradient-norm spikes, which can induce oversized parameter updates, corrupt optimizer state, and lead to slow recovery or divergence.",
+      "topic": "梯度范数尖峰与训练不稳定",
+      "attaches": [
+        {
+          "metric": "actor/grad_norm",
+          "stance": "support",
+          "note": "论文直接把“稀有但极端的梯度范数尖峰”列为训练不稳定的触发源，并指出它会造成过大更新、污染优化器状态；这是我们“grad_norm 尖峰要当异常单点查”的第一个排查依据。"
+        },
+        {
+          "metric": "actor/lr",
+          "stance": "context",
+          "note": "论文同时指出梯度裁剪“需要调阈值、会无差别截断大更新”，说明 grad_norm 与裁剪阈值（以及有效步长）是耦合的，读 actor/lr 时不能假设步长恒定。"
+        }
+      ]
+    },
+    {
+      "id": "simpletir",
+      "kind": "paper",
+      "title": "SimpleTIR: End-to-End Reinforcement Learning for Multi-Turn Tool-Integrated Reasoning",
+      "authors": "Zhenghai Xue et al.",
+      "venue": "arXiv:2509.02479",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2509.02479",
+      "quote": "This issue compounds over successive turns, causing catastrophic gradient norm explosions that derail the training process.",
+      "topic": "多轮 agentic 场景下的梯度范数爆炸",
+      "attaches": [
+        {
+          "metric": "actor/grad_norm",
+          "stance": "support",
+          "note": "论文给出机制：多轮工具反馈造成分布漂移、低概率 token 逐轮累积，最终表现为梯度范数爆炸并搞崩训练；本 run 正是 43~65 轮的 agentic 训练，这条把 grad_norm 尖峰与崩溃连了起来。"
+        },
+        {
+          "metric": "actor/entropy_loss",
+          "stance": "context",
+          "note": "同一机制（外部反馈引入低概率 token）也是 agentic 分路熵波动的一个候选解释；本条只作背景，不据此判定本 run 的熵上行性质。"
+        }
+      ]
+    },
+    {
+      "id": "dispo",
+      "kind": "paper",
+      "title": "DISPO: Enhancing Training Efficiency and Stability in Reinforcement Learning for Large Language Model Mathematical Reasoning",
+      "authors": "Batuhan K. Karaman et al.",
+      "venue": "arXiv:2602.00983 (AISTATS 2026)",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2602.00983",
+      "quote": "For correct responses, weights >1 increase the average token entropy (i.e., exploration) while weights <1 decrease it (i.e., distillation) -- both beneficial but causing gradual performance degradation when excessive.",
+      "topic": "裁剪方向如何推高/压低熵",
+      "attaches": [
+        {
+          "metric": "actor/entropy_loss",
+          "stance": "challenge",
+          "note": "论文消融显示熵被哪一侧的裁剪推起来是有区别的，且“过度”会带来性能缓慢退化；所以本 run 的熵上行不能一律读成良性，还要看幅度是否过头——这正是我们那条读法的边界条件。"
+        },
+        {
+          "metric": "actor/clip_low",
+          "stance": "challenge",
+          "note": "论文把上/下裁剪解耦并按正负回答拆成四个区域，指出错误回答上的过度裁剪会触发突然崩塌；本 run 的不对称设置没有公开消融依据，“不对称更合理”只能算合理猜测。"
+        },
+        {
+          "metric": "actor/clip_high",
+          "stance": "support",
+          "note": "公开工作确实在把上下裁剪分开调，支持我们把 clip_high 与 clip_low 当成两个独立可调参数来读，而不是一个对称 ε。"
+        }
+      ]
+    },
+    {
+      "id": "mismatch-lr-scheduler",
+      "kind": "paper",
+      "title": "Beyond Precision: Training-Inference Mismatch is an Optimization Problem and Simple LR Scheduling Fixes It",
+      "authors": "Yaxiang Zhang et al.",
+      "venue": "arXiv:2602.01826",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2602.01826",
+      "quote": "we find that the mismatch can be effectively suppressed by shrinking the update size.",
+      "topic": "用学习率调度压训练-推理不匹配",
+      "attaches": [
+        {
+          "metric": "actor/lr",
+          "stance": "challenge",
+          "note": "论文主张按 response length 触发动态 lr 衰减来压不匹配；本 run actor/lr 全程恒定，属于“不做动态衰减”的另一条路线，所以“lr 不变本身不是问题”只在 mismatch 没恶化时成立。"
+        },
+        {
+          "metric": "actor/grad_norm",
+          "stance": "challenge",
+          "note": "论文称梯度噪声与训练-推理不匹配会随训练同步升级；但本 run pro 的 grad_norm 只有单点尖峰、没有单调上升，与该叙事不符，说明这条规律不必然适用于本 run。"
+        }
+      ]
+    },
+    {
+      "id": "psn-rlvr",
+      "kind": "paper",
+      "title": "Learning to Explore with Parameter-Space Noise: A Deep Dive into Parameter-Space Noise for Reinforcement Learning with Verifiable Rewards",
+      "authors": "Bizhe Bai et al.",
+      "venue": "arXiv:2602.02555",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2602.02555",
+      "quote": "To mitigate the resulting sampling-update mismatch, we incorporate truncated importance sampling (TIS).",
+      "topic": "TIS 用来处理采样-更新不匹配",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "论文把 TIS 明确用于缓解“采样与更新之间的不匹配”，与我们把 pg_tis_clipfrac 读成 rollout 与训练重算概率偏差的截断比例一致。"
+        }
+      ]
+    },
+    {
+      "id": "gipo",
+      "kind": "paper",
+      "title": "GIPO: Gaussian Importance Sampling Policy Optimization",
+      "authors": "Chengxuan Lu et al.",
+      "venue": "arXiv:2603.03955",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2603.03955",
+      "quote": "GIPO (Gaussian Importance sampling Policy Optimization) is proposed as a policy optimization objective based on truncated importance sampling, replacing hard clipping with a log-ratio-based Gaussian trust weight to softly damp extreme importance ratios while maintaining non-zero gradients.",
+      "topic": "TIS 硬截断的代价",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "论文指出现有 TIS 用硬截断会把极端比值的梯度直接置零，并改用高斯信任权重替代；所以本 run 那 1e-4 量级的截断比例虽然小，被截掉的那部分样本是不贡献梯度的，不能只按“比例小所以没事”来读。"
+        }
+      ]
+    },
+    {
+      "id": "f-tis",
+      "kind": "paper",
+      "title": "F-TIS: Harnessing Diverse Models in Collaborative GRPO",
+      "authors": "Nikolay Blagoev et al.",
+      "venue": "arXiv:2605.22537",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2605.22537",
+      "quote": "prior work has identified that off-policy samples can hurt GRPO convergence.",
+      "topic": "离策略样本对 GRPO 收敛的危害",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "论文重申离策略样本会伤害 GRPO 收敛；本 run 截断比例只有 1e-4 量级，只能说明离策略问题不突出，不能反推“离策略偏差不存在”——这正是我们读这条曲线时的边界。"
+        }
+      ]
+    },
+    {
+      "id": "dart-gui",
+      "kind": "paper",
+      "title": "Efficient Multi-turn RL for GUI Agents via Decoupled Training and Adaptive Data Curation",
+      "authors": "Pengxiang Li et al.",
+      "venue": "arXiv:2509.23866",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2509.23866",
+      "quote": "stabilizing learning via truncated importance sampling for policy mismatch between policy rollout and updating.",
+      "topic": "TIS 的定义性描述",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "论文把 TIS 描述为“处理 policy rollout 与 updating 之间策略不匹配”的稳定化手段，与我们对这条 tag 的直译读法（量 rollout 与训练重算概率偏差被截断的比例）逐字对应。"
+        }
+      ]
+    },
+    {
+      "id": "fp16-mismatch",
+      "kind": "paper",
+      "title": "Defeating the Training-Inference Mismatch via FP16",
+      "authors": "Penghui Qi et al.",
+      "venue": "arXiv:2510.26788",
+      "year": "2025",
+      "url": "https://arxiv.org/abs/2510.26788",
+      "quote": "The widely adopted BF16, despite its large dynamic range, introduces large rounding errors that breaks the consistency between training and inference.",
+      "topic": "训练-推理不匹配的精度来源",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "context",
+          "note": "论文把 π_rollout≠π_old 的一个具体来源定位到 BF16 舍入误差；这给出了 TIS 截断比例为什么是非零的最直接物理解释，同时提醒“比例低”只能说明数值一致性尚可，不能说明两套引擎等价。"
+        }
+      ]
+    },
+    {
+      "id": "tim-diagnosing",
+      "kind": "paper",
+      "title": "Diagnosing Training Inference Mismatch in LLM Reinforcement Learning",
+      "authors": "Tianle Zhong et al.",
+      "venue": "arXiv:2605.14220",
+      "year": "2026",
+      "url": "https://arxiv.org/abs/2605.14220",
+      "quote": "TIM is difficult to inspect because it is entangled with off-policy drift and common stabilization mechanisms.",
+      "topic": "不匹配与离策略漂移的纠缠",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "challenge",
+          "note": "论文指出训练-推理不匹配与离策略漂移、各类稳定化机制纠缠在一起、很难孤立观察；所以不能因为 pg_tis_clipfrac 小就断定“训练推理一致”，这条曲线是小样本检测器而不是等价性证明。"
+        }
+      ]
+    },
+    {
+      "id": "decoupled-ppo",
+      "kind": "paper",
+      "title": "Batch size-invariance for policy optimization",
+      "authors": "Jacob Hilton, Karl Cobbe, John Schulman",
+      "venue": "arXiv:2110.00641 (NeurIPS 2022)",
+      "year": "2021",
+      "url": "https://arxiv.org/abs/2110.00641",
+      "quote": "Our key insight is to decouple the proximal policy (used for controlling policy updates) from the behavior policy (used for off-policy corrections).",
+      "topic": "proximal policy 与 behavior policy 解耦",
+      "attaches": [
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "support",
+          "note": "论文的核心洞见就是把“控制更新的 proximal policy”与“做离策略修正的 behavior policy”分开；本 run pg_clipfrac(≡0) 与 pg_tis_clipfrac(>0) 正是这两件事的读数，所以 pg_clipfrac 恒 0 只否定了前者。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "同上：TIS 那条对应 behavior policy 与 proximal policy 之间的差，和 proximal/current 之比（pg_clipfrac 管的那条）是两回事，两条曲线不能互相代替。"
+        },
+        {
+          "metric": "actor/ppo_kl",
+          "stance": "support",
+          "note": "论文说明 proximal policy 在一批数据的训练期内被冻结，所以“新旧策略距离”在同一步内本来就可以是 0，而离策略那部分差异仍然存在——这解释了 ppo_kl 恒 0 与 TIS 截断非零为何能同时成立。"
+        }
+      ]
+    },
+    {
+      "id": "iclr-ppo-clipfrac",
+      "kind": "blog",
+      "title": "The 37 Implementation Details of Proximal Policy Optimization（Debug variables）",
+      "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+      "venue": "ICLR Blog Track",
+      "year": "2022",
+      "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+      "quote": "`clipfrac`: the fraction of the training data that triggered the clipped objective.",
+      "topic": "clipfrac 的标准定义",
+      "attaches": [
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "support",
+          "note": "这条给出 clipfrac 的标准定义＝触发裁剪的数据占比；本 run 全部取值恒为 0，按定义就是“没有任何 token 触发过裁剪”，支持我们“裁剪从未生效”那句。"
+        },
+        {
+          "metric": "actor/clip_low",
+          "stance": "context",
+          "note": "定义里 clipfrac 量的是“触发”，而 clip_low/high 只是设定边界；所以单看下界 0.2 什么都推不出来，必须配 clipfrac 才有意义——这正是我们那条 read 的依据。"
+        },
+        {
+          "metric": "actor/clip_high",
+          "stance": "context",
+          "note": "同上：上界 0.27 只是配置的边界，不等于实际触发过；把 clip_high 与 pg_clipfrac 混为一谈会得出错误的“裁剪很频繁”结论。"
+        }
+      ]
+    },
+    {
+      "id": "iclr-ppo-approxkl",
+      "kind": "blog",
+      "title": "The 37 Implementation Details of Proximal Policy Optimization（approxkl 的定义）",
+      "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+      "venue": "ICLR Blog Track",
+      "year": "2022",
+      "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+      "quote": "`approxkl`: the approximate Kullback–Leibler divergence, measured by `(-logratio).mean()`, which corresponds to the `k1` estimator in John Schulman’s blog post on approximating KL divergence.",
+      "topic": "PPO 里 KL 曲线的定义",
+      "attaches": [
+        {
+          "metric": "actor/ppo_kl",
+          "stance": "support",
+          "note": "这条把 PPO 的 KL 诊断量定义为 (-logratio).mean()（k1 估计量）；ratio 恒为 1 时该式恒为 0，所以本 run ppo_kl 全程为 0 与“新旧策略比值恒为 1”完全自洽，不是上报故障。"
+        }
+      ]
+    },
+    {
+      "id": "iclr-ppo-gradclip",
+      "kind": "blog",
+      "title": "The 37 Implementation Details of Proximal Policy Optimization（Global Gradient Clipping）",
+      "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+      "venue": "ICLR Blog Track",
+      "year": "2022",
+      "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+      "quote": "For each update iteration in an epoch, PPO rescales the gradients of the policy and value network so that the “global l2 norm” (i.e., the norm of the concatenated gradients of all parameters) does not exceed `0.5`.",
+      "topic": "global gradient norm 的口径",
+      "attaches": [
+        {
+          "metric": "actor/grad_norm",
+          "stance": "support",
+          "note": "这条说明梯度裁剪针对的是“全参数拼接后的 global L2 norm”、并配一个固定阈值；支持我们把 actor/grad_norm 读成裁剪前的全局范数、且必须和裁剪阈值一起看。"
+        },
+        {
+          "metric": "actor/lr",
+          "stance": "context",
+          "note": "同一机制意味着一旦范数越过阈值，实际更新步长就被阈值截断，与 actor/lr 不再是同一回事；读 lr 时不能假设“lr 恒定 ⇒ 步长恒定”。"
+        }
+      ]
+    },
+    {
+      "id": "iclr-ppo-entropy-bonus",
+      "kind": "blog",
+      "title": "The 37 Implementation Details of Proximal Policy Optimization（Overall Loss and Entropy Bonus）",
+      "authors": "Shengyi Huang, Rousslan Fernand Julien Dossa, Antonin Raffin, Anssi Kanervisto, Weixun Wang",
+      "venue": "ICLR Blog Track",
+      "year": "2022",
+      "url": "https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/",
+      "quote": "The overall loss is calculated as `loss = policy_loss - entropy * entropy_coefficient + value_loss * value_coefficient`, which maximizes an entropy bonus term.",
+      "topic": "熵是被目标函数显式最大化的量",
+      "attaches": [
+        {
+          "metric": "actor/entropy_loss",
+          "stance": "context",
+          "note": "PPO 的目标里本来就带 -entropy*coef 的 bonus 项；所以熵不是纯粹的“自发探索”读数，它同时被目标函数显式最大化，把熵上行整条归因于模型主动探索之前要先算进这一项。"
+        }
+      ]
+    },
+    {
+      "id": "verl-ppo-config",
+      "kind": "doc",
+      "title": "Proximal Policy Optimization (PPO) — verl documentation（Configuration）",
+      "authors": "verl (ByteDance Seed Foundation MLSys Team)",
+      "venue": "verl.readthedocs.io",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/algo/ppo.html",
+      "quote": "`actor_rollout_ref.actor.clip_ratio`: The PPO clip range. Default to 0.2",
+      "topic": "verl 的裁剪区间是单参数对称设置",
+      "attaches": [
+        {
+          "metric": "actor/clip_low",
+          "stance": "challenge",
+          "note": "verl 只暴露一个对称的 clip_ratio（默认 0.2）；本 run 是 0.2/0.27 的不对称设置，说明它不是 verl 默认语义，我们“下界 0.2 是常规值”的说法只在“下界沿用默认、上界另调”这一读法下成立。"
+        },
+        {
+          "metric": "actor/clip_high",
+          "stance": "challenge",
+          "note": "同上：0.27 出现在上界，与 verl 的对称默认不同，不能套用“ε=0.2 的对称裁剪区间”这一常见解释。"
+        },
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "context",
+          "note": "把该默认值与 clipfrac 的定义合起来看，可确认本 run 的裁剪区间是 [1−0.2, 1+0.27] = [0.8, 1.27]，而不是文档里的 [0.8, 1.2]。"
+        }
+      ]
+    },
+    {
+      "id": "verl-ppo-epochs",
+      "kind": "doc",
+      "title": "Proximal Policy Optimization (PPO) — verl documentation（ppo_epochs）",
+      "authors": "verl (ByteDance Seed Foundation MLSys Team)",
+      "venue": "verl.readthedocs.io",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/algo/ppo.html",
+      "quote": "`actor_rollout_ref.actor.ppo_epochs`: Number of epochs for PPO updates on one set of sampled trajectories for actor",
+      "topic": "单轮更新的配置含义",
+      "attaches": [
+        {
+          "metric": "training/actor_optimizer_steps",
+          "stance": "support",
+          "note": "官方文档把 ppo_epochs 定义为“对同一批采到的轨迹做几轮更新”；本 run 该值为 1，与我们“一个 global step 只做一次参数更新”的读法一致。"
+        },
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "support",
+          "note": "单轮更新时 ratio 在更新前恒等于 1，clipfrac 因此在第一步就注定为 0；这条把“pg_clipfrac 恒 0”从一个观察变成可解释的配置后果。"
+        }
+      ]
+    },
+    {
+      "id": "verl-tis-def",
+      "kind": "doc",
+      "title": "Rollout Correction — verl documentation（Key Design Principle: Separation of IS Weights and Rejection Sampling）",
+      "authors": "verl (Yingru Li)",
+      "venue": "verl.readthedocs.io",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+      "quote": "**Truncated**: Upper clamped via `.clamp(max=rollout_is_threshold)` (TIS: Truncated Importance Sampling)",
+      "topic": "TIS 的标准定义",
+      "attaches": [
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "官方文档把 TIS 定义成对重要性权重做上界截断（clamp(max=threshold)）；本 run pg_tis_clipfrac 就是被这条上界截断的权重占比，与我们“量的是被截断的比例”这句一致。"
+        },
+        {
+          "metric": "actor/code/dataset-yfch/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "同一定义在数据集粒度上同样成立；yfch 那条比同项目其他数据集高 1~3 个数量级，按该定义就是“该数据源的 rollout/训练概率比值更容易越过上界”。"
+        }
+      ]
+    },
+    {
+      "id": "verl-three-policy",
+      "kind": "doc",
+      "title": "Rollout Correction — verl documentation（Important Note on Common Implementation Mistakes）",
+      "authors": "verl (Yingru Li)",
+      "venue": "verl.readthedocs.io",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr.html",
+      "quote": "Many LLM-RL implementations incorrectly apply PPO by **ignoring the actual rollout policy** π_rollout and assuming the training reference policy π_old is the behavior policy.",
+      "topic": "π_rollout 与 π_old 是两个不同的策略",
+      "attaches": [
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "challenge",
+          "note": "文档指出 π_rollout 与 π_old 是两件事、很多实现错误地把 π_old 当行为策略；所以 pg_clipfrac 恒 0（π_θ 与 π_old 一致）不能推出“没有离策略偏差”，这个结论必须挂到 TIS 那条上。"
+        },
+        {
+          "metric": "actor/ppo_kl",
+          "stance": "challenge",
+          "note": "同上：ppo_kl 量为 0 只说明新旧策略一致，rollout 那一段的偏差不在这条曲线上，用 ppo_kl=0 推“训练很 on-policy”是错的。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "文档把 π_old/π_rollout 的比值修正单列为一路，正对应 pg_tis_clipfrac 这条独立读数，支持我们把它读成“另一路、量的是 rollout 与训练重算的差”。"
+        }
+      ]
+    },
+    {
+      "id": "verl-drift",
+      "kind": "doc",
+      "title": "Rollout Correction — verl documentation（Overview: Common off-policy scenarios / 两段漂移）",
+      "authors": "verl (Yingru Li)",
+      "venue": "verl.readthedocs.io",
+      "year": "2025",
+      "url": "https://verl.readthedocs.io/en/latest/algo/rollout_corr_math.html",
+      "quote": "This is the distribution shift between the data collection policy and the training reference policy.",
+      "topic": "两段漂移：rollout→old 与 old→current",
+      "attaches": [
+        {
+          "metric": "actor/pg_clipfrac",
+          "stance": "support",
+          "note": "该页把“rollout→old（离策略差，用重要性采样修）”与“old→current（参数更新漂移，用 PPO 裁剪管）”拆成两个 drift；本 run 两个 drift 的读数分别是 pg_tis_clipfrac>0 与 pg_clipfrac≡0，正好一一对应。"
+        },
+        {
+          "metric": "actor/pg_tis_clipfrac",
+          "stance": "support",
+          "note": "同上：这条读数属于 Drift 1（数据采集策略与训练参考策略之间的差），与 pg_clipfrac 所属的 Drift 2 是两个独立诊断量，不能互相替代。"
+        }
+      ]
+    },
+    {
+      "id": "schulman-kl",
+      "kind": "blog",
+      "title": "Approximating KL Divergence",
+      "authors": "John Schulman",
+      "venue": "joschu.net",
+      "year": "2020",
+      "url": "http://joschu.net/blog/kl-approx.html",
+      "quote": "This post will explain why this expression is a good (though biased) estimator of KL, and how to make it unbiased while preserving its low variance.",
+      "topic": "KL 估计量的口径与偏置",
+      "attaches": [
+        {
+          "metric": "actor/ppo_kl",
+          "stance": "context",
+          "note": "该文指出常用的低方差 KL 估计量是有偏的，并给出 k1/k2/k3 三种口径（verl 文档也照此分档）；所以 ppo_kl=0 只能按“所实现的估计量在 ratio≡1 时为 0”来读，跨实现比较这条曲线没有意义。"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    "没有找到任何公开材料给出“梯度范数单点尖峰多少倍算异常”的经验阈值；我们的“pro 第 19 步 6 倍属单步异常”仍然是自定倍数，公开文献只说明尖峰会带来不稳定（2502.17055）并提供机制（2509.02479），没有可对照的倍数基线。",
+    "没有找到公开材料给出 actor/pg_tis_clipfrac 这类“截断比例”在真实大规模 RL run 中的典型量级或健康区间，因此本地 1e-4 量级究竟偏健康还是偏好，无法与公开基线对照。",
+    "没有找到正面讨论“熵在几十步内单调上行、同时 avg@n 上行”的公开案例：entropy-mechanism(2505.22617) 描述的方向相反，DAPO 只是把“避免熵坍缩”当手段，所以“本 run 熵上行是良性”这条缺正面佐证，只找到边界条件（DISPO 说过度会退化）。",
+    "没有找到公开材料解释“为什么 pg_clipfrac 与 ppo_kl 会同时恒为 0、而不是整个 tag 缺失”。verl 文档只给出两者的定义，没有讨论这个现象的判读；我们的解释是自洽推理，不是官方口径。",
+    "没有找到公开材料单独讨论按 harness 拆分的熵（actor/agentic/entropy_loss、actor/code/entropy_loss 这类分组读数），即“分组熵是否应被当作同一物理量”在公开工作里没有对应物。",
+    "简报参考起点里 2506.17863（标注为 The Art of Scaling RL Compute）与 2506.10947（标注为 Pass@k Training）两个 id 的标题都不符，我未能定位到标题正确的对应论文（两者分别属 D/C 组，未在本组继续核验）。"
+  ],
+  "notes": "1) 简报参考起点的 id 有三个标题不符，务必修正：2002.11803 实际是 'Disentangling Adaptive Gradient Methods from Learning Rates'（我把它当“学习率陷阱”的材料用了）；2506.17863 实际是 'LLMs for Customized Marketing Content Generation and Evaluation at Scale'；2506.10947 实际是 'Spurious Rewards: Rethinking Training Signals in RLVR'。'Why Gradient Clipping Accelerates Training' 的正确 id 是 1905.11881。逐字核验通过的：1707.06347 PPO、1502.05477 TRPO、2503.14476 DAPO、2503.20783 Dr.GRPO、2507.18071 GSPO、2505.22617 Entropy Mechanism、2504.13837 pass@k 边界、2107.03374 Codex/HumanEval、2409.19256 HybridFlow、1711.05101 AdamW、2502.16982 Muon、2310.06770 SWE-bench、2503.11926 Monitoring Reasoning Models。2) export.arxiv.org 的 API 在本会话后半段开始返回非 XML 响应（疑似限流），因此后期条目改用 arxiv.org/abs 摘要页（2110.00641、2502.17055、2509.02479、2602.00983）与 Semantic Scholar API 交叉核对；这些条目的 quote 来自摘要页正文的 Abstract 段，同样逐字。3) 共成功 fetch 约 20 个 URL（另有若干被限流失败），其中 ICLR Blog Track 一页与 verl 两个文档页因为包含多条互相独立的原文，按不同引文拆成了多条 item（id 各自唯一、url 相同）。4) richardli.xyz/rl-collapse 只返回一个跳转页，无法摘录原文，故未收录为来源，仅作为 verl rollout_corr 文档所引用的博客线索。"
+}

@@ -1,0 +1,2804 @@
+[
+  {
+    "id": "dynsam/avg@n",
+    "name": "平均通过率 avg@n（首页主指标）",
+    "group": "效果与采样",
+    "unit": "比例 0~1（看板按三位小数显示）",
+    "what": "这一步参与训练的每道题，模型各采样 n 次，数出其中成功几次、占 n 的比例；再对所有题取平均。直觉上它是「这批题的整体正确率」，也是首页那个大数字。要注意它不等于「有多少比例的题被做对」——那是 dynsam/passrate/one；avg@n 是逐题比例的均值，一道 16 次全错和一道 16 次全对，对它的贡献正好是 0 和 1，而 8 次对 8 次错的题贡献 0.5。",
+    "how": "官方口径：for each prompt sampled this step, the fraction of its n attempts that succeed, averaged over prompts。n 在本轮是 16：status.json 的 totals.prompts_per_step 是 1568，docs/01-网站数据文档.md 记的首页显示是 1,568 × 16 seqs，仓库里验证过的关系式 perf/total_num_tokens = 1568 × 16 × ctx_total_length/mean 也说明每个 prompt 对应 16 条序列。参与平均的是这一步「有可测通过率」的那些题，题目数每步不同（见 dynsam/num_measurable），所以它是「这一步抽到的这批题上的平均通过率」，不是固定题库上的分数。数据里它和 critic/rewards/mean、critic/score/mean 三个 tag 逐值完全相同，读的时候当同一个数看即可。",
+    "why": "它是「模型到底学得怎么样」的单一总目标，也是首页 headline。工程上盯它主要看斜率而不是绝对值：稳步上升说明策略在变好，长期横盘说明任务已经被吃透、奖励信号变稀，掉头向下则通常是坍缩或数据/判分出了问题。因为它把「题做对了」和「题做对了几成」压成一个数，单独看它无法区分两类完全不同的进步，必须配 dynsam/passrate/one 和 dynsam/passrate/zero 一起拆（见下）。",
+    "read": [
+      "看斜率、看 r，不看单步涨跌。用步号对 avg@n 做单变量回归：pro 斜率 0.00420/步、r=0.947；flash 斜率 0.00531/步、r=0.963。两边都是干净的上行直线，而不是「涨到平台」的形状。",
+      "把涨幅拆成「全错的题开始做对」和「部分做对的题变成次次做对」两部分。前者的上限就是 passrate/zero 的降幅，本轮两个 run 都只有 1 个百分点出头；后者对应 passrate/one 的涨幅，是主要来源。",
+      "相邻步之间 1 个百分点以内的抖动不要当信号：参与统计的题数只有一两千到四千多道（每步不同），抽样噪声的下限就在 0.5~1 个百分点量级，具体估算见 dynsam/num_measurable 条。",
+      "判断「模型真的变强了」需要旁证：dynsam/agg_turn/mean 没有同步下降（见该条），说明进步不是靠「少试错」换来的；离线 benchmarks 也滞后（pro 只出到第 15 步、flash 到第 21 步），不能立刻交叉验证。"
+    ],
+    "observed": "pro 第 1 步 0.564662 → 第 19 步 0.633419，涨 +6.88 个百分点；最低第 2 步 0.555333，最高第 16 步 0.635523。flash 第 1 步 0.513693 → 第 25 步 0.640833，涨 +12.71 个百分点；最低第 2 步 0.496314，最高就是末步 0.640833。同期 passrate/one：pro 17.79% → 26.20%（+8.41pp），flash 12.08% → 31.23%（+19.16pp）；passrate/zero：pro 14.62% → 13.48%（-1.14pp），flash 16.05% → 14.74%（-1.30pp）。也就是说 avg@n 的涨幅里，pro 的全错份额只降了 1.14pp（相当于 6.88pp 涨幅的 17%），flash 只降了 1.30pp（相当于 10%），能归到「原本全错的题开始做对」的部分就这么点；主体来自原本部分正确的题变成次次全对。严格一点的分解（恒等式 avg@n = one + 中间桶占比 × 中间桶题的平均通过率）：pro +8.41pp（one 上升）+ -4.32pp（中间桶缩小，纯会计项）+ +2.78pp（留在中间桶的题自己也在变好，其平均通过率 0.5723 → 0.6158）= +6.88pp，与实测完全吻合；flash 是 +19.16 + -10.31 + +3.86 = +12.71pp。相关性也一致：avg@n 与 passrate/one 的相关系数 pro 0.927、flash 0.973，与 passrate/zero 只有 pro -0.477、flash -0.537。",
+    "traps": [
+      "不要把 avg@n 读成「题目通过率」：它是逐题比例的均值，16 次对 8 次的题贡献 0.5，会被大量「半对」的题拉在中间，数值天然比 passrate/one 高一大截。",
+      "它和首页采样器快照里的 passrate 不是一回事（docs/01 第 3.3 节）：那个是当前这一轮已收到序列的统计，avg@n 是这一步训进去的全部 prompt 的统计，两者一般差几个百分点。",
+      "重跑过的步会被改写：flash 第 16、17 步的 avg@n 在 events 里各留了两条，series 用的是重跑后的值（0.602504 → 0.594958、0.585664 → 0.601257）。只认 series，或者只认 events 里每个步号的最后一条，不要混。",
+      "上下 1 个百分点以内的步间差别不要当趋势：分母每步都不一样（pro 1636~4728），单步噪声的下限就有半个到 1 个百分点。"
+    ],
+    "related": [
+      "dynsam/passrate/one",
+      "dynsam/passrate/zero",
+      "dynsam/num_measurable",
+      "critic/rewards/mean",
+      "critic/score/mean"
+    ],
+    "sources": [
+      {
+        "ref": "humaneval-passk",
+        "stance": "support",
+        "note": "我们写 avg@n 是「每题采 n 次、数成功次数占 n 的比例，再对题平均」，这条无偏估计量的构造逻辑正是同一套：不能把 pass@1 的插件估计直接外推到 k，必须按「n 次里 c 次命中」计数。"
+      },
+      {
+        "ref": "rlvr-passk-shrink",
+        "stance": "support",
+        "note": "这条直接佐证我们的核心读法：avg@n 上行（pro +6.88pp / flash +12.71pp）只说明小 k 变好，不能推出可解范围扩大；单看 avg@n 会把「覆盖收缩」读成纯进步。"
+      },
+      {
+        "ref": "passk-inversion",
+        "stance": "support",
+        "note": "摘要明确「after training, the policy may solve fewer distinct problems than its base model at large k」，为「avg@n 涨但覆盖可能变窄」提供第二篇独立文献支持。"
+      },
+      {
+        "ref": "rlvr-entropy-coverage",
+        "stance": "support",
+        "note": "把「avg@n 上行」与「覆盖收缩」直接挂钩：该文把 entropy drop 视为 RLVR 的常见后果，说明我们单看 avg@n 判断训练质量会漏掉覆盖维度。"
+      },
+      {
+        "ref": "dapo-accuracy1-rising",
+        "stance": "support",
+        "note": "该文把全对组增多视为「有效 prompt 数持续减少、批梯度方差变大」的来源，支持我们用 passrate/one 而不是 avg@n 去判断「吃透了多少题」。"
+      },
+      {
+        "ref": "spurious-rewards",
+        "stance": "challenge",
+        "note": "我们把 avg@n 上行当「模型真的变强」的证据，该文显示 GRPO 用随机奖励也能把 MATH-500 抬高 21.4 个百分点（接近真实奖励的 29.1 点），说明这类上行可能只是裁剪偏置放大了预训练先验行为。"
+      },
+      {
+        "ref": "passk-training",
+        "stance": "challenge",
+        "note": "我们默认「提升 avg@n」是唯一目标，该文指出以 Pass@1 类指标为奖励会让策略偏好保守动作、收敛到局部最优，所以 avg@n 的斜率不能单独当训练质量结论。"
+      },
+      {
+        "ref": "self-avgn-decompose",
+        "stance": "support",
+        "note": "avg@n 一个数里混了三件事：多少题变全会了、多少题从「部分会」变成「全会/全不会」而退出中间池、剩下的中间题好了多少。只看总分会把「中间池缩小」的负贡献误读成能力下降。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/avg@n_no_infra",
+    "name": "剔除 infra 失败后的平均通过率 avg@n_no_infra",
+    "group": "效果与采样",
+    "unit": "比例 0~1",
+    "what": "名义上是 avg@n 的「干净版」：把因为基础设施原因（沙箱起不来、网络断、判分服务挂掉之类）而失败的 attempt 从分母里剔掉，只拿真正跑出来的 attempt 算通过率。它要回答的问题是「如果不算环境事故，模型这一步的真实水平是多少」。这个指标在官方 22 条说明里，也在 site 的 formats 规则里（命中 ratio，三位小数）。",
+    "how": "官方口径：avg@n with attempts that failed for infrastructure reasons excluded。计算上就是把每题的分母 n 换成「该题成功返回并被判分的 attempt 数」，再逐题求比例、跨题平均。但本仓库里没有任何数据可以复现它：pro 和 flash 的 series.json 与 tags.json 里都没有这个 tag（枚举 dynsam/ 前缀共 83 个，只有 agentic/num_accepted/step、agg_turn/mean、avg@n、infra_error/seq_rate、num_measurable、num_target、passrate/one、passrate/zero 八个标量 tag，其余 75 个是各数据集下的 num_accepted/*）。与之同类的 passrate/mid、passrate/zero_no_infra、passrate/one_no_infra、passrate/hist9_ratio 在 formats 规则里都有格式定义，但同样一条数据都没有。",
+    "why": "它的用途是把「模型水平」和「集群健康度」分开：infra 事故多的时候 avg@n 会被拉低，而这个数不会。两者差多少，就是环境事故吃掉的成绩。本轮 dynsam/infra_error/seq_rate 只有 0.27%~3.04%，按这个比例被剔除的 attempt 很少，所以就算有这条曲线，它和 avg@n 的差也应该在千分之几——真有明显劈叉，说明该查的是上报口径而不是模型。",
+    "read": [
+      "本仓库两个 run 都没有这条曲线，所以下面 observed 里没有数字可写——这里只能写「看板上没有这组数据」，不要拿 avg@n 的值充当它。",
+      "如果以后同步到了：先看它和 avg@n 的差，差值与 dynsam/infra_error/seq_rate 同向放大是正常的；差值和 seq_rate 对不上，才说明「被判为 infra 失败」的口径和这条指标的剔除口径不一致。",
+      "不要用它代替 avg@n 做训练进展判断：剔除 infra 失败等于按「跑出来的 attempt」加权，样本不再是固定的 16 次，跨步比较的可比性反而更差。",
+      "同类未上报的还有 dynsam/passrate/mid、passrate/zero_no_infra、passrate/one_no_infra、passrate/hist9_ratio：formats 规则里有格式定义，但 pro/flash 都没有值（hist_prefix 在 meta.json 里指向 dynsam/passrate/hist9_ratio/，只是配置，不是数据）。"
+    ],
+    "observed": "本仓库没有数据：pro 的 tags.json 列了 2019 个指标名、flash 2062 个，其中 dynsam/ 前缀各 83 个，不含 avg@n_no_infra；series.json 里也搜不到这个 key。官方 22 条说明里它是第 2 条、且不在首页 18 个 pins 里，所以最可能的解释是站点保留了这条说明和格式规则、但两个 run 目前都没有把它上报出来。看板上没有说明原因，我也没有在仓库里找到它出现过的历史（tags.json 的 first_seen/last_seen 对它没有记录）。",
+    "traps": [
+      "这条是本次分到的必写指标里唯一一条查不到数据的：不要用 avg@n 或 avg@n 的任何变形去「填」它。",
+      "不要把「说明里有」当成「看板上有」：官方 descriptions 里 4 条不在 pins 内的指标（avg@n_no_infra、ctx_response_length/mean、passrate/hist9_ratio、train/harness/*/training/rollouts），前两条和 hist9 在 dynsam 下都没有数据。"
+    ],
+    "related": [
+      "dynsam/avg@n",
+      "dynsam/infra_error/seq_rate",
+      "dynsam/passrate/zero",
+      "dynsam/passrate/one"
+    ]
+  },
+  {
+    "id": "dynsam/passrate/zero",
+    "name": "全错题占比 passrate/zero",
+    "group": "效果与采样",
+    "unit": "比例 0~1（看板按百分数显示）",
+    "what": "这一步所有被采样的题里，16 次 attempt 一次都没成功的题占多少。它衡量的是「模型完全不会的题还有多少」，是这批题难度的下限刻度。与它成对的是 dynsam/passrate/one（次次成功的占比），中间那部分就是站点文档里说的 mid 桶（通过率既不是 0 也不是 1 的比例，等于 1 − zero − one）。",
+    "how": "官方口径：share of prompts where no attempt succeeded。分母是这一步「有可测通过率」的题数，也就是 dynsam/num_measurable；分子是其中 16 次全失败的题数。格式上命中 pct 规则（乘 100 加百分号）。同族还有 passrate/one 和未上报的 passrate/mid、passrate/hist9_ratio（把题按通过率切成九桶）。",
+    "why": "它是「还有多少硬骨头」的度量，也是动态采样器要不要继续为某道题花算力的依据：全错的题对 policy gradient 贡献的是负样本信息，长期全错的题要么超出能力、要么判分/环境有问题。它掉不下去通常有三种解释——题目本身太难、奖励信号太稀疏（16 次都拿不到正反馈）、或者数据里混进了坏题，需要配合 passrate/one 和 per-source 计数区分。它也是本轮最稳的一个数：两个 run 全程钉在 13%~17%，几乎不动。",
+    "read": [
+      "看它是否真的在降。用步号回归：pro 斜率 -0.0392pp/步、r=-0.285；flash 斜率 -0.0489pp/步、r=-0.392。|r| 都不到 0.4，也就是说 19 步 / 25 步里它基本是平的，只有轻微下行。",
+      "看它的绝对高度。两边都稳定在 13%~17%，说明每 6~7 道题里就有 1 道模型 16 次全错。这个「全错底盘」没有随训练收窄，是理解 avg@n 涨幅来源的关键（见 dynsam/avg@n）。",
+      "单步跳动先看分母。pro 全程最大的相邻摆动是第 18 步 16.26% → 第 19 步 13.48%（-2.78pp），这两步的分母是 3576 和 2081；在 p≈0.15 下，两步之差的标准误约 0.98pp，这个摆动差不多是 3 倍标准误——还谈不上是清晰信号。",
+      "它和 avg@n 是弱负相关：pro r=-0.477、flash r=-0.537。也就是说 avg@n 的绝大部分变化不能用全错率解释。"
+    ],
+    "observed": "pro：第 1 步 0.146245（14.62%）→ 第 19 步 0.134837（13.48%），只降了 1.14pp；全程 12.91%（第 16 步）~ 16.26%（第 18 步），均值 14.77%。flash：第 1 步 0.160460（16.05%）→ 第 25 步 0.147422（14.74%），只降了 1.30pp；全程 13.56%（第 19 步）~ 16.94%（第 7 步），均值 15.50%。同期 avg@n 涨了 +6.88pp（pro）/ +12.71pp（flash），是 zero 降幅的 6.0 倍 / 9.8 倍。换句话说：这轮训练基本没有把「16 次全错」的题变成会做，全错底盘一直有 13%~17%。",
+    "traps": [
+      "不要把 zero 下降当成主要功劳：它只降了 1.14pp / 1.30pp，最大能解释的 avg@n 涨幅不到两成。",
+      "分母每步都在变（pro 1636~4728），而且变化的幅度（2.9 倍）远大于 zero 自己的变化幅度，跨步比较前先确认分母。",
+      "zero 加 one 不等于 1：中间还有一大块（pro 第 1 步 67.59%、第 19 步 60.32%），数量级和 zero 差不多。只盯 zero 会严重误判难度结构。",
+      "判分失败的 attempt 与真失败在这次数据里没法区分；如果某段时间判分服务出问题，zero 会假性升高。看板上没有说明这一层怎么处理。"
+    ],
+    "related": [
+      "dynsam/passrate/one",
+      "dynsam/avg@n",
+      "dynsam/num_measurable",
+      "dynsam/infra_error/seq_rate"
+    ],
+    "sources": [
+      {
+        "ref": "rlvr-passk-shrink",
+        "stance": "support",
+        "note": "论文说 k 大时基座反超 RLVR 模型，说明「16 次全做不对」的那部分外沿不会随训练消失，与我们实测 zero 只降 1.14pp / 1.30pp 的「能力墙」读法一致。"
+      },
+      {
+        "ref": "passk-inversion",
+        "stance": "challenge",
+        "note": "我们把 zero 读成「模型完全不会的题还有多少」，该文指出其中一类是 boundary prompt：基座含有稀有正确轨迹、只是太稀疏以致在有限 rollout 组里抽不到，所以 zero 里混着采样限制的成分，不能全部归因于能力。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "该文把 accuracy=1 组的 advantage 归零当退化来源；同理全错组组内奖励相同、advantage 也为 0，所以 zero 高的步同时是「有效梯度被摊薄」的步，支持我们不把 zero 只当难度刻度的读法。"
+      },
+      {
+        "ref": "passk-training",
+        "stance": "context",
+        "note": "该文用 Pass@k 当奖励来改善探索能力，可作为「全错底盘不动其实是探索不足」这一假设的公开解法参考，但它并未直接验证我们这个 run 的 zero 曲线。"
+      },
+      {
+        "ref": "self-avgn-decompose",
+        "stance": "support",
+        "note": "全对占比涨得再多也可能只是「本来就会的题被反复采样到」。要判断能力墙有没有动，得看另一端的全错占比：pro 只降 1.14pp、flash 只降 1.49pp，26 步之后仍有一成多 prompt 一次都没做对。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/passrate/one",
+    "name": "全对题占比 passrate/one",
+    "group": "效果与采样",
+    "unit": "比例 0~1（看板按百分数显示）",
+    "what": "这一步所有被采样的题里，16 次 attempt 次次都成功的题占多少。它衡量的是「模型已经完全拿下的题」的比例，和 dynsam/passrate/zero 一起把题目分成「全错 / 部分对 / 全对」三块。注意它和 passrate/zero 的差别：zero 是难度下限，one 是已经吃透的存量，中间那块才是当前训练真正在啃的部分。",
+    "how": "官方口径：share of prompts where every attempt succeeded。分母同为 dynsam/num_measurable，分子是 16 次全成功的题数，格式命中 pct 规则。它同时也是 avg@n 恒等分解里权重最大的那一项：avg@n = one + 中间桶占比 × 中间桶题的平均通过率，所以 one 的走势几乎决定了 avg@n 的走势。",
+    "why": "它是「模型掌握了多少」的直接读数，比 avg@n 更保守也更干净：一道题只要有一次失败就不算。RL 训练后期最常见的坏形状是 one 冲高然后停顿——说明剩下的题要么全错、要么总差一点；另一种是 one 涨但 zero 也涨（题目构成在换），那就不是纯粹的进步。在动态采样里它还决定算力去向：one 高的题不再需要反复采样。",
+    "read": [
+      "它是本轮最大的单一变化量。pro 从 17.79% 涨到 26.20%（+8.41pp），flash 从 12.08% 涨到 31.23%（+19.16pp），斜率 pro 0.00638/步（r=0.961）、flash 0.00744/步（r=0.981），是本组里回归拟合最好的一条线。",
+      "把长势分成两段看：pro 第 1~5 步在 17%~18% 横盘，第 6 步跳到 20.8% 之后再缓慢抬升，第 15~19 步到 26%~28%；flash 几乎是一路直线上行，中途没有平台。",
+      "和 avg@n 一起读：one 涨 +8.41pp 而 avg@n 只涨 +6.88pp（pro），中间的差由两项构成——中间桶缩小造成的会计抵消 -4.32pp，加上留在中间桶的题自己变好带来的 +2.78pp。中间桶里的题变成全对，一边给 one 加分、一边把自己从中间桶里减掉，所以净效果不等于 one 的涨幅。",
+      "和 zero 一起读：one 涨、zero 不降，说明进步发生在「半会」的题上，而不是把不会的题变成会。这既是好消息（学习信号有效），也提示下一步该关心的是那 13%~17% 全错题的归因。"
+    ],
+    "observed": "pro：第 1 步 0.177866（17.79%）→ 第 19 步 0.261996（26.20%），涨 +8.41pp；最低第 2 步 17.05%，最高第 18 步 28.28%。flash：第 1 步 0.120756（12.08%）→ 第 25 步 0.312340（31.23%），涨 +19.16pp；最低就是首步 12.08%，最高就是末步 31.23%，25 步里只有 8 次小幅回落、整体单向上行。两个 run 对比：flash 的 one 涨幅是 pro 的 2.28 倍，但 flash 起点更低（12.08% vs 17.79%），到末步反超（31.23% vs 26.20%）——小模型在这轮里「吃透的题」增加得更快。同期 passrate/zero 基本没动（-1.14pp / -1.30pp），avg@n 涨 +6.88pp / +12.71pp。",
+    "traps": [
+      "不要把 one 当成 avg@n 的另一种写法：one 是全对题的比例，avg@n 是逐题比例的均值，本轮 avg@n（0.633 / 0.641）始终高于 one（0.262 / 0.312），差值就是中间桶的贡献。",
+      "one 涨得多不等于「学会的题多」那么多：中间桶变小会让 one 上涨，但那些题本来就是半会，被算进 one 之前它也一直在贡献部分通过率。用本条 observed 里的分解式看清楚谁在动。",
+      "分母同样每步在变（num_measurable 1636~4728），flash 第 16 步是全期分母最大的一步（4380），而它正好是被重跑过的步之一，读那一段时格外小心。",
+      "9 桶直方图（passrate/hist9_ratio）在仓库里没有数据，所以无法看到「半会」那部分内部到底是 1/16 还是 7/16——这一层只能用 1 − zero − one 的均值去推。"
+    ],
+    "related": [
+      "dynsam/passrate/zero",
+      "dynsam/avg@n",
+      "dynsam/num_measurable",
+      "dynsam/agentic/num_accepted/step"
+    ],
+    "sources": [
+      {
+        "ref": "humaneval-passk",
+        "stance": "context",
+        "note": "HumanEval 只定义了 pass@k 的无偏估计量，没有定义我们这种「n 次全中占比」的口径；passrate/one 属于本遥测自有的固定 n=16 插件统计，不能反过来套用论文的估计量。"
+      },
+      {
+        "ref": "rlvr-entropy-coverage",
+        "stance": "challenge",
+        "note": "我们写 passrate/one 上升代表「模型吃透的题变多」；该文提示同一过程（熵下降、覆盖收窄）也会抬高 one，所以 one 单向上行本身不足以证明能力扩张。"
+      },
+      {
+        "ref": "dapo-accuracy1-rising",
+        "stance": "support",
+        "note": "直接对应我们观测到的 one 单向抬升（pro 17.79%→26.20%、flash 12.08%→31.23%）：公开工作也把「accuracy=1 的样本持续变多」当作训练常态，并用它论证动态采样的必要性。"
+      },
+      {
+        "ref": "self-avgn-decompose",
+        "stance": "support",
+        "note": "全对占比是这三项里唯一稳定单项贡献最大的一项（pro +8.41 / flash +17.08 个百分点），它才是 avg@n 上行的主引擎。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/num_measurable",
+    "name": "可测通过率的题数（passrate 的分母）",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "这一步有多少道题算出并通过了「可测的通过率」，也就是 dynsam/passrate/zero、passrate/one（以及未上报的 mid/hist9）的分母。它不是「这一步有多少道题」，而是「有多少道题的判分结果够用、可以被统计进来」。它每步都在大幅变动，是本组里最需要先看清楚的数。",
+    "how": "官方口径：prompts with a measurable pass rate this step; per data source under dynsam/<source>/num_measurable。也就是说官方声称每个数据源下还有一层 dynsam/<source>/num_measurable 可以拆，但本仓库两个 run 都没有这一层（枚举 dynsam/ 前缀 83 个 tag，只有 8 个标量指标和 25 个数据集 × num_accepted/{step,held,carryover}）。另一个固定量是 dynsam/num_target，两个 run、每一步都精确等于 1568，正好等于 status.json 里的 totals.prompts_per_step（docs/01 记的 /live 里 target=1568，含义是每步的 prompt 目标数）。",
+    "why": "它决定了 passrate 那几条曲线有多可信。同样 1 个百分点的差，在 1600 道题上和在 4700 道题上不是一回事；而且这个数变化 2~3 倍时，参与统计的题目构成几乎肯定也变了，passrate 的涨跌里就混进了「这批题换了一批」的成分。做跨步对比、画趋势、算相关系数时，它是最容易被忽略的混杂因子。它本身还是采样器工作量的读数：这一步为了凑够训练 batch，一共处理了多少道题。",
+    "read": [
+      "先看它和 num_target 的比值而不是绝对值。num_target 恒定 1568，而 num_measurable 全程都大于它：pro 比值 1.04~3.02 倍，flash 1.23~2.79 倍。两个数不是「目标 / 达成」的关系，看板也没给公式。",
+      "它和 dynsam/agentic/num_accepted/step 同步得非常好（相关系数 pro 0.958、flash 0.925），两者比值全程稳定在 pro 1.63~2.04、flash 1.51~2.06。看起来它更接近「这一步为凑 batch 处理了多少道题」的总量，而不是「有多少道题被判分了」。",
+      "不要把它的波动归因于 infra 丢序列：infra_error/seq_rate 全程不超过 3.04%，一道题 16 次 attempt 全丢的概率量级是 0.008^16（约 10^-33），靠 infra 事故根本造不出 2.9 倍的跳动。它的变化主要来自采样/受理口径本身。",
+      "跨步比 passrate 之前，至少用它的变化量估一下噪声：同一个真实通过率下，分母从 1636 变到 4728，比例估计的标准误在 p≈0.15 时从 0.52pp 变成 0.88pp。"
+    ],
+    "observed": "pro 第 1 步 4040 → 第 19 步 2081，最低第 16 步 1636（全期最小）、最高第 15 步 4728（全期最大），极差 2.89 倍，均值 2915、中位数 2756；对步号回归斜率只有 -3.4/步、r=-0.024，即没有趋势、只有上下跳。flash 第 1 步 3642 → 第 25 步 4281，最低第 5 步 1924、最高第 16 步 4380，极差 2.28 倍，均值 2731、中位数 2491，斜率 24.0/步、r=0.261。相邻两步最大跳变：pro 第 15 步 4728 → 第 16 步 1636（差 -3092，掉到全期最低），flash 第 15 步 2443 → 第 16 步 4380（差 +1937，冲到全期最高）。两个 run 的 num_target 全程都是 1568。数据里也看不出数据集增删与它同步：pro 第 15 步正是公告里「从 pro 的下一轮移除 cyber 数据集」生效的那一步（cyber 的 num_accepted 从第 15 步起全是 null，只剩前 14 步），而它的 num_measurable 反而是全期最高。",
+    "traps": [
+      "它是 passrate/* 的分母，不是 passrate 本身。看到 passrate 跳一下，先查这一步的 num_measurable，再谈模型。",
+      "num_measurable > num_target 且倍率浮动，说明两者口径不同；不要用 num_measurable − num_target 当「多余的题」，也不要和 num_target 相除当达成率。",
+      "官方说明提到每个数据源下有 dynsam/<source>/num_measurable，但本仓库没有这一层；因此它的波动在本地无法拆解到数据源，具体是什么在变我给不出结论。",
+      "它和 dynsam/agg_turn/mean 的分母口径不同（docs/01 第 8 节第 7 坑），两者相除没有意义。"
+    ],
+    "related": [
+      "dynsam/num_target",
+      "dynsam/passrate/zero",
+      "dynsam/passrate/one",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/infra_error/seq_rate"
+    ],
+    "sources": [
+      {
+        "ref": "humaneval-passk",
+        "stance": "support",
+        "note": "论文原话指出直接算 pass@k 「can have high variance」，并因此要求每题采 n>=k 次；这支持我们把 num_measurable（每步 1636~4728 题）当作单步通过率噪声下限的来源。"
+      },
+      {
+        "ref": "self-per-token-throughput",
+        "stance": "support",
+        "note": "抓到 n=16 之后，passrate 的标准误就能算了：p≈0.15 时 16 次采样的标准误约 0.52~0.88pp。低于这个量级的两步差异不要当信号读。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/num_target",
+    "name": "每步 prompt 目标数 num_target",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "这一步打算采多少道题的 prompt 目标值。本轮两个 run、每一步都精确等于 1568，和 status.json 里 totals.prompts_per_step 完全一致，也就是看板上写的「1,568 × 16 seqs」里的那个 1568。它是一个配置常量，不是测量结果，所以曲线是一条直线。",
+    "how": "看板对 dynsam/num_target 没有单独给官方说明（22 条里没有它），但可以从两处对上：status.json 的 totals.prompts_per_step = 1568，docs/01 记录的 /live 快照里 target: 1568 注明「= prompts_per_step」，以及验证过的关系式 perf/total_num_tokens = 1568 × 16 × ctx_total_length/mean。单位是「题」，乘 16 得到这一步的目标序列数 25088，正好等于 status.json 的 totals.trained_step = 25088（且 trained_cum = 25088 × 步数）。",
+    "why": "它是理解其它 count 类指标的标尺：num_measurable、agentic/num_accepted、各数据集的 num_accepted 都要和它对照才知道「这一步处理了多少、留下多少」。它也是判断「训练批量有没有变」的依据——只要它不动，avg@n 的同比就是可比的；它哪天变了，之前所有按步比较都要重新校准。",
+    "read": [
+      "看成一条直线才对。pro 19 步、flash 25 步，取值全部 1568，一次没变；出现任何非 1568 的值都说明站点改了配置，值得单独记一笔。",
+      "和 num_measurable 比值不是达成率：num_measurable 全程大于它（pro 1.04~3.02 倍），两者口径不同。",
+      "它是 16 的来源：1568 × 16 = 25088，这一步训进去的序列数固定不变；也就是说 avg@n 的 n=16 是配置常数，不是自适应出来的。",
+      "按数据源拆的「目标」在 /live 的 ds 里出现过（每个数据集一组 [受理, 目标, ?, 剩余]），但仓库的 series 里没有对应的 per-source target tag，无法按数据集核对。"
+    ],
+    "observed": "pro：19 步全部 1568（无变化）。flash：25 步全部 1568（无变化）。与之配套的 status.json 快照：pro 的 totals 里 prompts_per_step=1568、trained_step=25088、trained_cum=476672（= 25088 × 19）；flash 的 trained_step=25088、trained_cum=627200（= 25088 × 25）。而每步实际可测的题数 num_measurable 在 pro 是 1636~4728、flash 是 1924~4380，始终高于目标值，说明「目标」和「可测」不是同一层计数。",
+    "traps": [
+      "这是配置常量不是效果指标，别把它画进趋势分析；它变化只意味着训练配置变了。",
+      "不要用 num_measurable / num_target 当「完成度」：比值全程 1.04~3.02（pro），永远大于 1。",
+      "trained_step = 1568 × 16 是「训练视角」的序列数，train/harness/*/training/rollouts 全加起来约 2.2 万，两者记账口径不同，对不上是正常的（docs/01 第 8 节第 7 坑）。"
+    ],
+    "related": [
+      "dynsam/num_measurable",
+      "dynsam/agentic/num_accepted/step",
+      "perf/total_num_tokens"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "论文的约束「keeping a consistent number of prompts」解释了本 run num_target 恒为 1568（配置常量）而 num_measurable 在 1636~4728 浮动：前者是被填满的目标槽位，后者是过滤过程中实际处理的题量。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/agg_turn/mean",
+    "name": "每轨迹平均 agent 轮数（agg_turn/mean）",
+    "group": "效果与采样",
+    "unit": "轮 / 轨迹",
+    "what": "一条 agent 轨迹平均要走多少个「轮」（一次模型输出 → 一次工具/环境调用 → 把结果拼回上下文，算一轮）。官方口径只有一句 agent turns per trajectory。它衡量的是任务实际需要多少步交互，既受题目复杂度影响，也受模型自己的决策质量影响：模型越会规划，通常越少绕弯。",
+    "how": "官方说明：agent turns per trajectory。把这一步训练 batch 里所有轨迹的轮数取平均；agentic 类的轨迹动辄几十轮，chat 类通常只有一两轮，所以这个均值会被 agentic 轨迹主导。仓库里有一族 ctx_response_length/*，其中 ctx_response_length/mean 是每条轨迹生成的总 token 数，两者在 pro 上相关系数 0.665（flash 0.388），说明轮数和生成长度大体同向——轮数多的轨迹同时也在生成更多 token。",
+    "why": "它是「任务难度 + 模型效率」的合成读数：轮数明显下降而通过率上升，通常意味着模型学会了更短的解法（少试错、少绕路）；轮数上升但通过率不动，多半是模型在反复试探或者环境在超时重试，是烧算力的信号；轮数突然跳变还要先怀疑题目构成或 harness 变了。它也是成本和延迟的直接乘数——轮数直接决定 sandbox 调用次数。",
+    "read": [
+      "本轮没有下降趋势，这一点和「训练久了轮数会降」的直觉相反。用步号回归：pro 斜率 +0.27 轮/步、r=0.261；flash 斜率 +0.12 轮/步、r=0.188。两个 r 都远达不到显著，只能说「高位震荡」。",
+      "但分段看确实在后半段往下走：pro 前半段斜率 +1.87 轮/步、后半段 -0.32 轮/步；flash 前半段 +0.82、后半段 -0.43。前半段的抬升与后半段的回落互相抵消，才有「整段看是平的」这个结果。",
+      "首末对比：pro 第 1 步 47.47 → 第 19 步 56.04（+8.57 轮，+18.1%）；flash 第 1 步 47.31 → 第 25 步 51.99（+4.67 轮，+9.9%）。前 5 步均值 pro 48.57 / flash 53.77，后 5 步均值 pro 50.85 / flash 55.10。",
+      "它和通过率基本不同步：与 avg@n 的相关系数 pro 0.334、flash 0.090；和 num_measurable 是弱负相关（pro -0.482、flash -0.223）。本轮「通过率上升」和「轮数变化」是两件事，不能用轮数去解释通过率。"
+    ],
+    "observed": "pro：第 1 步 47.4689 → 第 19 步 56.0396，最低第 2 步 43.4、最高第 13 步 64.8149，均值 52.85，极差 1.49 倍；19 步里没有单调趋势（r=0.261），但前半段（第 1~9 步）从 47.5 抬到 60.7、后半段（第 10~19 步）回落到 56.04，末步仍比首步高 +8.57 轮。flash：第 1 步就是最低 47.3148，最高第 14 步 64.5941，末步 51.9886，均值 57.25，极差 1.37 倍，趋势同样不显著（r=0.188）。也就是说：任务要求平均要 43~65 轮，pro 略高于全程均值地收在 56 轮附近，flash 收在 52 轮附近；同期 avg@n 分别涨了 +6.88pp 和 +12.71pp。轮数没有随训练明显下降，说明这轮的能力提升不是靠「用更少轮数解决同样的题」实现的（或者题目构成也在变，抵消了效率提升）。",
+    "traps": [
+      "别照直觉写成「轮数随训练下降」：本仓库数据不支持这个说法，pro/flash 的步号回归 r 分别只有 0.261 和 0.188，首末还是上升的。",
+      "它和 num_measurable 的分母口径不同（docs/01 第 8 节第 7 坑），相除（平均每题几轮）没有意义。",
+      "均值会被长尾轨迹主导：agentic 轨迹几十轮、chat 轨迹 1~2 轮混在同一个平均里，任务构成一变均值就动，所以不要把它当纯粹的「模型效率」指标。",
+      "它和 avg@n 弱相关（pro 0.334），别把它当作通过率的领先指标或解释变量。"
+    ],
+    "related": [
+      "ctx_response_length/mean",
+      "ctx_total_length/mean",
+      "dynsam/avg@n",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/agentic/num_accepted/step",
+    "name": "本步受理题数（agentic harness）",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "这一步「受理」进训练 batch 的 agentic 题数。看板对这个 tag 没有任何官方说明（22 条里没有 num_accepted），从命名和同族数据只能读出：它是动态采样里被接受、真正进入训练的那部分题。与它并排的还有每个数据集下的 dynsam/<source>/<dataset>/num_accepted/{step,held,carryover} 三个 tag（本组另外 75 条）。",
+    "how": "没有官方口径。可以确认的几件事：一是它每步都远小于 dynsam/num_measurable（pro 的比例 1.63~2.04，flash 1.51~2.06），两者高度同步（相关系数 pro 0.958、flash 0.925）；二是 25 个数据集的 num_accepted/step 加起来比它高 10%~18%（pro 各步 1.10~1.18 倍，flash 1.10~1.13 倍），说明数据集层与这个 harness 层不是同一套记账口径；三是它和 train/harness/*/training/rollouts（训练 batch 里每个 harness 的 rollout 数）虽然都在两万量级附近，但一个是题数、一个是序列数，不能直接对齐。",
+    "why": "它是「这一步真正学到东西的样本量」：受理得多，梯度里的有效信息就多；受理数掉一半，当步的更新就更依赖 replay/过期数据（对应 partial/avg_staleness 上升）。它也是判断采样器是否健康的核心数——如果 avg@n 涨了但受理数同时崩掉，说明模型变好的是那些「本来就会被拒」的题，训练价值有限。它天然随题目难度反向波动：难度高的步，采样器要处理更多题（num_measurable 大）才能凑够受理量。",
+    "read": [
+      "先和 num_measurable 一起看。两者比值的稳定说明这个步的「受理率」没怎么变；比值突然变小意味着这一步采了很多题但收得少，通常是题目整体变难或判分变严。",
+      "看它和 avg@n 的关系。本轮 avg@n 稳步上行，而受理数从 2472 掉到 1090（pro，缩到 44%），说明「受理得多」和「学得好」在这轮不是一回事：受理数更多受同一步内题目构成和难度分布影响。",
+      "它对步号没有趋势：pro 斜率 -22.1/步（r=-0.292）、flash -4.9/步（r=-0.097），是纯粹的上下波动，极差 pro 2.92 倍、flash 2.14 倍。",
+      "重启后的步要单独看：pro 第 16 步 848（全期最低，同一步 num_measurable 也最低 1636），flash 第 21 步 1133 是全期最低——单点低不等于趋势坏。"
+    ],
+    "observed": "pro：第 1 步 2472 → 第 19 步 1090，最低第 16 步 848、最高第 1 步 2472，均值 1624.7，极差 2.92 倍。flash：第 1 步 2357 → 第 25 步 2075，最低第 21 步 1133、最高第 3 步 2421，均值 1560.1，极差 2.14 倍。两个 run 的均值都在 1500~1650 题/步，和 num_target=1568 同量级但略低。与 num_measurable 的比值很稳：pro 1.63~2.04、flash 1.51~2.06。25 个数据集之和相对它偏高但比例稳定（pro 1.10~1.18 倍，flash 1.10~1.13 倍）。",
+    "traps": [
+      "没有官方说明，别把它当成「通过率达标率」或者「采样命中率」——它没有分母 tag 与之配套。",
+      "它和 dynsam/num_measurable 相差近一倍且比值有浮动，两者不能互相推算；也不要拿它去和 num_target 相除算「完成度」。",
+      "数据集层的 num_accepted 之和与它不一致（高 10%~18%），这是口径差异而不是数据错误；不要用「加起来应该相等」去校验。",
+      "注意 tag 名里的 agentic：它只覆盖 agentic 这一类，不是全部训练样本，和 train/harness/*/training/rollouts 的总和也不能对齐。"
+    ],
+    "related": [
+      "dynsam/num_measurable",
+      "dynsam/num_target",
+      "train/harness/*/training/rollouts",
+      "dynsam/avg@n"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "我们把它读成「动态采样里被受理、真正进训练的那部分题」——DAPO 这套 over-sample + filter 的定义正是这个意思，并且要求 batch 内有效题数保持一致。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/infra_error/seq_rate",
+    "name": "基础设施失败序列占比（infra_error/seq_rate）",
+    "group": "效果与采样",
+    "unit": "比例 0~1（看板按百分数显示）",
+    "what": "这一步有多少比例的采样序列是因为基础设施原因（沙箱起不来/崩了、网络断、调度失败等）而作废的。它量的是集群的脏，不是模型的好坏：值越高，这一步的 rollout 白跑的越多，训进去的样本也越少。注意它是「序列」口径（每道题 16 条），不是「题」口径。",
+    "how": "官方口径：share of sequences lost to infrastructure failures。分母是这一步的序列总量（配置上应为 1568 × 16 = 25088），分子是被判为 infra 失败的序列数。因为一道题有 16 次独立采样，单序列千分之几的丢失几乎不会让某道题变成「不可测」，所以它和 num_measurable 的波动基本无关（实测相关系数 pro -0.299）。它和「重启」不是同一件事：重启是运维动作，这个数是被判定的失败；重启期间的值还可以照常上报。",
+    "why": "它决定 rollout 的实际产出率，也是「这一步的通过率能不能信」的前置条件：大面积 infra 失败会同时压低 num_measurable 和抬高 passrate 的噪声。持续走高的 seq_rate 通常先打满沙箱、再拖长 outer_gen、最后触发重启。它最大的局限是只能统计「被管线认出来的」失败——公告里 flash 那次就是「一类 infra error 没被正确检出」，那种情况这条曲线是低的，看板反而显得干净，所以低值不能证明健康。",
+    "read": [
+      "看量级：两个 run 的常态都在 0.27%~1.39 区间，也就是每 1000 条序列里丢 3~9 条。绝对值不大，但这是「被检出」的部分。",
+      "看尖峰和重启的对应关系。pro 全程最高第 8 步 0.88%，和同期重启事件并不重合；flash 的最高点是第 17 步 3.04%，是全期中位数 0.58% 的 5.2 倍，它紧跟在公告所说的那次「infra error 没被检出」之后（见 observed）。",
+      "没有任何长期趋势：pro 斜率 4.18e-5/步（r=0.152）、flash 17.95e-5/步（r=0.247），两边都是平的白噪声。集群脏不脏在这 19/25 步里没有恶化。",
+      "把它当「低值不等于没问题」的指标用：真正的信号是它和重启/公告同时出现，而不是它自己的绝对水平。"
+    ],
+    "observed": "pro：第 1 步 0.007257（0.73%）→ 第 19 步 0.005518（0.55%），最低第 4 步 0.34%、最高第 8 步 0.88%，均值 0.59%、中位数 0.55%，极差只有 2.6 倍。flash：第 1 步 0.005716（0.57%）→ 第 25 步 0.006765（0.68%），最低第 5 步 0.27%、最高第 17 步 3.04%，均值 0.73%、中位数 0.58%。flash 的形状值得记：第 17 步 3.04%、第 18 步 1.39%、第 19 步 1.06% 连续三步高于其余所有步，之后回落到 0.45%~0.85%。时间上与公告吻合：公告「we restarted the flash run from step 15 ... a type of infra error on one of datasets was not correctly detected over the past ~3 hours」发布于 2026-09-17T01:07Z，重启事件在 02:06Z，events 里第 16、17 步各留了一条 redo=true（avg@n 0.602504 → 0.594958、0.585664 → 0.601257）。也就是说：故障发生的那两三个小时里这条曲线并不突出（错误没被检出），等修好、重跑之后才在第 17 步冲到全期最高 3.04%。看板没有说明哪些步、哪个数据集受影响，所以这只能算时间上的吻合，不能坐实因果。另外 flash 最后还有两次重启（2026-09-18T02:49Z、05:09Z，都在第 25 步之前）在 notices.json 里没有对应公告。",
+    "traps": [
+      "序列口径不是题口径：常态 seq_rate 只有千分之三到千分之九（0.3%~0.9%），摊到每道题 16 次采样上，几乎不会有整道题全丢，不要拿它去解释 num_measurable 的波动。",
+      "低值不等于集群健康。flash 那次故障的特征恰恰是「没被正确检出」，所以这条曲线在那段时间是低的。判断运维状况要连着 notices.json 和 events.json 一起看。",
+      "它是被判定失败的序列占比，不是「重启造成的损失」；重启等待不计入任何一步（timing_s/step 也不含），两件事都要单独看。",
+      "pro 的 9 次重启与它的高低点没有明显对应（最高点第 8 步 0.88% 落在两次重启之间的正常步上），说明重启多不等于 infra_error 高。"
+    ],
+    "related": [
+      "dynsam/num_measurable",
+      "dynsam/avg@n_no_infra",
+      "env/active",
+      "timing_s/outer_gen"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "context",
+        "note": "动态采样必须「keep sampling until the batch is fully filled」，采样侧任何作废/失败都会落进这套计数；不过该文只说明采样成本是动态的，并未定义我们这种「被检出的 infra 失败序列占比」口径。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-8kb6/num_accepted/step",
+    "name": "chat/dataset-8kb6 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-8kb6 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 对话类 3 个数据集合计的 33.2%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 24 → 第 19 步 12，最低 12（第 19 步）、最高 26（第 3 步），均值 18.2；flash 全程 25 步：第 1 步 26 → 第 25 步 24，最低 12（第 5 步）、最高 26（第 1 步），均值 17.1。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-8kb6/num_accepted/held",
+      "dynsam/chat/dataset-8kb6/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-8kb6/num_accepted/held",
+    "name": "chat/dataset-8kb6 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-8kb6 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.71。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 24 → 第 19 步 20，最低 20（第 19 步）、最高 26（第 3 步），均值 23.9；flash 全程 25 步：第 1 步 26 → 第 25 步 24，最低 23（第 8 步）、最高 28（第 4 步），均值 25.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-8kb6/num_accepted/step",
+      "dynsam/chat/dataset-8kb6/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-8kb6/num_accepted/carryover",
+    "name": "chat/dataset-8kb6 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-8kb6 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 8 → 第 19 步 5，最低 5（第 19 步）、最高 10（第 3 步），均值 8.2；flash 全程 25 步：第 1 步 10 → 第 25 步 8，最低 8（第 6 步）、最高 12（第 4 步），均值 9.5。 对话类的量级明显更小（个位数到十几），code 类的结转多在十几到两百之间；chat 的波动看起来大，但绝对影响可以忽略。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-8kb6/num_accepted/step",
+      "dynsam/chat/dataset-8kb6/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-eup7/num_accepted/step",
+    "name": "chat/dataset-eup7 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-eup7 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 对话类 3 个数据集合计的 33.3%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 26 → 第 19 步 14，最低 11（第 16 步）、最高 26（第 1 步），均值 18.3；flash 全程 25 步：第 1 步 25 → 第 25 步 25，最低 11（第 8 步）、最高 28（第 3 步），均值 17.1。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-eup7/num_accepted/held",
+      "dynsam/chat/dataset-eup7/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-eup7/num_accepted/held",
+    "name": "chat/dataset-eup7 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-eup7 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.82。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 26 → 第 19 步 24，最低 20（第 13 步）、最高 26（第 1 步），均值 24.1；flash 全程 25 步：第 1 步 25 → 第 25 步 25，最低 23（第 8 步）、最高 28（第 3 步），均值 24.8。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-eup7/num_accepted/step",
+      "dynsam/chat/dataset-eup7/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-eup7/num_accepted/carryover",
+    "name": "chat/dataset-eup7 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-eup7 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 10 → 第 19 步 9，最低 4（第 13 步）、最高 10（第 1 步），均值 8.4；flash 全程 25 步：第 1 步 9 → 第 25 步 9，最低 8（第 6 步）、最高 12（第 3 步），均值 9.1。 对话类的量级明显更小（个位数到十几），code 类的结转多在十几到两百之间；chat 的波动看起来大，但绝对影响可以忽略。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-eup7/num_accepted/step",
+      "dynsam/chat/dataset-eup7/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-lm3t/num_accepted/step",
+    "name": "chat/dataset-lm3t 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-lm3t 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 对话类 3 个数据集合计的 33.5%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 23 → 第 19 步 15，最低 13（第 5 步）、最高 23（第 1 步），均值 18.1；flash 全程 25 步：第 1 步 25 → 第 25 步 24，最低 13（第 19 步）、最高 26（第 3 步），均值 17.1。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-lm3t/num_accepted/held",
+      "dynsam/chat/dataset-lm3t/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-lm3t/num_accepted/held",
+    "name": "chat/dataset-lm3t 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-lm3t 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.77。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 23 → 第 19 步 23，最低 22（第 3 步）、最高 28（第 4 步），均值 23.7；flash 全程 25 步：第 1 步 25 → 第 25 步 24，最低 23（第 5 步）、最高 26（第 3 步），均值 24.5。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-lm3t/num_accepted/step",
+      "dynsam/chat/dataset-lm3t/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/chat/dataset-lm3t/num_accepted/carryover",
+    "name": "chat/dataset-lm3t 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "对话类数据源 chat/dataset-lm3t 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 8 → 第 19 步 8，最低 7（第 3 步）、最高 10（第 4 步），均值 8.2；flash 全程 25 步：第 1 步 10 → 第 25 步 9，最低 8（第 4 步）、最高 11（第 3 步），均值 8.9。 对话类的量级明显更小（个位数到十几），code 类的结转多在十几到两百之间；chat 的波动看起来大，但绝对影响可以忽略。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/chat/dataset-lm3t/num_accepted/step",
+      "dynsam/chat/dataset-lm3t/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-4onq/num_accepted/step",
+    "name": "code/dataset-4onq 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-4onq 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 2.8%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 66 → 第 19 步 17，最低 17（第 16 步）、最高 66（第 1 步），均值 35.2；flash 全程 25 步：第 1 步 68 → 第 25 步 45，最低 11（第 2 步）、最高 68（第 1 步），均值 34.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-4onq/num_accepted/held",
+      "dynsam/code/dataset-4onq/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-4onq/num_accepted/held",
+    "name": "code/dataset-4onq 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-4onq 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~2.33。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 66 → 第 19 步 32，最低 32（第 19 步）、最高 66（第 1 步），均值 45.1；flash 全程 25 步：第 1 步 68 → 第 25 步 45，最低 35（第 10 步）、最高 68（第 1 步），均值 49.3。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-4onq/num_accepted/step",
+      "dynsam/code/dataset-4onq/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-4onq/num_accepted/carryover",
+    "name": "code/dataset-4onq 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-4onq 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 35 → 第 19 步 0，最低 0（第 19 步）、最高 35（第 1 步），均值 13.8；flash 全程 25 步：第 1 步 37 → 第 25 步 14，最低 4（第 10 步）、最高 37（第 1 步），均值 18.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-4onq/num_accepted/step",
+      "dynsam/code/dataset-4onq/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-bvg7/num_accepted/step",
+    "name": "code/dataset-bvg7 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-bvg7 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 4.8%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 126 → 第 19 步 48，最低 25（第 16 步）、最高 126（第 1 步），均值 59.7；flash 全程 25 步：第 1 步 127 → 第 25 步 69，最低 17（第 2 步）、最高 127（第 1 步），均值 56.3。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-bvg7/num_accepted/held",
+      "dynsam/code/dataset-bvg7/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-bvg7/num_accepted/held",
+    "name": "code/dataset-bvg7 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-bvg7 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~2.48。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 126 → 第 19 步 68，最低 58（第 11 步）、最高 126（第 1 步），均值 73.1；flash 全程 25 步：第 1 步 127 → 第 25 步 69，最低 62（第 9 步）、最高 127（第 1 步），均值 80.5。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-bvg7/num_accepted/step",
+      "dynsam/code/dataset-bvg7/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-bvg7/num_accepted/carryover",
+    "name": "code/dataset-bvg7 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-bvg7 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 74 → 第 19 步 16，最低 6（第 11 步）、最高 74（第 1 步），均值 21.3；flash 全程 25 步：第 1 步 75 → 第 25 步 17，最低 10（第 9 步）、最高 75（第 1 步），均值 28.8。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-bvg7/num_accepted/step",
+      "dynsam/code/dataset-bvg7/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-dnpn/num_accepted/step",
+    "name": "code/dataset-dnpn 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-dnpn 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 5.8%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 95 → 第 19 步 49，最低 39（第 16 步）、最高 100（第 15 步），均值 69.5；flash 全程 25 步：第 1 步 105 → 第 25 步 91，最低 42（第 2 步）、最高 105（第 1 步），均值 66.8。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-dnpn/num_accepted/held",
+      "dynsam/code/dataset-dnpn/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-dnpn/num_accepted/held",
+    "name": "code/dataset-dnpn 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-dnpn 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.95。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 95 → 第 19 步 78，最低 70（第 13 步）、最高 100（第 15 步），均值 85.1；flash 全程 25 步：第 1 步 105 → 第 25 步 91，最低 84（第 2 步）、最高 105（第 1 步），均值 92.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-dnpn/num_accepted/step",
+      "dynsam/code/dataset-dnpn/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-dnpn/num_accepted/carryover",
+    "name": "code/dataset-dnpn 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-dnpn 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 32 → 第 19 步 15，最低 7（第 13 步）、最高 37（第 15 步），均值 22.3；flash 全程 25 步：第 1 步 42 → 第 25 步 28，最低 22（第 2 步）、最高 42（第 1 步），均值 29.5。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-dnpn/num_accepted/step",
+      "dynsam/code/dataset-dnpn/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-m1dt/num_accepted/step",
+    "name": "code/dataset-m1dt 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-m1dt 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 14.0%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 311 → 第 19 步 116，最低 103（第 16 步）、最高 311（第 1 步），均值 169.3；flash 全程 25 步：第 1 步 296 → 第 25 步 220，最低 68（第 2 步）、最高 296（第 1 步），均值 163.5。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-m1dt/num_accepted/held",
+      "dynsam/code/dataset-m1dt/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-m1dt/num_accepted/held",
+    "name": "code/dataset-m1dt 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-m1dt 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.68。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 311 → 第 19 步 163，最低 160（第 13 步）、最高 311（第 1 步），均值 199.2；flash 全程 25 步：第 1 步 296 → 第 25 步 220，最低 157（第 10 步）、最高 296（第 1 步），均值 207.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-m1dt/num_accepted/step",
+      "dynsam/code/dataset-m1dt/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-m1dt/num_accepted/carryover",
+    "name": "code/dataset-m1dt 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-m1dt 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 157 → 第 19 步 8，最低 6（第 13 步）、最高 157（第 1 步），均值 45.2；flash 全程 25 步：第 1 步 142 → 第 25 步 66，最低 2（第 10 步）、最高 142（第 1 步），均值 53.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-m1dt/num_accepted/step",
+      "dynsam/code/dataset-m1dt/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-obg8/num_accepted/step",
+    "name": "code/dataset-obg8 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-obg8 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 14.5%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 246 → 第 19 步 117，最低 58（第 16 步）、最高 361（第 15 步），均值 181.5；flash 全程 25 步：第 1 步 247 → 第 25 步 263，最低 89（第 23 步）、最高 326（第 3 步），均值 171.9。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-obg8/num_accepted/held",
+      "dynsam/code/dataset-obg8/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-obg8/num_accepted/held",
+    "name": "code/dataset-obg8 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-obg8 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~4.57。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 246 → 第 19 步 272，最低 200（第 17 步）、最高 361（第 15 步），均值 253.7；flash 全程 25 步：第 1 步 247 → 第 25 步 263，最低 207（第 10 步）、最高 327（第 4 步），均值 271.6。 它是少数 held 长期明显大于 step 的数据集（held/step 平均约 1.62，最高 4.57），说明它的题池里始终压着一批未被受理的题。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-obg8/num_accepted/step",
+      "dynsam/code/dataset-obg8/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-obg8/num_accepted/carryover",
+    "name": "code/dataset-obg8 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-obg8 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 92 → 第 19 步 119，最低 46（第 17 步）、最高 207（第 15 步），均值 99.9；flash 全程 25 步：第 1 步 93 → 第 25 步 109，最低 53（第 10 步）、最高 173（第 4 步），均值 117.8。 它的结转量在本 run 里属于最大的一档（最高 207），意味着这个数据源的题会跨很多步反复被采样。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-obg8/num_accepted/step",
+      "dynsam/code/dataset-obg8/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-sin0/num_accepted/step",
+    "name": "code/dataset-sin0 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-sin0 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 13.7%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 249 → 第 19 步 96，最低 84（第 16 步）、最高 249（第 1 步），均值 167.3；flash 全程 25 步：第 1 步 254 → 第 25 步 229，最低 111（第 23 步）、最高 260（第 3 步），均值 166.3。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-sin0/num_accepted/held",
+      "dynsam/code/dataset-sin0/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-sin0/num_accepted/held",
+    "name": "code/dataset-sin0 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-sin0 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~2.05。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 249 → 第 19 步 164，最低 164（第 19 步）、最高 249（第 1 步），均值 203.9；flash 全程 25 步：第 1 步 254 → 第 25 步 229，最低 183（第 23 步）、最高 261（第 4 步），均值 229.9。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-sin0/num_accepted/step",
+      "dynsam/code/dataset-sin0/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-sin0/num_accepted/carryover",
+    "name": "code/dataset-sin0 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-sin0 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 95 → 第 19 步 11，最低 11（第 19 步）、最高 95（第 1 步），均值 50.2；flash 全程 25 步：第 1 步 100 → 第 25 步 75，最低 30（第 23 步）、最高 107（第 4 步），均值 76.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-sin0/num_accepted/step",
+      "dynsam/code/dataset-sin0/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-ta4j/num_accepted/step",
+    "name": "code/dataset-ta4j 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-ta4j 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 5.8%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 101 → 第 19 步 50，最低 30（第 10 步）、最高 128（第 15 步），均值 72.1；flash 全程 25 步：第 1 步 115 → 第 25 步 100，最低 37（第 2 步）、最高 115（第 1 步），均值 69.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-ta4j/num_accepted/held",
+      "dynsam/code/dataset-ta4j/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-ta4j/num_accepted/held",
+    "name": "code/dataset-ta4j 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-ta4j 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~3.03。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 101 → 第 19 步 94，最低 69（第 10 步）、最高 128（第 15 步），均值 93.3；flash 全程 25 步：第 1 步 115 → 第 25 步 100，最低 85（第 10 步）、最高 119（第 17 步），均值 104.9。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-ta4j/num_accepted/step",
+      "dynsam/code/dataset-ta4j/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-ta4j/num_accepted/carryover",
+    "name": "code/dataset-ta4j 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-ta4j 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 38 → 第 19 步 31，最低 7（第 10 步）、最高 65（第 15 步），均值 30.5；flash 全程 25 步：第 1 步 52 → 第 25 步 37，最低 22（第 10 步）、最高 56（第 17 步），均值 42.1。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-ta4j/num_accepted/step",
+      "dynsam/code/dataset-ta4j/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-v7yx/num_accepted/step",
+    "name": "code/dataset-v7yx 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-v7yx 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 4.6%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 77 → 第 19 步 28，最低 28（第 19 步）、最高 82（第 15 步），均值 55.4；flash 全程 25 步：第 1 步 74 → 第 25 步 75，最低 34（第 2 步）、最高 81（第 16 步），均值 55.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-v7yx/num_accepted/held",
+      "dynsam/code/dataset-v7yx/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-v7yx/num_accepted/held",
+    "name": "code/dataset-v7yx 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-v7yx 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~2.07。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 77 → 第 19 步 58，最低 58（第 9 步）、最高 82（第 15 步），均值 65.7；flash 全程 25 步：第 1 步 74 → 第 25 步 75，最低 56（第 2 步）、最高 81（第 4 步），均值 70.9。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-v7yx/num_accepted/step",
+      "dynsam/code/dataset-v7yx/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-v7yx/num_accepted/carryover",
+    "name": "code/dataset-v7yx 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-v7yx 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 25 → 第 19 步 6，最低 6（第 9 步）、最高 30（第 15 步），均值 14.0；flash 全程 25 步：第 1 步 22 → 第 25 步 23，最低 5（第 2 步）、最高 29（第 4 步），均值 19.1。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-v7yx/num_accepted/step",
+      "dynsam/code/dataset-v7yx/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-x7wh/num_accepted/step",
+    "name": "code/dataset-x7wh 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-x7wh 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 12.5%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 282 → 第 19 步 86，最低 75（第 16 步）、最高 292（第 15 步），均值 156.5；flash 全程 25 步：第 1 步 292 → 第 25 步 224，最低 83（第 23 步）、最高 292（第 1 步），均值 146.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-x7wh/num_accepted/held",
+      "dynsam/code/dataset-x7wh/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-x7wh/num_accepted/held",
+    "name": "code/dataset-x7wh 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-x7wh 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~3.17。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 282 → 第 19 步 236，最低 159（第 2 步）、最高 292（第 15 步），均值 218.2；flash 全程 25 步：第 1 步 292 → 第 25 步 224，最低 189（第 10 步）、最高 292（第 1 步），均值 238.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-x7wh/num_accepted/step",
+      "dynsam/code/dataset-x7wh/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-x7wh/num_accepted/carryover",
+    "name": "code/dataset-x7wh 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-x7wh 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 153 → 第 19 步 107，最低 30（第 2 步）、最高 163（第 15 步），均值 89.6；flash 全程 25 步：第 1 步 163 → 第 25 步 95，最低 61（第 10 步）、最高 163（第 1 步），均值 109.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-x7wh/num_accepted/step",
+      "dynsam/code/dataset-x7wh/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-yfch/num_accepted/step",
+    "name": "code/dataset-yfch 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-yfch 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 7.5%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 55 → 第 19 步 121，最低 55（第 1 步）、最高 151（第 13 步），均值 82.2；flash 全程 25 步：第 1 步 55 → 第 25 步 55，最低 38（第 21 步）、最高 179（第 18 步），均值 79.8。 这个数据集是 25 个里少见的「越练越多」：受理数第 1 步 55 → 第 19 步 121（翻了一倍多，最高 151 在第 13 步），carryover 从第 1 步的 0 一路涨到 214（第 10 步），held 最高 269。三条计数一起往上抬，说明它逐渐变成了采样器攒题的地方；看板没有解释。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 3 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-yfch/num_accepted/held",
+      "dynsam/code/dataset-yfch/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-yfch/num_accepted/held",
+    "name": "code/dataset-yfch 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-yfch 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~3.54。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 55 → 第 19 步 121，最低 55（第 1 步）、最高 269（第 10 步），均值 110.2；flash 全程 25 步：第 1 步 55 → 第 25 步 55，最低 54（第 5 步）、最高 391（第 20 步），均值 202.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 3 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-yfch/num_accepted/step",
+      "dynsam/code/dataset-yfch/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-yfch/num_accepted/carryover",
+    "name": "code/dataset-yfch 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-yfch 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 0 → 第 19 步 67，最低 0（第 1 步）、最高 214（第 10 步），均值 54.6；flash 全程 25 步：第 1 步 0 → 第 25 步 0，最低 0（第 1 步）、最高 336（第 20 步），均值 147.8。 它的结转量在本 run 里属于最大的一档（最高 214），意味着这个数据源的题会跨很多步反复被采样。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 3 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-yfch/num_accepted/step",
+      "dynsam/code/dataset-yfch/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-zg6q/num_accepted/step",
+    "name": "code/dataset-zg6q 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-zg6q 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 代码类 11 个数据集合计的 13.9%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 227 → 第 19 步 122，最低 94（第 16 步）、最高 228（第 15 步），均值 167.6；flash 全程 25 步：第 1 步 231 → 第 25 步 220，最低 130（第 19 步）、最高 231（第 1 步），均值 164.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-zg6q/num_accepted/held",
+      "dynsam/code/dataset-zg6q/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-zg6q/num_accepted/held",
+    "name": "code/dataset-zg6q 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-zg6q 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.79。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 227 → 第 19 步 185，最低 168（第 16 步）、最高 228（第 15 步），均值 204.8；flash 全程 25 步：第 1 步 231 → 第 25 步 220，最低 205（第 10 步）、最高 235（第 22 步），均值 219.4。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/code/dataset-zg6q/num_accepted/step",
+      "dynsam/code/dataset-zg6q/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/code/dataset-zg6q/num_accepted/carryover",
+    "name": "code/dataset-zg6q 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "代码类数据源 code/dataset-zg6q 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 73 → 第 19 步 32，最低 15（第 16 步）、最高 74（第 15 步），均值 51.1；flash 全程 25 步：第 1 步 77 → 第 25 步 66，最低 51（第 10 步）、最高 81（第 22 步），均值 65.7。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/code/dataset-zg6q/num_accepted/step",
+      "dynsam/code/dataset-zg6q/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/cyber/dataset-9aui/num_accepted/step",
+    "name": "cyber/dataset-9aui 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "网络安全类数据源 cyber/dataset-9aui 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "网络安全类只有这一个数据源，所以它在类目内的占比恒为 100%，没有横向对比的意义；和它自己的历史比才有信息。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、11 步，flash 是第 3 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 只有前 14 步有值（第 15 步起为 null，与公告「从 pro 的下一轮移除 cyber 数据集」一致）：第 1 步 196 → 最后一步（第 14 步）97，最低 56（第 6 步）、最高 196（第 1 步），均值 98.1；flash 全程 25 步：第 1 步 82 → 第 25 步 65，最低 23（第 6 步）、最高 252（第 4 步），均值 74.3。 这个数据源两条 run 的待遇不同：pro 从第 15 步起整条 tag 变 null（公告说观察到 rollout 日志里的坏模式后把它从 pro 的下一轮移除），而 flash 全程都在跑。flash 有两处尖峰：第 2 步 203、第 4 步 252，而相邻的第 3、5 步只有 82、48，同一步的 held（第 2 步 221、第 4 步 252）和 carryover（第 2 步 156、第 4 步 188）也一起抬高；flash 第 2 步同时还出现全期最低的 avg@n（0.496314）和最低的 num_measurable（1975），看不出对应的训练原因，只能说是统计或数据源侧那一步不对劲。另外 flash 第 11~22 步 step 与 held 几乎恒等（64~65 附近）、carryover 全部归零，是「一步吃完、没有结转」的形态。看板只解释了 pro 的移除，没有解释 flash 这两处尖峰。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 2 处、flash 有 1 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。",
+      "pro 从第 15 步起没有值（数据集被移除），null 是「不再上报」而不是 0。"
+    ],
+    "related": [
+      "dynsam/cyber/dataset-9aui/num_accepted/held",
+      "dynsam/cyber/dataset-9aui/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/cyber/dataset-9aui/num_accepted/held",
+    "name": "cyber/dataset-9aui 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "网络安全类数据源 cyber/dataset-9aui 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~3.48。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、11 步，flash 是第 3 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 只有前 14 步有值（第 15 步起为 null，与公告「从 pro 的下一轮移除 cyber 数据集」一致）：第 1 步 196 → 最后一步（第 14 步）204，最低 72（第 2 步）、最高 204（第 14 步），均值 146.9；flash 全程 25 步：第 1 步 82 → 第 25 步 65，最低 64（第 11 步）、最高 252（第 4 步），均值 96.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 2 处、flash 有 1 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。",
+      "pro 从第 15 步起没有值（数据集被移除），null 是「不再上报」而不是 0。"
+    ],
+    "related": [
+      "dynsam/cyber/dataset-9aui/num_accepted/step",
+      "dynsam/cyber/dataset-9aui/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/cyber/dataset-9aui/num_accepted/carryover",
+    "name": "cyber/dataset-9aui 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "网络安全类数据源 cyber/dataset-9aui 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、11 步，flash 是第 3 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 只有前 14 步有值（第 15 步起为 null，与公告「从 pro 的下一轮移除 cyber 数据集」一致）：第 1 步 132 → 最后一步（第 14 步）118，最低 0（第 2 步）、最高 139（第 5 步），均值 72.1；flash 全程 25 步：第 1 步 18 → 第 25 步 0，最低 0（第 3 步）、最高 188（第 4 步），均值 28.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 2 处、flash 有 1 处），不要拿它当恒等式去校验数据。",
+      "pro 从第 15 步起没有值（数据集被移除），null 是「不再上报」而不是 0。"
+    ],
+    "related": [
+      "dynsam/cyber/dataset-9aui/num_accepted/step",
+      "dynsam/cyber/dataset-9aui/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-1doa/num_accepted/step",
+    "name": "general/dataset-1doa 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-1doa 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 通用类 4 个数据集合计的 16.6%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 48 → 第 19 步 23，最低 23（第 19 步）、最高 49（第 2 步），均值 35.9；flash 全程 25 步：第 1 步 48 → 第 25 步 41，最低 22（第 13 步）、最高 48（第 1 步），均值 33.4。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-1doa/num_accepted/held",
+      "dynsam/general/dataset-1doa/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-1doa/num_accepted/held",
+    "name": "general/dataset-1doa 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-1doa 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.67。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 48 → 第 19 步 38，最低 38（第 9 步）、最高 51（第 10 步），均值 45.6；flash 全程 25 步：第 1 步 48 → 第 25 步 41，最低 38（第 24 步）、最高 56（第 11 步），均值 47.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-1doa/num_accepted/step",
+      "dynsam/general/dataset-1doa/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-1doa/num_accepted/carryover",
+    "name": "general/dataset-1doa 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-1doa 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 17 → 第 19 步 6，最低 6（第 19 步）、最高 19（第 10 步），均值 14.3；flash 全程 25 步：第 1 步 17 → 第 25 步 10，最低 7（第 24 步）、最高 24（第 11 步），均值 15.7。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/general/dataset-1doa/num_accepted/step",
+      "dynsam/general/dataset-1doa/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-5610/num_accepted/step",
+    "name": "general/dataset-5610 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-5610 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 通用类 4 个数据集合计的 16.0%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 47 → 第 19 步 26，最低 21（第 16 步）、最高 50（第 15 步），均值 34.4；flash 全程 25 步：第 1 步 41 → 第 25 步 41，最低 23（第 24 步）、最高 52（第 3 步），均值 33.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-5610/num_accepted/held",
+      "dynsam/general/dataset-5610/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-5610/num_accepted/held",
+    "name": "general/dataset-5610 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-5610 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.9。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 47 → 第 19 步 42，最低 37（第 10 步）、最高 50（第 15 步），均值 41.6；flash 全程 25 步：第 1 步 41 → 第 25 步 41，最低 39（第 9 步）、最高 56（第 20 步），均值 47.3。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-5610/num_accepted/step",
+      "dynsam/general/dataset-5610/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-5610/num_accepted/carryover",
+    "name": "general/dataset-5610 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-5610 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 16 → 第 19 步 10，最低 5（第 10 步）、最高 19（第 15 步），均值 10.3；flash 全程 25 步：第 1 步 10 → 第 25 步 10，最低 8（第 9 步）、最高 24（第 20 步），均值 16.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/general/dataset-5610/num_accepted/step",
+      "dynsam/general/dataset-5610/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-epqd/num_accepted/step",
+    "name": "general/dataset-epqd 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-epqd 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 通用类 4 个数据集合计的 33.8%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 102 → 第 19 步 57，最低 50（第 16 步）、最高 102（第 1 步），均值 72.6；flash 全程 25 步：第 1 步 99 → 第 25 步 94，最低 52（第 9 步）、最高 99（第 1 步），均值 69.8。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-epqd/num_accepted/held",
+      "dynsam/general/dataset-epqd/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-epqd/num_accepted/held",
+    "name": "general/dataset-epqd 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-epqd 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.7。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 102 → 第 19 步 88，最低 84（第 13 步）、最高 102（第 1 步），均值 93.2；flash 全程 25 步：第 1 步 99 → 第 25 步 94，最低 90（第 23 步）、最高 107（第 8 步），均值 98.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-epqd/num_accepted/step",
+      "dynsam/general/dataset-epqd/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-epqd/num_accepted/carryover",
+    "name": "general/dataset-epqd 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-epqd 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 38 → 第 19 步 24，最低 20（第 13 步）、最高 38（第 1 步），均值 28.9；flash 全程 25 步：第 1 步 35 → 第 25 步 30，最低 26（第 23 步）、最高 42（第 8 步），均值 33.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/general/dataset-epqd/num_accepted/step",
+      "dynsam/general/dataset-epqd/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-trla/num_accepted/step",
+    "name": "general/dataset-trla 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-trla 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 通用类 4 个数据集合计的 33.5%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 99 → 第 19 步 49，最低 49（第 19 步）、最高 99（第 1 步），均值 72.1；flash 全程 25 步：第 1 步 102 → 第 25 步 94，最低 57（第 4 步）、最高 104（第 3 步），均值 69.4。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-trla/num_accepted/held",
+      "dynsam/general/dataset-trla/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-trla/num_accepted/held",
+    "name": "general/dataset-trla 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-trla 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.62。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 99 → 第 19 步 78，最低 78（第 19 步）、最高 99（第 1 步），均值 90.4；flash 全程 25 步：第 1 步 102 → 第 25 步 94，最低 91（第 10 步）、最高 104（第 3 步），均值 96.9。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/general/dataset-trla/num_accepted/step",
+      "dynsam/general/dataset-trla/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/general/dataset-trla/num_accepted/carryover",
+    "name": "general/dataset-trla 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "通用类数据源 general/dataset-trla 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 35 → 第 19 步 14，最低 14（第 19 步）、最高 35（第 1 步），均值 26.2；flash 全程 25 步：第 1 步 38 → 第 25 步 30，最低 27（第 10 步）、最高 40（第 3 步），均值 32.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/general/dataset-trla/num_accepted/step",
+      "dynsam/general/dataset-trla/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-053e/num_accepted/step",
+    "name": "visual/dataset-053e 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-053e 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 视觉类 6 个数据集合计的 15.1%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 54 → 第 19 步 24，最低 19（第 16 步）、最高 93（第 15 步），均值 40.4；flash 全程 25 步：第 1 步 47 → 第 25 步 61，最低 11（第 5 步）、最高 78（第 16 步），均值 36.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-053e/num_accepted/held",
+      "dynsam/visual/dataset-053e/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-053e/num_accepted/held",
+    "name": "visual/dataset-053e 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-053e 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~3.84。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 54 → 第 19 步 62，最低 39（第 11 步）、最高 93（第 15 步），均值 59.3；flash 全程 25 步：第 1 步 47 → 第 25 步 61，最低 37（第 2 步）、最高 84（第 4 步），均值 65.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-053e/num_accepted/step",
+      "dynsam/visual/dataset-053e/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-053e/num_accepted/carryover",
+    "name": "visual/dataset-053e 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-053e 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 23 → 第 19 步 23，最低 8（第 11 步）、最高 54（第 15 步），均值 25.9；flash 全程 25 步：第 1 步 16 → 第 25 步 30，最低 5（第 2 步）、最高 53（第 4 步），均值 33.9。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-053e/num_accepted/step",
+      "dynsam/visual/dataset-053e/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-gtav/num_accepted/step",
+    "name": "visual/dataset-gtav 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-gtav 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 视觉类 6 个数据集合计的 20.6%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 63 → 第 19 步 54，最低 35（第 13 步）、最高 95（第 15 步），均值 52.7；flash 全程 25 步：第 1 步 61 → 第 25 步 61，最低 34（第 23 步）、最高 61（第 1 步），均值 44.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-gtav/num_accepted/held",
+      "dynsam/visual/dataset-gtav/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-gtav/num_accepted/held",
+    "name": "visual/dataset-gtav 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-gtav 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.69。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 63 → 第 19 步 86，最低 52（第 13 步）、最高 96（第 18 步），均值 67.0；flash 全程 25 步：第 1 步 61 → 第 25 步 61，最低 59（第 10 步）、最高 66（第 20 步），均值 61.5。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-gtav/num_accepted/step",
+      "dynsam/visual/dataset-gtav/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-gtav/num_accepted/carryover",
+    "name": "visual/dataset-gtav 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-gtav 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 22 → 第 19 步 22，最低 11（第 13 步）、最高 32（第 18 步），均值 20.0；flash 全程 25 步：第 1 步 20 → 第 25 步 20，最低 18（第 13 步）、最高 25（第 20 步），均值 20.7。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-gtav/num_accepted/step",
+      "dynsam/visual/dataset-gtav/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-jzd3/num_accepted/step",
+    "name": "visual/dataset-jzd3 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-jzd3 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 视觉类 6 个数据集合计的 20.7%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 62 → 第 19 步 52，最低 34（第 13 步）、最高 96（第 15 步），均值 52.8；flash 全程 25 步：第 1 步 63 → 第 25 步 61，最低 39（第 4 步）、最高 63（第 1 步），均值 44.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-jzd3/num_accepted/held",
+      "dynsam/visual/dataset-jzd3/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-jzd3/num_accepted/held",
+    "name": "visual/dataset-jzd3 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-jzd3 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~1.71。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 62 → 第 19 步 84，最低 53（第 13 步）、最高 96（第 15 步），均值 67.0；flash 全程 25 步：第 1 步 63 → 第 25 步 61，最低 60（第 4 步）、最高 63（第 1 步），均值 61.6。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-jzd3/num_accepted/step",
+      "dynsam/visual/dataset-jzd3/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-jzd3/num_accepted/carryover",
+    "name": "visual/dataset-jzd3 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-jzd3 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 21 → 第 19 步 20，最低 12（第 13 步）、最高 32（第 15 步），均值 20.0；flash 全程 25 步：第 1 步 22 → 第 25 步 20，最低 20（第 4 步）、最高 22（第 1 步），均值 20.7。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-jzd3/num_accepted/step",
+      "dynsam/visual/dataset-jzd3/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-ol8x/num_accepted/step",
+    "name": "visual/dataset-ol8x 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-ol8x 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 视觉类 6 个数据集合计的 15.1%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 57 → 第 19 步 25，最低 12（第 16 步）、最高 100（第 15 步），均值 40.8；flash 全程 25 步：第 1 步 50 → 第 25 步 51，最低 4（第 21 步）、最高 66（第 16 步），均值 35.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-ol8x/num_accepted/held",
+      "dynsam/visual/dataset-ol8x/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-ol8x/num_accepted/held",
+    "name": "visual/dataset-ol8x 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-ol8x 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~5.92。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 57 → 第 19 步 65，最低 44（第 2 步）、最高 100（第 15 步），均值 59.9；flash 全程 25 步：第 1 步 50 → 第 25 步 51，最低 39（第 2 步）、最高 88（第 4 步），均值 63.5。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-ol8x/num_accepted/step",
+      "dynsam/visual/dataset-ol8x/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-ol8x/num_accepted/carryover",
+    "name": "visual/dataset-ol8x 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-ol8x 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 26 → 第 19 步 24，最低 11（第 17 步）、最高 59（第 15 步），均值 26.1；flash 全程 25 步：第 1 步 19 → 第 25 步 20，最低 7（第 2 步）、最高 57（第 4 步），均值 32.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-ol8x/num_accepted/step",
+      "dynsam/visual/dataset-ol8x/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-pt5v/num_accepted/step",
+    "name": "visual/dataset-pt5v 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-pt5v 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 视觉类 6 个数据集合计的 13.3%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 48 → 第 19 步 25，最低 6（第 16 步）、最高 64（第 15 步），均值 35.1；flash 全程 25 步：第 1 步 45 → 第 25 步 43，最低 8（第 21 步）、最高 68（第 16 步），均值 34.1。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 2 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-pt5v/num_accepted/held",
+      "dynsam/visual/dataset-pt5v/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-pt5v/num_accepted/held",
+    "name": "visual/dataset-pt5v 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-pt5v 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~6.5。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 48 → 第 19 步 53，最低 36（第 13 步）、最高 64（第 15 步），均值 46.8；flash 全程 25 步：第 1 步 45 → 第 25 步 43，最低 32（第 2 步）、最高 87（第 20 步），均值 55.4。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 2 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-pt5v/num_accepted/step",
+      "dynsam/visual/dataset-pt5v/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-pt5v/num_accepted/carryover",
+    "name": "visual/dataset-pt5v 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-pt5v 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 17 → 第 19 步 21，最低 5（第 13 步）、最高 33（第 15 步），均值 15.5；flash 全程 25 步：第 1 步 14 → 第 25 步 12，最低 0（第 2 步）、最高 55（第 20 步），均值 24.0。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 2 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-pt5v/num_accepted/step",
+      "dynsam/visual/dataset-pt5v/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-ve5o/num_accepted/step",
+    "name": "visual/dataset-ve5o 本步受理题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-ve5o 在这一步被受理、进入训练 batch 的题数（单位是题，不是序列）。它是 dynsam/agentic/num_accepted/step 按数据源拆开的那一层。",
+    "how": "看板对这个 tag 没有官方说明（22 条里没有 num_accepted 一族）。可核对的事实：25 个数据集的这个数加起来比 dynsam/agentic/num_accepted/step 高 10%~18%，说明数据集层与 harness 层不是同一套记账口径；/live 快照的 ds 字段里也有一套按数据集的 [受理, 目标, ?, 剩余]，但第二三位语义未确认（docs/01 第 3.3 节）。",
+    "why": "它说明这一步的训练 batch 里，这个数据源占了多少份额。某个数据源的受理数突然掉零或翻倍，通常不是模型的问题，而是数据源被加入/移出、或者该数据源这一步的采样出了事故。",
+    "read": [
+      "和同类的其它数据集比相对量：pro 里它平均占 视觉类 6 个数据集合计的 15.2%。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 held 与 carryover 一起看才有意义：held 是题池，carryover 是留在池里的余量。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 52 → 第 19 步 28，最低 13（第 16 步）、最高 86（第 15 步），均值 40.1；flash 全程 25 步：第 1 步 47 → 第 25 步 39，最低 13（第 5 步）、最高 88（第 3 步），均值 35.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-ve5o/num_accepted/held",
+      "dynsam/visual/dataset-ve5o/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ],
+    "sources": [
+      {
+        "ref": "dapo-dynsam",
+        "stance": "support",
+        "note": "这就是本组 75 条 num_accepted/* 的机制来源：受理量等于「按组内既非全对也非全错」过滤后的通过量，所以它随同一步的题目难度/构成波动，而不随 avg@n 同步。"
+      },
+      {
+        "ref": "dapo-zero-advantage",
+        "stance": "support",
+        "note": "给出了丢弃的动机：全对/全错组的 advantage 恒为 0、梯度贡献为零，所以「受理数变少」直接意味着这一步有效梯度量变少，而不是单纯的算力账。"
+      },
+      {
+        "ref": "drgrpo",
+        "stance": "context",
+        "note": "受理计数是动态采样与组内归一化的共同产物；该文说明 advantage 的尺度依赖组内奖励方差，因此受理量的变化里混着「哪些题被受理」的方差构成，不能只归因于题目难度。"
+      }
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-ve5o/num_accepted/held",
+    "name": "visual/dataset-ve5o 本步持有题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-ve5o 在这一步被「持有」的题数（同族的 step / carryover 是同一套计数的另外两段）。从数据看它是这一步实际拿到手上的题池，不小于受理数。",
+    "how": "看板没有官方说明。实测能对上的口径是 held[i] = step[i] + carryover[i-1]：pro 全库 445 个可比格子里有 325 个精确相等，flash 600 个里有 528 个（详见本组 dynsam/agentic 各条的说明与 traps），不等的格子几乎都落在重启后的那一步——重启会打断结转链条。",
+    "why": "它是这一步「手上有多少题可挑」的读数：持有池大而受理少，说明这一步的题被拒得多（太难或判分不给分）；持有池接近受理数，说明几乎没有结转、每一步都能干净地吃满。",
+    "read": [
+      "用 held/step 判断这一步的题被拒程度：pro 该比值的范围是 1~5.23。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 52 → 第 19 步 70，最低 39（第 11 步）、最高 86（第 15 步），均值 64.3；flash 全程 25 步：第 1 步 47 → 第 25 步 39，最低 39（第 25 步）、最高 100（第 4 步），均值 70.5。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。",
+      "数据集层的计数之和与 dynsam/agentic/num_accepted/step 系统性偏高 10%~18%，两层口径不同，不要互相校验。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-ve5o/num_accepted/step",
+      "dynsam/visual/dataset-ve5o/num_accepted/carryover",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  },
+  {
+    "id": "dynsam/visual/dataset-ve5o/num_accepted/carryover",
+    "name": "visual/dataset-ve5o 结转题数",
+    "group": "效果与采样",
+    "unit": "题数（整数）",
+    "what": "视觉类数据源 visual/dataset-ve5o 在这一步被判定「这一步不用、留到下一步」的题数（结转量）。它是这一步持有池里没有被受理掉的那部分。",
+    "how": "看板没有官方说明。实测关系：held[i] = step[i] + carryover[i-1]，即这一步的持有池 = 这一步受理的题 + 上一步结转过来的题（pro 445 格里 325 格精确成立，flash 600 格里 528 格），重启会打断这条链。所以 carryover 是「跨步滚动」的量，不是当步的即时读数。",
+    "why": "结转量大意味着采样器在攒题：要么题太难、要么受理阈值卡得紧。它也是 passrate 统计里「哪些题被重复看」的来源——结转的题会在后续步里被再次采样，训练数据里的题目构成因此不是每步独立同分布的。",
+    "read": [
+      "结转是滚动的：看它与前一步 held 的关系（held − step），而不是它与当步受理数的差。",
+      "重启会打断结转链：pro 里 held ≠ step + 前一步 carryover 的步是第 2、3、11、15、17 步，flash 是第 3、16、25 步——基本都是重启后的那一步。",
+      "同族的 step / held / carryover 三个数是一个滚动链条的三段，单独看任何一个都得不出「采样是否健康」的结论。",
+      "这是 25 个数据源之一，别用单点波动推断模型能力；要判断整体，请回看 dynsam/avg@n、dynsam/passrate/one 和 dynsam/num_measurable。"
+    ],
+    "observed": "pro 全程 19 步：第 1 步 21 → 第 19 步 38，最低 8（第 11 步）、最高 55（第 15 步），均值 33.0；flash 全程 25 步：第 1 步 16 → 第 25 步 8，最低 8（第 25 步）、最高 69（第 4 步），均值 39.2。",
+    "traps": [
+      "看板对 num_accepted/{step,held,carryover} 一族的语义没有任何官方说明，本条的读法是「按 tag 名字直译 + 数据里验证出来的滚动关系」，不是官方口径。",
+      "held = step + 上一步 carryover 这条关系在重启后的那一步不成立（pro 有 5 处、flash 有 3 处），不要拿它当恒等式去校验数据。"
+    ],
+    "related": [
+      "dynsam/visual/dataset-ve5o/num_accepted/step",
+      "dynsam/visual/dataset-ve5o/num_accepted/held",
+      "dynsam/agentic/num_accepted/step",
+      "dynsam/num_measurable"
+    ]
+  }
+]
