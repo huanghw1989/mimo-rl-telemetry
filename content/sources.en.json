@@ -1662,10 +1662,10 @@
   {
    "id": "self-time-accounting",
    "kind": "self",
-   "title": "This site's calculation: the sum of reported per-step durations is 30% less than the wall clock, and almost all of what is missing is restart waiting.",
+   "title": "This site's calculation: the sum of reported per-step durations is a quarter less than the wall clock, and the gap sits on the restart steps.",
    "venue": "Telemetry repo analyze.ts",
    "year": "2026",
-   "quote": "pro wall clock 72.18h, Σtiming_s/step only 48.43h, gap 23.74h (32.9%) equivalent to about 48.8 ten-thousand USD; of which the waits immediately after the 6 restarts and before the new steps account for 20.76h, i.e. 87.4% of the gap. For non-restart steps, the reported value differs from wall clock by less than 10 seconds.",
+   "quote": "pro wall clock 127.24h, Σtiming_s/step only 95.11h, gap 32.13h (25.3% of the true step time) equivalent to about $661,000; the gap sits on 10 restart steps, the largest single item being step 17 at 5.88h; flash's gap is 14.15h (17.3%), about $145,000. For non-restart steps, the reported value differs from wall clock by less than 20 seconds.",
    "topic": "Where did the under-reported time go?"
   },
   {

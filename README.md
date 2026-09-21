@@ -6,21 +6,50 @@
 ![Bun >= 1.1](https://img.shields.io/badge/bun-%E2%89%A51.1-black.svg)
 ![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue.svg)
 
-**▶ [Open the live demo](https://huanghw1989.github.io/mimo-rl-telemetry/)** — replay any step,
+**▶ [Open the online demo](https://huanghw1989.github.io/mimo-rl-telemetry/)** — replay any step,
 no install and no signup.
 
-[![mimo-v2.6 RL telemetry — 59 steps archived, 2,000+ metrics per step, 116 metric explainers](site/og-card.png)](https://huanghw1989.github.io/mimo-rl-telemetry/)
+[![mimo-v2.6 RL telemetry — 60 steps archived, 2,000+ metrics per step, 116 metric explainers](site/og-card.png)](https://huanghw1989.github.io/mimo-rl-telemetry/)
 
-Enhanced telemetry for Xiaomi MiMo's $3M+ live RL run: interactive metric explainers,
-cross-curve correlation analysis, and step-by-step historical replay.
+Enhanced telemetry for Xiaomi MiMo's two RL runs — both finished at step 30, $3.47M all in:
+interactive metric explainers, cross-curve correlation analysis, and step-by-step historical
+replay.
 
-**What this is.** The MiMo team publishes a live dashboard for the reinforcement-learning
+**What a link can do here.** The URL carries the *reading state*, not just the page. On the
+finished `mimo-v2.6-pro` run the DeepSWE v1.1 score fell three benchmark points in a row
+(70.92 → 70.36 → 69.35 → 68.56) and then jumped to the run's maximum, 72.57. Open it already
+locked on that step — no hunting through ~2,000 curves, no clicking your way to the right place:
+
+| Link | What opens |
+| --- | --- |
+| [`#step/pro/26/deepswe`](https://huanghw1989.github.io/mimo-rl-telemetry/#step/pro/26/deepswe) | linked crosshair on, step 26 locked, every chart on the page reading at step 26, and the DeepSWE card scrolled to and outlined |
+| [`#step/pro/25/deepswe`](https://huanghw1989.github.io/mimo-rl-telemetry/#step/pro/25/deepswe) | the same, one step earlier — the last point before the jump |
+| [`#corr/pro/26/deepswe`](https://huanghw1989.github.io/mimo-rl-telemetry/#corr/pro/26/deepswe) | **analyze this step** already open: what moved at step 26, with DeepSWE as the anchor |
+
+These are hash routes resolved in the browser, so they behave the same online, in the exported
+offline copy, and inside a replay slice (`?asof=<epoch>`).
+
+**What this is.** The MiMo team published a live dashboard for the reinforcement-learning
 training of `mimo-v2.6-pro` and `mimo-v2.6-flash` at <https://mimo.xiaomi.com/rl/>. It exposes
 about 2,000 metric series and ships an official one-line description for **22** of them. This
 project explains the rest: metric explainers, data insights, provenance and cross-chart
 analysis on top of the original dashboard, plus a long-form analysis of the run in both
 English and Chinese. It syncs the public JSON API into a local warehouse so those readings can
 be checked across the whole run rather than at a single instant.
+
+**Where the runs ended.** Both runs have now stopped, so the dashboard is read as a completed
+artifact rather than a live one:
+
+| Run | Steps | Window (Beijing) | Wall clock | Cost | Restarts |
+| --- | --- | --- | --- | --- | --- |
+| `mimo-v2.6-pro` | 30 | 2026-09-15 18:32 → 2026-09-21 02:01 | 5 d 7 h 29 m | **$2,620,671** | 14 |
+| `mimo-v2.6-flash` | 30 | 2026-09-15 23:16 → 2026-09-19 10:22 | 3 d 11 h 06 m | **$854,045** | 5 |
+| **total** | **60** | — | — | **$3,474,716** | 19 |
+
+The archived benchmark points trail the runs (pro's last posted score is step 26, flash's is
+step 30), so the newest benchmark number is never the newest training step. The run's own
+incidents are public too: pro restarted at step 17 on a GPU OOM caused by expert load
+imbalance, and the team later filtered out prompts that had become too easy for pro.
 
 > **Unofficial, community project.** This is not affiliated with, endorsed by, or
 > maintained by Xiaomi or the MiMo team. It reads only the public dashboard API. The
@@ -53,8 +82,8 @@ the substrate, not the point.
 | Metric explainers | a one-line English description for 22 tags | **116 explainers** across 9 groups: what it measures, how it is computed, why to watch it, what this run showed, and how it is misread |
 | Data insights | none | **34 insights** mined from the data, each with numbers and a recomputation path |
 | Provenance | none | **149 citation entries** (109 deduplicated materials) with verbatim quotes, plus **32 explicit search gaps** where no public material supports the reading |
-| Reading one step across charts | each chart hovers independently | linked crosshair: click a step on any chart and every chart jumps to it |
-| "Why did this step jump?" | not available | **analyze this step**: per-step outliers, rank and detrended correlation against an anchor curve, and the events (restart, version change, notice) inside that step's window |
+| Reading one step across charts | each chart hovers independently | linked crosshair: click a step on any chart and every chart jumps to it, and the address bar records the step ([example](https://huanghw1989.github.io/mimo-rl-telemetry/#step/pro/26/deepswe)) |
+| "Why did this step jump?" | not available | **analyze this step**: per-step outliers, rank and detrended correlation against an anchor curve, and the events (restart, version change, notice) inside that step's window ([example](https://huanghw1989.github.io/mimo-rl-telemetry/#corr/pro/26/deepswe)) |
 | Notices | an ever-growing English-only list | Chinese translations, a `pro@s17` / `flash@s24` step badge on every notice, and jump-to-step |
 | History | current state only | replay any captured sync point; deep link with `?asof=<epoch>` |
 | Chart selection | fixed set of pinned charts | custom boards: save your own chart sets as tabs |
@@ -81,9 +110,9 @@ total cost read as of the last sync instead of following your own clock, and hov
 clock says when the data was collected. Run `bun run sync` to bring the snapshot forward, or
 `bun run server --live` to mirror the small live endpoints from upstream as well.
 
-The repository ships with a complete data snapshot in `data/store/` (pro through step 29,
-flash through step 30), so the dashboard renders immediately and the analysis scripts run
-without any upstream access. `data/telemetry.sqlite` is a derived index, so it is not
+The repository ships with a complete data snapshot in `data/store/` (pro through step 30,
+flash through step 30 — both runs complete), so the dashboard renders immediately and the
+analysis scripts run without any upstream access. `data/telemetry.sqlite` is a derived index, so it is not
 committed: the server builds it from `data/store/` on first start, and `bun run reindex`
 does the same thing explicitly (no network either way).
 
@@ -140,7 +169,30 @@ re-checked with `bun run verify-sources`.
 Turn on linkage, click a step on any chart, and every chart on the page marks that step:
 the crosshair, the value points, the readout box, and each card's value column all switch
 from "latest" to "at this step". A run that has not reached the step falls back to its
-nearest step and says so (`@s19`) rather than drawing a marker that does not line up.
+nearest step and says so (`@s19`) rather than drawing a marker that does not line up. The
+readout box stays on screen while linked, so it is drawn semi-transparent — the curve it is
+explaining stays visible underneath it. Locking a step writes a URL, so the state you are
+looking at is the state you can send.
+
+### Deep links
+
+The address bar carries the reading state, so a link can point at a specific step rather than
+at a page:
+
+| Link | Lands on |
+| --- | --- |
+| `#step/<run>/<step>` | linked crosshair on, that step locked, every chart reading at it |
+| `#step/<run>/<step>/<anchor>` | the same, with the anchor chart scrolled to and outlined |
+| `#corr/<run>/<step>[/<anchor>]` | the same, with **analyze this step** already open |
+| `?asof=<epoch>` | a historical replay slice; combines with any of the above |
+| `#chart/<tag>` | one metric's full-size chart |
+| `#doc/metrics/@<tag>` | one explainer, opened and scrolled to |
+| `#metrics/<path>` | one metric family |
+
+`<run>` is `pro` or `flash`. `<anchor>` names the curve you clicked: a benchmark key
+(`deepswe`, `inhouse-coding`, `automation`), or a URL-encoded metric tag
+(`actor%2Fentropy_loss`, `dynsam%2Favg@n`). Nothing is precomputed for a link to resolve —
+the page reads the hash on load, so the offline copy honours the same URLs.
 
 ### Notices
 Notices get a Chinese translation, a `pro@s17` / `flash@s24` badge for the step each run
@@ -162,7 +214,10 @@ smaller of a z-score and a MAD scale, grouped by family), which curves move with
 anchor (rank correlation, plus a detrended first-difference version), and what else
 happened in that step's window (restarts, version changes, notices, headline metrics).
 Correlation points; the window events are the candidate explanation. The kernel is shared
-with the offline bundle (`site/js/correlate.js`), so online and offline numbers agree.
+with the offline bundle (`site/js/correlate.js`), so online and offline numbers agree — a
+parity check over 80 run/step/anchor combinations is part of the repo's tooling. The panel
+has its own URL too (`#corr/<run>/<step>/<anchor>`), so a single finding can be linked to
+instead of described.
 
 ### Offline export
 `bun run export` writes `site/data/bundle.js` and a single-file `site/offline.html`. Open
@@ -283,8 +338,11 @@ renderings are generated to `analysis/en/` by `bun run translate:docs`. Takeaway
 
 ## Key findings
 
-All figures below are as written in the analysis window (pro step 24 / flash step 30) and
-are recomputed by the scripts in [Reproduce every number](#reproduce-every-number).
+All figures below are recomputed by the scripts in
+[Reproduce every number](#reproduce-every-number). Items 1 and 3–7 are quoted at the analysis
+window they were written in (pro step 24 / flash step 30), so they are a frozen window rather
+than the final state; items 2 and 4 have been brought to the finished run (both runs at step
+30, see [Where the runs ended](#where-the-runs-ended)).
 
 1. **The home-page "trainer vs. inference-engine divergence" curve is a weighted-average
    illusion.** Global KL rises from 0.00219 to 0.00769, but the freshest data bucket only
@@ -293,11 +351,13 @@ are recomputed by the scripts in [Reproduce every number](#reproduce-every-numbe
    is fresh, average staleness drops 2.18 → 0.32, global KL drops 0.0101 → 0.0060, while
    bucket-0 KL barely moves 0.0034 → 0.0035. Global KL correlates +0.93 with staleness;
    bucket-0 KL correlates only −0.19 / +0.20.
-2. **`timing_s/step` and the run card's "elapsed this step" both omit restart waits.** Pro
-   under-reports by **23.7 h** — 33% of true wall clock, worth about **$488k**; flash
-   under-reports by 14.6 h (22%), about **$150k**. On steps without a restart the reported
-   and true values differ by less than 10 seconds; on steps with one they differ by hours,
-   so the gap really does come from restarts.
+2. **`timing_s/step` and the run card's "elapsed this step" both omit restart waits.** Over
+   the whole run, pro under-reports by **32.1 h** — 25.2% of the bill, worth about **$660.5k**;
+   flash under-reports by 14.1 h (17.0%), about **$145.4k**. On steps without a restart the
+   reported and true values differ by less than 10 seconds; on steps with one they differ by
+   hours, so the gap really does come from restarts. The gap is not all downtime: it also
+   contains a fixed 12–13 min (pro) / 5–6 min (flash) recovery cost per restart, and rollouts
+   that finished and were discarded by a `redo`.
 3. **The score gains come from turning half-solved tasks into always-solved ones, not from
    cracking tasks that were never solved.** Pro's `avg@n` rises **6.88 percentage points**:
    "all-correct rate up" contributes +8.41, the middle pool shrinking is −4.16, and the
@@ -305,9 +365,9 @@ are recomputed by the scripts in [Reproduce every number](#reproduce-every-numbe
    succeeds only falls from 14.6% to 13.5% (flash: 16.1% → 14.6%). Across 26 steps that
    wall did not move.
 4. **The core cost difference is how many GPUs a token needs, not how much work is done.**
-   Per-step training token volume is similar (pro averages **2.22 B**, flash **2.59 B**),
-   but per **1 B tokens** pro costs **$35.2k** and flash **$10.7k** — a factor of **3.3×**.
-   Cumulative at the time of writing: pro **$1.491M**, flash **$0.697M**.
+   Per-step training token volume is similar (pro averages **2.50 B**, flash **2.71 B**),
+   but per **1 B tokens** pro costs **$34.9k** and flash **$10.5k** — a factor of **3.3×**.
+   Final cumulative spend: pro **$2.621M**, flash **$0.854M**.
 5. **Generation length grows 1.68× (pro) / 2.13× (flash), and "length buys score" does not
    survive testing.** On the home page, length and mean pass rate look almost synchronized
    (rank correlation +0.79 / +0.93), but both simply rise over time. After first

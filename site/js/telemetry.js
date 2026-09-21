@@ -186,6 +186,20 @@
   /** 当前页面语言对应的内容语言：在线用 /api/content?lang=，离线取 bundle.content[lang]。 */
   function contentLang() { return (window.I18N && window.I18N.lang === "zh-CN") ? "zh-CN" : "en"; }
 
+  /* 公告正文该显示哪一种语言。官方原文只有英文；content/notices.zh.json 里的中文译文是
+     给中文读者看的辅助，**不是所有语言的默认值**。
+     这条规则集中在这里，是因为它踩过坑：分析面板曾经写死 `text_zh || text`，
+     结果英文界面下浮层里冒出一整句中文（界面文案是英文、正文是中文）。
+     中文模式下没有译文就退回英文原文，并让调用方标一个「未翻译」——
+     这跟首页公告面板的规则一致。 */
+  function noticeText(n) {
+    if (contentLang() === "zh-CN") {
+      if (n.text_zh) return { text: n.text_zh, original: n.text, untranslated: false };
+      return { text: n.text, original: null, untranslated: true };
+    }
+    return { text: n.text, original: null, untranslated: false };
+  }
+
   function bundleApi(u) {
     var p = u.pathname.replace(/^.*\/api/, "");
     var run = u.searchParams.get("run") || "";
@@ -273,6 +287,14 @@
         var full = R4.series[t];
         /* 这里要 map 步对象而不是步号数组：序列是按"第 N 步 → 下标 N-1"取的。 */
         cSeries[t] = vis.map(function (s) { var v = full ? full[s.step - 1] : null; return v === undefined ? null : v; });
+      });
+      /* 口径要对齐服务端：那边数的是标签表，连"整轮都没有读数"的指标也算在总数里；
+         导出包里的 series 只存真正有值的那些，直接算会比线上少几十条，
+         同一句"这一步共 N 个指标"在线说 2029、离线说 1944。补齐键集合，
+         空序列交给内核按"有效点太少"归入 skipped，两边就同一句话。 */
+      (R4.tags || []).forEach(function (t) {
+        if (cSeries[t]) return;
+        cSeries[t] = cSteps.map(function () { return null; });
       });
 
       var qStep = u.searchParams.get("step");
@@ -504,17 +526,19 @@
     } else if (inst.hoverX != null) {
       inst.hoverX = null; inst.draw();
     }
-    if (inst.tip) inst.tip.style.display = "none";
+    if (inst.tip) { inst.tip.style.display = "none"; inst.tip.classList.remove("telemetry-tip-pinned"); }
   }
 
   /* anchor / run 由点击图表时传进来；不传就保持不变（用来给面板内的切换留口子）。 */
   function setPin(step, anchor, run) {
+    noteReturnHash();
     sync.step = step;
     if (anchor !== undefined) sync.anchor = anchor;
     if (run !== undefined) sync.run = run;
     for (var i = 0; i < sync.charts.length; i++) applyPin(sync.charts[i]);
     updateValColumns();
     renderSyncState();
+    syncUrl();
   }
 
   function clearPin() {
@@ -524,12 +548,172 @@
     for (var i = 0; i < sync.charts.length; i++) clearPinFrom(sync.charts[i]);
     restoreValColumns();
     renderSyncState();
+    syncUrl();
   }
 
   function setSyncOn(on) {
     sync.on = !!on;
     try { localStorage.setItem("telemetry.sync", sync.on ? "1" : "0"); } catch (e) { }
     if (sync.on) renderSyncState(); else clearPin();
+  }
+
+  /* ==================================================================
+   * 深链：把"联动锁在某一步"和"分析这一步"做成可以贴出去的 URL
+   *
+   *   #step/<run>/<step>[/<anchor>]    联动打开、锁定这一步，每张图都标出它
+   *   #corr/<run>/<step>[/<anchor>]    同上，并把「分析这一步」面板直接打开
+   *
+   * <anchor> 是"点住的那条曲线"：评测榜写榜单代号（deepswe），训练指标写 URL 编码后的
+   * 指标名（actor%2Fentropy_loss）。没有斜杠的当榜单、有斜杠的当指标 —— 指标名一定有
+   * 命名空间、榜单代号一定没有，这一条就能把两者分开，URL 里不用再标类型。
+   *
+   * 为什么这两个状态值得有个地址：联动锁步原本是"点一下"才有的临时状态，关掉标签页
+   * 就没了，也没法发给别人。要说清"这一步发生了什么"，与其让读者自己从两千条曲线里
+   * 找到那张图、再点对那一步，不如直接把地址给他。
+   *
+   * 写地址用 history.replaceState 而不是 location.hash =，理由和文档面板一样：
+   * #step 不是 app.js 的路由，改 hash 会让它把整页重画一遍（图全部重建、滚动回顶），
+   * 而这里要的只是"地址栏跟着状态走"。
+   * ================================================================== */
+  var deep = { returnHash: null, looking: 0 };
+
+  function fallbackHash() {
+    var a = document.querySelector("#tabs a.active");
+    return (a && a.dataset && a.dataset.view) ? "#" + a.dataset.view : "#overview";
+  }
+  /* 进这一步之前地址栏是什么。清掉锁步时按它还原，而不是一律跳回 overview。 */
+  function noteReturnHash() {
+    if (!/^#(step|corr)\//.test(location.hash || "")) deep.returnHash = location.hash || fallbackHash();
+  }
+
+  function stepHash() {
+    var runs = corrRuns();
+    var segs = ["step", sync.run || corr.run || (runs[0] && runs[0].key) || "flash", String(sync.step)];
+    if (sync.anchor) segs.push(encodeURIComponent(sync.anchor.id));
+    return "#" + segs.join("/");
+  }
+  function corrHash() {
+    var runs = corrRuns();
+    var segs = ["corr", corr.run || sync.run || (runs[0] && runs[0].key) || "flash", String(corr.step)];
+    if (corr.anchor) segs.push(encodeURIComponent(corr.anchor.id));
+    return "#" + segs.join("/");
+  }
+
+  /** 地址栏跟上"锁步 / 分析面板"这两个状态；两个都没有就把属于自己的地址收掉。 */
+  function syncUrl() {
+    if (doc.open) return;                            // 解读面板自己管地址，别抢
+    if (corr.open) { setHash(corrHash()); return; }
+    if (sync.on && sync.step != null) { setHash(stepHash()); return; }
+    if (/^#(step|corr)\//.test(location.hash || "")) setHash(deep.returnHash || fallbackHash());
+  }
+
+  function parseStepHash(hash) {
+    var parts = String(hash || "").replace(/^#/, "").split("/");
+    if (parts[0] !== "step" && parts[0] !== "corr") return null;
+    var run = dec(parts[1] || ""), step = Number(parts[2]);
+    if (!run || !isFinite(step) || step <= 0) return null;
+    var id = parts.length > 3 ? dec(parts.slice(3).join("/")) : "";
+    return { mode: parts[0], run: run, step: Math.round(step), anchor: id ? anchorFromId(id) : null };
+  }
+  function anchorFromId(id) {
+    return id.indexOf("/") < 0 ? { kind: "bench", id: id, label: id } : { kind: "metric", id: id, label: id };
+  }
+  function sameAnchor(a, b) {
+    if (!a && !b) return true;
+    return !!(a && b && a.kind === b.kind && a.id === b.id);
+  }
+
+  /* 榜单锚点的名字要显示成「DeepSWE v1.1」而不是代号 deepswe —— 联动角标和分析面板
+     的标题栏都用它。离线副本直接查 bundle，在线问一次 /api/benchmarks；查不到就留着代号。 */
+  function resolveAnchorLabel(anchor) {
+    if (!anchor || anchor.kind !== "bench" || anchor.label !== anchor.id) return;
+    var found = function (list) {
+      for (var i = 0; list && i < list.length; i++) {
+        if (list[i].key === anchor.id && list[i].title) { setAnchorLabel(anchor, list[i].title); return true; }
+      }
+      return false;
+    };
+    if (BUNDLE && found(BUNDLE.benchmarks)) return;
+    api("api/benchmarks").then(function (d) { found(d && d.benchmarks); }).catch(function () { });
+  }
+  function setAnchorLabel(anchor, label) {
+    if (!label) return;
+    anchor.label = label;
+    if (sync.anchor && sync.anchor.id === anchor.id) { sync.anchor.label = label; renderSyncState(); }
+    if (corr.anchor && corr.anchor.id === anchor.id) { corr.anchor.label = label; if (corr.open) renderCorr(); }
+  }
+
+  /* 锚点那张图：评测榜看 data-bench，训练指标看卡片自己的 __card.tag。
+     两项都是 app.js 写上去的，这里只读不写。 */
+  function anchorCard(anchor) {
+    if (!anchor) return null;
+    if (anchor.kind === "bench") {
+      var key = (window.CSS && CSS.escape) ? CSS.escape(anchor.id) : anchor.id;
+      return document.querySelector('.chart-card[data-bench="' + key + '"]');
+    }
+    var cards = document.querySelectorAll(".chart-card");
+    for (var i = 0; i < cards.length; i++) {
+      var rec = cards[i].__card;
+      if (rec && rec.tag === anchor.id) return cards[i];
+    }
+    return null;
+  }
+
+  /* 锚点那张图：先等它出现（首页图表是懒加载的，滚到跟前才建），出现后滚过去。
+     app.js 渲染收尾时会 scrollTo(0,0)，正好能把刚滚好的位置顶掉 —— 所以开头两秒里
+     再确认几次，位置被顶掉就滚回去，之后完全交还给用户。一直找不到就算了：
+     状态本身已经生效，只是没滚动过去。 */
+  function focusAnchor(anchor) {
+    if (!anchor) return;
+    var mine = ++deep.looking, waited = 0;
+    (function find() {
+      if (mine !== deep.looking) return;
+      var el = anchorCard(anchor);
+      if (!el) { if ((waited += 250) < 6000) setTimeout(find, 250); return; }
+      var flash = true;
+      [0, 400, 800, 1400, 2000].forEach(function (d) {
+        setTimeout(function () {
+          if (mine !== deep.looking || !el.isConnected) return;
+          var r = el.getBoundingClientRect();
+          var off = r.top < 60 || r.bottom > window.innerHeight - 40;
+          if (d === 0 || off) {
+            try { el.scrollIntoView({ block: "center", behavior: d === 0 ? "smooth" : "auto" }); }
+            catch (e) { el.scrollIntoView(); }
+          }
+          if (flash) {
+            flash = false;
+            el.classList.remove("telemetry-anchor-flash");
+            void el.offsetWidth;                    // 强制回流，连着开同一条也能重新闪
+            el.classList.add("telemetry-anchor-flash");
+            setTimeout(function () { el.classList.remove("telemetry-anchor-flash"); }, 2400);
+          }
+        }, d);
+      });
+    })();
+  }
+
+  /** 把 URL 描述的状态落到界面上（刷新、别人发来的链接、手动改地址都走这里）。 */
+  function applyStepState(st) {
+    resolveAnchorLabel(st.anchor);
+    if (st.mode === "step" && corr.open) closeCorrPanel(true);
+    noteReturnHash();
+    sync.on = true;
+    try { localStorage.setItem("telemetry.sync", "1"); } catch (e) { }
+    sync.run = st.run;
+    sync.anchor = st.anchor;
+    sync.step = st.step;
+    for (var i = 0; i < sync.charts.length; i++) applyPin(sync.charts[i]);
+    updateValColumns();
+    renderSyncState();
+    focusAnchor(st.anchor);
+    if (st.mode === "corr") openCorrPanel({ step: st.step, anchor: st.anchor, run: st.run });
+    else syncUrl();
+  }
+  function routeStepHash(hash) {
+    var st = parseStepHash(hash);
+    if (!st) return false;
+    applyStepState(st);
+    return true;
   }
 
   /* 数值列：联动时显示"那一步"的值。某条 run 没有这一步就退到它最近的一步，
@@ -638,6 +822,14 @@
     setPin(step, anchorFromChart(inst), chartRunAtStep(inst, step, e));
   }
 
+  /* 锁在某一步时，读数框会一直压在曲线上，挡住它正要说明的那段走势。
+     把"这一次的读数框就是锁定那一步的"标出来，样式里据此调成半透明。
+     判据用坐标/下标而不是"现在是不是联动状态"：联动开着但用户把鼠标移到别处时，
+     那是他临时在看，不该跟着变淡。 */
+  function markTip(inst, pinned) {
+    if (inst.tip) inst.tip.classList.toggle("telemetry-tip-pinned", !!pinned);
+  }
+
   function registerChart(inst) {
     sync.charts.push(inst);
     inst.canvas.style.cursor = sync.on ? "crosshair" : "";
@@ -653,6 +845,24 @@
       if (sync.on && sync.step != null) { applyPin(inst); scheduleVals(); }
       return r;
     };
+    /* Line 走 _tooltip(x)、Stacked 在自己的 _hover 里直接写 innerHTML，
+       两条路都得盖一层才知道框里画的是不是锁定那一步。 */
+    if (typeof inst._tooltip === "function") {
+      var tooltip = inst._tooltip;
+      inst._tooltip = function (x) {
+        var r = tooltip.apply(inst, arguments);
+        markTip(inst, inst.__pinX != null && x === inst.__pinX);
+        return r;
+      };
+    }
+    if (typeof inst._hover === "function") {
+      var hover = inst._hover;
+      inst._hover = function () {
+        var r = hover.apply(inst, arguments);
+        if (isStacked(inst)) markTip(inst, inst.__pinI != null && inst.hoverI === inst.__pinI);
+        return r;
+      };
+    }
     inst.canvas.addEventListener("click", function (e) { onChartClick(inst, e); });
     /* 原站的 pointerleave 会把竖线和读数框收掉；联动时这里再补回来。
        两个处理器在同一个事件派发里跑，浏览器只重绘一次，看不出跳动。 */
@@ -2898,7 +3108,7 @@
     var tab = t.closest("[data-mc-tab]");
     if (tab) { corr.tab = tab.dataset.mcTab; renderCorr(); return; }
     var run = t.closest("[data-mc-run]");
-    if (run) { corr.run = run.dataset.mcRun; loadCorr(); return; }
+    if (run) { corr.run = run.dataset.mcRun; loadCorr(); syncUrl(); return; }
     var jump = t.closest("[data-mc-jump]");
     if (jump) {
       /* 步号必须夹在切面可见的范围内：回放时"往后 5 步"很容易越界，
@@ -2908,6 +3118,7 @@
       if (ds && ds.length) { lo = ds[0]; hi = ds[ds.length - 1]; }
       corr.step = Math.min(hi, Math.max(lo, corr.step + Number(jump.dataset.mcJump)));
       loadCorr();
+      syncUrl();
       return;
     }
     if (t.closest("[data-mc-drop-anchor]")) {
@@ -2916,6 +3127,7 @@
          否则会看到一个禁用着的高亮页签配着异动榜的内容。 */
       if (corr.tab === "corr") corr.tab = "movers";
       loadCorr();
+      syncUrl();
       return;
     }
     var doc = t.closest("[data-mc-doc]");
@@ -2929,6 +3141,8 @@
     if (opts.run) corr.run = opts.run;
     if (!corr.run) corr.run = sync.run || "flash";
     if (corr.step == null) corr.step = 1;
+    noteReturnHash();
+    resolveAnchorLabel(corr.anchor);
     corr.open = true;
     /* 没有锚点时"与锚点同涨同跌"那一栏是空的，直接落到异动榜 */
     if (!corr.anchor) corr.tab = "movers";
@@ -2936,13 +3150,16 @@
     document.getElementById("telemetry-corr").classList.remove("hidden");
     document.body.style.overflow = "hidden";
     loadCorr();
+    syncUrl();
   }
 
-  function closeCorrPanel() {
+  function closeCorrPanel(skipUrl) {
     var d = document.getElementById("telemetry-corr");
     if (d) d.classList.add("hidden");
     corr.open = false;
     document.body.style.overflow = "";
+    /* 关掉面板不等于解锁：步还锁着，地址就退回 #step/...，那个链接照样能贴出去 */
+    if (!skipUrl) syncUrl();
   }
 
   function corrQuery() {
@@ -2966,6 +3183,7 @@
       corr.data = d;
       corr.busy = false;
       renderCorr();
+      syncUrl();                                    // 服务端退步了，地址跟着改
     }).catch(function (err) {
       if (seq !== corr.seq) return;
       corr.err = String((err && err.message) || err);
@@ -3111,9 +3329,16 @@
     var notices = (c.notices || []).map(function (n) {
       /* 官方常事后补发：这一步完成之后才贴出来的公告，标一下，别当成"发这一步时已知"。 */
       var late = !!n.late;
+      /* 公告正文按界面语言取，不能写死 text_zh：官方原文只有英文，中文译文是给中文读者
+         的辅助（content/notices.zh.json），不是"所有语言的默认值"。以前这里写
+         `esc(n.text_zh || n.text)`，英文界面下整块面板的界面文案是英文、正文却是中文。 */
+      var nt = noticeText(n);
       return '<li><span class="dim">' + bj(n.t) + "</span> " +
         (late ? '<span class="mc-late" title="' + T("这条公告是在第 {0} 步完成之后才发布的", n.after_step) + '">' + T("随后发布") + "</span> " : "") +
-        esc(n.text_zh || n.text) + "</li>";
+        /* 中文模式下把英文原文挂在 title 上：译文是意译，要逐句核对时还得看原文 */
+        '<span' + (nt.original ? ' title="' + esc(T("原文") + " · " + nt.original) + '"' : "") + ">" + esc(nt.text) + "</span>" +
+        (nt.untranslated ? ' <span class="mn-untranslated" title="' + T("content/notices.zh.json 里还没有这条的译文") + '">' + T("未翻译") + "</span>" : "") +
+        "</li>";
     }).join("");
 
     var nb = (c.neighbors || []).map(function (n) {
@@ -3194,7 +3419,7 @@
        监听 hashchange 是为了手动改地址、以及从别处点 #doc/... 链接时也能跟上。
        顺带在换视图时补一次注入：切走 metrics 不会重建它的 DOM，
        只有 hashchange 才叫得醒浮动勾选条。 */
-    window.addEventListener("hashchange", function () {
+    window.addEventListener("hashchange", function (e) {
       routeDocHash();
       setTimeout(function () {
         ensureBoards(); ensurePickBoxes(); ensurePickBar();
@@ -3202,6 +3427,18 @@
       }, 120);
     });
     if (parseDocHash(location.hash)) routeDocHash();
+
+    /* 深链：刷新/贴链接直接落在"锁定某一步"或"分析这一步"上。
+       必须在 app.js 渲染之前只做状态赋值 —— 图表是在 setData 里补标注的，
+       状态先摆好，后面的图自己就会带上。 */
+    window.addEventListener("hashchange", function (e) {
+      var h = location.hash;
+      /* app.js 与解读面板都会在 hashchange 里改地址；用事件自带的 newURL 取用户的意图，
+         否则 #doc 关掉时把地址改回去，这里就看不到刚才那个 #step 了。 */
+      try { if (e && e.newURL) h = new URL(e.newURL).hash; } catch (err) { }
+      routeStepHash(h);
+    });
+    routeStepHash(location.hash);
   }
 
   /* 字典是异步加载的；等它到位再画遥测层，英文模式下首屏就不会先闪一下中文。

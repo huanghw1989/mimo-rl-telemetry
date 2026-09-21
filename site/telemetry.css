@@ -59,6 +59,26 @@
 .card-head .val.synced { border-left: 2px solid var(--accent); padding-left: 8px; }
 .val .sync-at { margin-left: 4px; font: 10px/1 var(--mono); color: var(--accent); opacity: 0.85; }
 
+/* 锁定某一步时读数框不会自己消失，会一直压在曲线上 —— 挡住它正要说明的那段走势。
+   只把底色调成半透明，字保持不透明：整框调 opacity 会把字也一起淡掉，等于换了个
+   更难读的框。半透明的底衬让被压住的几个点还看得见。 */
+.chart-tip.telemetry-tip-pinned {
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  border-color: color-mix(in srgb, var(--border) 60%, transparent);
+}
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  .chart-tip.telemetry-tip-pinned { background: rgba(255, 255, 255, 0.62); }
+  html[data-theme="dark"] .chart-tip.telemetry-tip-pinned { background: rgba(22, 22, 22, 0.62); }
+}
+
+/* 深链进来时锚点那张图要能认出来是哪一张：描边闪三下，滚过去就看见。
+   用 outline 而不是 box-shadow —— 卡片自己有一层阴影，改写它会顺手把它抹掉。 */
+.chart-card.telemetry-anchor-flash { animation: telemetry-anchor-flash 0.8s ease-in-out 3; }
+@keyframes telemetry-anchor-flash {
+  0%, 100% { outline: 2px solid transparent; outline-offset: 2px; }
+  50% { outline: 2px solid var(--accent); outline-offset: 2px; }
+}
+
 /* 导航那个"联动"按钮在窄屏藏掉：页头本来就挤（总成本 + 四个城市时钟），
    工具条里那个勾选框在任何宽度都在，功能不受影响。 */
 @media (max-width: 1150px) { #telemetry-sync-btn { display: none; } }

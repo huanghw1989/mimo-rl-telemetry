@@ -26,8 +26,13 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
-const STORE = resolve(ROOT, "mimo-rl-telemetry", "data", "store");
-const OUT_JSON = resolve(ROOT, "analysis/zh-CN", "analysis", "A3-bench-numbers.json");
+/* 这两行以前写的是 ROOT/mimo-rl-telemetry/data/store 与 analysis/zh-CN/analysis/ ——
+   脚本还住在 codes/scripts/mimo_rl_telemetry/ 时的相对路径，搬进仓库根目录后没跟着改，
+   `bun run report:bench` 一直卡在打不开 benchmarks.json 直接退出（README 却把它列成
+   可复算命令）。其余 *_report.ts 用的都是 ROOT/data/store 与 ROOT/analysis/zh-CN/numbers，
+   这里对齐，也让第 1372 行 mkdir 出来的目录真正被写进去。 */
+const STORE = resolve(ROOT, "data", "store");
+const OUT_JSON = resolve(ROOT, "analysis", "zh-CN", "numbers", "A3-bench-numbers.json");
 const SEED = 20260919;
 
 // ===========================================================================

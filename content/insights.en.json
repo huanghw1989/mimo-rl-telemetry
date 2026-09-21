@@ -189,55 +189,55 @@
   {
    "id": "timing-excludes-restart",
    "kind": "structural",
-   "title": "timing_s/step does not include restart waiting, so pro underreports by 23.7 hours and about $488,000",
-   "summary": "pro has run for 72.18 hours of wall clock, but summing the timing_s/step reported at each step gives only 48.43 hours. The 23.74-hour difference is almost entirely waiting during restarts, accounting for 32.9% of the true wall clock. flash similarly underreports by 21.6%.",
+   "title": "timing_s/step does not include restart waiting, so pro underreports by 32.1 hours and about $661,000",
+   "summary": "pro's full run is 127.24 hours of wall clock, but summing the timing_s/step reported at each step gives only 95.11 hours. The 32.13-hour difference falls almost entirely on the restart steps, 25.3% of the true step time (25.2% of the total bill). flash similarly underreports by 17.0%.",
    "body": [
     "The \"time elapsed this step\" on the run card and timing_s/step are the same number; it only counts the time this step was actually running. Waiting for restarts, recovery and weight reloads is not counted in it. So when looking at \"how long training ran\" or \"how much money was spent\", using this number will be noticeably low.",
-    "pro has restarted 9 times so far. 6 of those were immediately followed by the completion of a new step, and these 6 waiting segments total 20.76 hours, 87.4% of the total under-reporting. The largest segment runs from 2026-09-17 20:20Z to the completion of step 17, 5.88 hours, equivalent to $121,000 — the announcement corresponding to that segment was a network problem between the training cluster and the grading service.",
-    "flash restarted 4 times, which after removing double-counting is 3 waiting segments, totaling 12.60 hours, 86.5% of its under-reporting. The largest segment is between the two consecutive restarts on 2026-09-18 and the completion of step 25, 4.49 hours.",
-    "Together the two runs under-report 38.3 hours, equivalent to about $638,000 at their respective rates. This machine time was really spent, it just does not show up in the per-step timing.",
-    "Incidentally, on steps without a restart the wall clock and the reported value differ by less than 10 seconds, so this gap really does come from restarts, not from a drift in the measurement convention."
+    "pro restarted 14 times over the run, and the gap is spread over 10 steps (1, 2, 3, 11, 15, 17, 23, 26, 28, 30), 32.13 hours in total. The largest single gap is step 17 at 5.88 hours, about $121,000, sandwiched between the 2026-09-17 20:20Z restart and that step's completion; the official notice for that step gives the cause as a GPU OOM from expert load imbalance, not a network fault.",
+    "flash restarted 5 times and the gap falls on 4 steps (3, 16, 25, 28), 14.15 hours in total. The largest single item is step 16 at 5.63 hours, but 3.96 hours of that is steps 16 and 17 completing and then being discarded by a redo, which is not waiting; counting pure recovery waiting only, the largest item is step 25's 4.49 hours, from the two consecutive restarts on 2026-09-18.",
+    "Together the two runs under-report 46.28 hours, equivalent to about $806,000 at their respective rates. This machine time was really spent, it just does not show up in the per-step timing.",
+    "Incidentally, on steps without a restart the wall clock and the reported value differ by less than 20 seconds (pro at most 16.2 s, flash at most 12.7 s), so this gap really does come from restarts, not from a drift in the measurement convention."
    ],
    "facts": [
     {
      "label": "pro wall clock",
-     "value": "72.18 h",
-     "note": "Counted from 2026-09-15 10:32Z"
+     "value": "127.24 h",
+     "note": "Counted from 2026-09-15 10:32Z to step 30 completion"
     },
     {
      "label": "pro Σ timing_s/step",
-     "value": "48.43 h",
-     "note": "Underreports 23.74 h, accounting for 32.9%"
+     "value": "95.11 h",
+     "note": "Underreports 32.13 h, 25.3% of the true step time"
     },
     {
      "label": "pro underreport equivalent",
-     "value": "$488,074",
-     "note": "at $5.71/s"
+     "value": "$660,548",
+     "note": "at $5.71/s, 25.2% of the total bill"
     },
     {
      "label": "flash wall clock",
-     "value": "67.44 h",
+     "value": "81.80 h",
      "note": ""
     },
     {
      "label": "flash Σ timing_s/step",
-     "value": "52.87 h",
-     "note": "Underreports 14.57 h, accounting for 21.6%"
+     "value": "67.65 h",
+     "note": "Underreports 14.15 h, 17.3%"
     },
     {
      "label": "flash underreport equivalent",
-     "value": "$149,757",
-     "note": "at $2.855/s"
+     "value": "$145,403",
+     "note": "at $2.855/s, 17.0% of the total bill"
     },
     {
      "label": "Restart count",
-     "value": "pro 9 / flash 4",
+     "value": "pro 14 / flash 5",
      "note": "From totals.restarts"
     },
     {
      "label": "Maximum single-segment wait",
-     "value": "pro 5.88 h / flash 4.49 h",
-     "note": ""
+     "value": "pro 5.88 h (step 17) / flash 5.63 h (step 16)",
+     "note": "flash's includes 3.96 h of discarded recomputation; the largest pure recovery is step 25 at 4.49 h"
     }
    ],
    "verify": "While looking at timing_s/step, also look at the clock on the run card (that is the true wall clock counted from start); the difference between the two is the missing part. In the replay interface, move the slice to just before/after a restart, and the difference will visibly jump.",
@@ -250,7 +250,7 @@
     {
      "ref": "self-time-accounting",
      "stance": "support",
-     "note": "All numbers in this item come from this accounting: pro wall clock 72.18h vs Σtiming_s/step 48.43h, a gap of 23.74h (32.9%), of which the waiting immediately following 6 restarts and before new steps accounts for 87.4%; for non-restart steps the difference between the two is less than 10 seconds."
+     "note": "All numbers in this item come from this accounting: pro wall clock 127.24h vs Σtiming_s/step 95.11h, a gap of 32.13h (25.3% of the true step time), concentrated on 10 restart steps; the largest single item is step 17 at 5.88h; for non-restart steps the difference between the two is less than 20 seconds."
     },
     {
      "ref": "hybridflow",

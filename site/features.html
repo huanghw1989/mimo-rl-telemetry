@@ -216,7 +216,7 @@
         <span class="src">content/insights.json</span>
       </div>
       <div class="stat">
-        <span class="v">29 / 30</span>
+        <span class="v">30 / 30</span>
         <span class="k"><span data-lang="en">steps in the shipped data snapshot (pro / flash)</span><span data-lang="zh-CN">随仓库发布的数据快照步数（pro / flash）</span></span>
         <span class="src">data/store/runs/*/axis.json</span>
       </div>
@@ -246,13 +246,13 @@
         <span class="src">content/sources.json</span>
       </div>
       <div class="stat">
-        <span class="v">2.47B / 2.71B</span>
+        <span class="v">2.50B / 2.71B</span>
         <span class="k"><span data-lang="en">mean training tokens per step (pro / flash)</span><span data-lang="zh-CN">每步训练 token 均值（pro / flash）</span></span>
         <span class="src">data/store/runs/*/series.json</span>
       </div>
       <div class="stat">
-        <span class="v">$3.35M</span>
-        <span class="k"><span data-lang="en">spend so far (pro $2.494M + flash $854K)</span><span data-lang="zh-CN">累计花费（pro 249.4 万 + flash 85.4 万美元）</span></span>
+        <span class="v">$3.47M</span>
+        <span class="k"><span data-lang="en">total spend (pro $2.621M + flash $854K)</span><span data-lang="zh-CN">累计花费（pro 262.1 万 + flash 85.4 万美元）</span></span>
         <span class="src">data/store/runs/*/status.json</span>
       </div>
     </div>
@@ -325,8 +325,8 @@
               <span data-lang="zh-CN">只有单图悬浮：每张 canvas 各画各的竖线和读数框，图与图之间互不知道。</span>
             </td>
             <td class="ours">
-              <span data-lang="en">Optional linked crosshair: click any chart and every chart jumps to the same step — guideline, value dots, readout and the card value column all follow. <code>charts.js</code> is untouched; the telemetry wraps the chart constructors from the outside.</span>
-              <span data-lang="zh-CN">可选的联动十字线：点任意一张图的某一步，所有图一起跳到同一步——竖线、取值点、读数框和卡片数值列一起跟着走。<code>charts.js</code> 一行没动，遥测层从外面包了一层构造函数。</span>
+              <span data-lang="en">Optional linked crosshair: click any chart and every chart jumps to the same step — guideline, value dots, readout and the card value column all follow. Locking a step writes a shareable URL (<code>#step/pro/26/deepswe</code>), and the pinned readout is drawn semi-transparent so the curve underneath stays readable. <code>charts.js</code> is untouched; the telemetry wraps the chart constructors from the outside.</span>
+              <span data-lang="zh-CN">可选的联动十字线：点任意一张图的某一步，所有图一起跳到同一步——竖线、取值点、读数框和卡片数值列一起跟着走。锁步会写出一条可分享的 URL（<code>#step/pro/26/deepswe</code>），锁住期间的读数框画成半透明，底下的曲线还看得见。<code>charts.js</code> 一行没动，遥测层从外面包了一层构造函数。</span>
             </td>
           </tr>
 
@@ -337,8 +337,8 @@
               <span data-lang="zh-CN" class="none">没有——只能靠自己盯着曲线看。</span>
             </td>
             <td class="ours">
-              <span data-lang="en">&ldquo;Analyze this step&rdquo; ranks anomalies across all ~2,000 metric series by the smaller of the z-score and the median/MAD scale, folds metric families, and reports rank correlation (Spearman) plus first-difference (detrended) correlation against the anchor curve. The same panel lists restarts, metric-set version snapshots and notices published in that step&rsquo;s window.</span>
-              <span data-lang="zh-CN">「分析这一步」对全部约 2,000 条指标序列做异动排名——异常度取 z 与中位数/MAD 两个尺度里较小的那个，并按指标族折叠；同时给出与锚点曲线的秩相关（Spearman）和一阶差分（去趋势）相关。同一面板还列出这一步时段内的重启、指标集版本快照和已发布公告。</span>
+              <span data-lang="en">&ldquo;Analyze this step&rdquo; ranks anomalies across all ~2,000 metric series by the smaller of the z-score and the median/MAD scale, folds metric families, and reports rank correlation (Spearman) plus first-difference (detrended) correlation against the anchor curve. The same panel lists restarts, metric-set version snapshots and notices published in that step&rsquo;s window. The panel itself is linkable (<code>#corr/pro/26/deepswe</code>), so one finding can be sent as a URL instead of described.</span>
+              <span data-lang="zh-CN">「分析这一步」对全部约 2,000 条指标序列做异动排名——异常度取 z 与中位数/MAD 两个尺度里较小的那个，并按指标族折叠；同时给出与锚点曲线的秩相关（Spearman）和一阶差分（去趋势）相关。同一面板还列出这一步时段内的重启、指标集版本快照和已发布公告。面板自己也能直接用链接打开（<code>#corr/pro/26/deepswe</code>），所以单个结论可以给 URL，而不必用文字描述。</span>
             </td>
           </tr>
 

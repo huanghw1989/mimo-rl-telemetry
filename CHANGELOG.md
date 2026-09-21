@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Both runs are finished, and the project now says so.** The snapshot covers pro and flash
+  through step 30 (`mode: "ended"`); the READMEs, `site/features.html` and the share card were
+  refreshed to the final numbers (60 steps archived; $3,474,716 all in — pro $2,620,671 +
+  flash $854,045), and the READMEs gained a "Where the runs ended" table with each run's
+  window, wall clock and restart count.
+- **The timing/restart accounting no longer quotes the old mid-run window.** The
+  `timing-excludes-restart` insight, the `timing_s/step` explainer and the
+  `self-time-accounting` source entry now carry full-run figures: pro under-reports by 32.13 h
+  (25.3% of the true step time, $660,548) and flash by 14.15 h (17.3%, $145,403), across 14
+  and 5 restarts. The previous text quoted 23.7 h / $488k / 9 restarts — a smaller mid-run
+  window the project's own `notes/13` had already superseded. The largest single gap is pro
+  step 17 (5.88 h); that step's notice attributes it to a GPU OOM from expert load imbalance,
+  not the network incident the old text named.
 - **`bun run server` serves the archive by default.** Every endpoint is rebuilt from
   `data/store/`, so the header clock and the total cost stay at the last sync instead of
   following the local clock, and hovering the clock says when the data was collected. The

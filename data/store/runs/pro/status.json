@@ -3,51 +3,38 @@
     "key": "pro",
     "label": "mimo-v2.6-pro",
     "start": 1789468339.334,
-    "end": null,
-    "mode": "live"
+    "end": 1789927300.953,
+    "mode": "ended"
   },
   "cost": {
     "rate_per_s": 5.71,
-    "so_far": 2493749.2553764298
+    "so_far": 2620670.84448976
   },
   "clock": {
-    "now": 1789905073.0039434
+    "now": 1789958347.1362953
   },
-  "version": "3-5513.29.15.30",
+  "version": "3-5513.30.15.30",
   "step": {
-    "last": 29,
-    "last_wall": 1789897840.0371299,
-    "since": 2607.669943332672,
-    "expected": 16311.3,
-    "progress": 0.15986892174950323,
-    "phase": "rollout",
-    "gen_frac": 0.44150080785111606,
-    "restarted_at": 1789902465.334
+    "last": 30,
+    "last_wall": 1789926408.4091287,
+    "since": 892.5438714027405,
+    "expected": 16711,
+    "progress": null,
+    "phase": null,
+    "gen_frac": 0.5417027865112327,
+    "restarted_at": null
   },
   "totals": {
-    "tokens_step": 3421290000,
+    "tokens_step": 3431370000,
     "trained_step": 25088,
-    "sandboxes_step": 84848,
+    "sandboxes_step": 11180,
     "prompts_per_step": 1568,
-    "tokens_cum": 71573020000,
-    "trained_cum": 727552,
-    "sandboxes_cum": 3549664,
+    "tokens_cum": 75004390000,
+    "trained_cum": 752640,
+    "sandboxes_cum": 3560844,
     "restarts": 14
   },
   "events": [
-    {
-      "t": 1789578788.328568,
-      "kind": "step",
-      "step": 10,
-      "value": 0.590406,
-      "delta": -0.01343099999999997,
-      "tokens": 2224380000,
-      "redo": false
-    },
-    {
-      "t": 1789588716.334,
-      "kind": "restart"
-    },
     {
       "t": 1789598901.2092798,
       "kind": "step",
@@ -254,12 +241,25 @@
     {
       "t": 1789902465.334,
       "kind": "restart"
+    },
+    {
+      "t": 1789926408.4091287,
+      "kind": "step",
+      "step": 30,
+      "value": 0.633138,
+      "delta": 0.01102599999999998,
+      "tokens": 3431370000,
+      "redo": false
+    },
+    {
+      "t": 1789927300.953,
+      "kind": "end"
     }
   ],
   "headline": {
     "tag": "dynsam/avg@n",
-    "last": 0.622112,
-    "prev": 0.626591,
+    "last": 0.633138,
+    "prev": 0.622112,
     "first": 0.564662,
     "first_step": 1
   }

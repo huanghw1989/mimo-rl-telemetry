@@ -1,7 +1,7 @@
 {
  "script": "src/pipeline_report.ts",
  "run_cmd": "bun src/pipeline_report.ts",
- "generated_at_utc": "2026-09-19T10:50:04.891Z",
+ "generated_at_utc": "2026-09-21T03:35:34.199Z",
  "caliber": {
   "real_step_seconds": "axis.walls 相邻两项之差；第 1 步用 axis.run_start 作起点。单位：秒。",
   "reported_step_seconds": "series['timing_s/step']。进程内计时，不含重启等待与重跑。",
@@ -14,40 +14,40 @@
  },
  "data_cut": {
   "runs/pro/status.json": {
-   "mtime_utc": "2026-09-19T08:58:12.286Z",
-   "bytes": 5701
+   "mtime_utc": "2026-09-21T02:39:09.083Z",
+   "bytes": 5432
   },
   "runs/flash/status.json": {
-   "mtime_utc": "2026-09-19T08:58:12.305Z",
-   "bytes": 6081
+   "mtime_utc": "2026-09-21T02:39:09.101Z",
+   "bytes": 6080
   },
   "runs/pro/axis.json": {
-   "mtime_utc": "2026-09-19T08:58:12.297Z",
-   "bytes": 866
+   "mtime_utc": "2026-09-21T02:39:09.095Z",
+   "bytes": 1058
   },
   "runs/flash/axis.json": {
-   "mtime_utc": "2026-09-19T03:07:07.036Z",
+   "mtime_utc": "2026-09-20T06:37:50.208Z",
    "bytes": 1060
   },
   "runs/pro/events.json": {
-   "mtime_utc": "2026-09-19T08:58:12.287Z",
-   "bytes": 4816
+   "mtime_utc": "2026-09-21T02:39:09.085Z",
+   "bytes": 6093
   },
   "runs/flash/events.json": {
-   "mtime_utc": "2026-09-19T08:58:12.306Z",
+   "mtime_utc": "2026-09-21T02:39:09.101Z",
    "bytes": 5942
   },
   "notices.json": {
-   "mtime_utc": "2026-09-19T08:58:12.307Z",
-   "bytes": 1192
+   "mtime_utc": "2026-09-21T02:39:09.102Z",
+   "bytes": 1356
   },
   "status.clock.now_utc": {
-   "pro": "2026-09-19T08:58:08.011Z",
-   "flash": "2026-09-19T08:58:09.617Z"
+   "pro": "2026-09-21T02:39:07.136Z",
+   "flash": "2026-09-21T02:39:07.533Z"
   }
  },
  "cross": {
-  "notices_n": 5,
+  "notices_n": 6,
   "restart_notices_n": 4,
   "restart_attribution": [
    {
@@ -193,12 +193,39 @@
     "notice_id": null,
     "notice_delta_s": null,
     "notice_text": null
+   },
+   {
+    "run": "pro",
+    "restart_idx": 12,
+    "utc": "2026-09-19T13:21:40.334Z",
+    "step_interrupted": 26,
+    "notice_id": null,
+    "notice_delta_s": null,
+    "notice_text": null
+   },
+   {
+    "run": "pro",
+    "restart_idx": 13,
+    "utc": "2026-09-20T00:27:44.334Z",
+    "step_interrupted": 28,
+    "notice_id": null,
+    "notice_delta_s": null,
+    "notice_text": null
+   },
+   {
+    "run": "pro",
+    "restart_idx": 14,
+    "utc": "2026-09-20T11:07:45.334Z",
+    "step_interrupted": 30,
+    "notice_id": null,
+    "notice_delta_s": null,
+    "notice_text": null
    }
   ],
   "restart_reason_counts": {
    "unknown": {
-    "n": 10,
-    "pro": 6,
+    "n": 13,
+    "pro": 9,
     "flash": 4
    },
    "infra_error_undetected": {
@@ -223,32 +250,32 @@
    }
   },
   "attributed_restarts": 6,
-  "unattributed_restarts": 10,
+  "unattributed_restarts": 13,
   "side_by_side": {
    "pro": {
-    "n_steps": 24,
+    "n_steps": 30,
     "rate_per_s": 5.71,
-    "bill_usd": 1941106.95,
-    "tokens_billion": 55.9616,
-    "usd_per_billion_tokens": 34686.4,
-    "wall_h_to_last_step": 93.329,
-    "reported_sum_h": 67.182,
-    "gap_h": 26.147,
-    "gap_usd": 537478.04,
-    "gap_pct_of_bill": 0.27689,
-    "n_restarts": 11,
-    "mtbf_h": 8.48,
-    "little_W_hours": 1.43,
-    "median_real_step_h": 3.394,
-    "median_usd_per_step": 79936.1,
+    "bill_usd": 2620670.84,
+    "tokens_billion": 75.0044,
+    "usd_per_billion_tokens": 34940.2,
+    "wall_h_to_last_step": 127.241,
+    "reported_sum_h": 95.107,
+    "gap_h": 32.134,
+    "gap_usd": 660547.79,
+    "gap_pct_of_bill": 0.25205,
+    "n_restarts": 14,
+    "mtbf_h": 9.09,
+    "little_W_hours": 1.611,
+    "median_real_step_h": 3.688,
+    "median_usd_per_step": 87185.81,
     "usd_per_billion_first": 77819.1,
-    "usd_per_billion_last": 34281.8,
+    "usd_per_billion_last": 34872.3,
     "backpressure_all_zero": true,
-    "other_s_median": 200.69,
+    "other_s_median": 221.73,
     "expected_identity_match_ratio": 1,
     "gen_frac_identity_match_ratio": 1,
     "progress_identity_max_err": 0,
-    "meter_stops_at_end": null
+    "meter_stops_at_end": true
    },
    "flash": {
     "n_steps": 30,
@@ -281,78 +308,78 @@
     {
      "metric": "ctx_response_length/mean",
      "label": "平均生成长度",
-     "n_before_restart": 6,
-     "median_before_restart": 87357.5,
-     "n_other": 18,
-     "median_other": 88394.9,
-     "cliffs_delta": -0.111,
-     "mannwhitney_p": 0.5716,
+     "n_before_restart": 9,
+     "median_before_restart": 101993,
+     "n_other": 21,
+     "median_other": 89571.4,
+     "cliffs_delta": 0.143,
+     "mannwhitney_p": 0.3876,
      "significant_at_0_05": false
     },
     {
      "metric": "perf/total_num_tokens",
      "label": "本步训练 token",
-     "n_before_restart": 6,
-     "median_before_restart": 2288745000,
-     "n_other": 18,
-     "median_other": 2311825000,
-     "cliffs_delta": -0.111,
-     "mannwhitney_p": 0.5716,
+     "n_before_restart": 9,
+     "median_before_restart": 2649950000,
+     "n_other": 21,
+     "median_other": 2328100000,
+     "cliffs_delta": 0.143,
+     "mannwhitney_p": 0.3876,
      "significant_at_0_05": false
     },
     {
      "metric": "dynsam/agg_turn/mean",
      "label": "平均回合数",
-     "n_before_restart": 6,
-     "median_before_restart": 52.6351,
-     "n_other": 18,
-     "median_other": 53.4195,
-     "cliffs_delta": -0.093,
-     "mannwhitney_p": 0.6374,
+     "n_before_restart": 9,
+     "median_before_restart": 51.3337,
+     "n_other": 21,
+     "median_other": 53.0981,
+     "cliffs_delta": -0.048,
+     "mannwhitney_p": 0.7733,
      "significant_at_0_05": false
     },
     {
      "metric": "penalty/stage_credit_group/time_total_sec_mean",
      "label": "判分每组耗时",
-     "n_before_restart": 6,
-     "median_before_restart": 560.292,
-     "n_other": 18,
-     "median_other": 552.308,
-     "cliffs_delta": 0.185,
-     "mannwhitney_p": 0.3458,
-     "significant_at_0_05": false
+     "n_before_restart": 9,
+     "median_before_restart": 570.21,
+     "n_other": 21,
+     "median_other": 551.231,
+     "cliffs_delta": 0.429,
+     "mannwhitney_p": 0.0095,
+     "significant_at_0_05": true
     },
     {
      "metric": "env/active",
      "label": "在飞沙箱",
-     "n_before_restart": 6,
-     "median_before_restart": 23299.5,
-     "n_other": 18,
-     "median_other": 23217,
-     "cliffs_delta": 0.019,
-     "mannwhitney_p": 0.9249,
-     "significant_at_0_05": false
+     "n_before_restart": 9,
+     "median_before_restart": 23579,
+     "n_other": 21,
+     "median_other": 23153,
+     "cliffs_delta": 0.328,
+     "mannwhitney_p": 0.0472,
+     "significant_at_0_05": true
     },
     {
      "metric": "actor/entropy_loss",
      "label": "策略熵",
-     "n_before_restart": 6,
-     "median_before_restart": 0.3993,
-     "n_other": 18,
-     "median_other": 0.397,
-     "cliffs_delta": -0.056,
-     "mannwhitney_p": 0.7773,
+     "n_before_restart": 9,
+     "median_before_restart": 0.405,
+     "n_other": 21,
+     "median_other": 0.4013,
+     "cliffs_delta": 0.132,
+     "mannwhitney_p": 0.4237,
      "significant_at_0_05": false
     },
     {
      "metric": "timing_s/step",
      "label": "上报步耗时",
-     "n_before_restart": 6,
-     "median_before_restart": 8781.025,
-     "n_other": 18,
-     "median_other": 9419.63,
-     "cliffs_delta": -0.167,
-     "mannwhitney_p": 0.3961,
+     "n_before_restart": 9,
+     "median_before_restart": 10491.6,
+     "n_other": 21,
+     "median_other": 11831.2,
+     "cliffs_delta": 0.037,
+     "mannwhitney_p": 0.8228,
      "significant_at_0_05": false
     }
    ],
@@ -440,7 +467,7 @@
  "runs": {
   "pro": {
    "run": "pro",
-   "n_steps": 24,
+   "n_steps": 30,
    "steps": [
     {
      "step": 1,
@@ -1299,6 +1326,222 @@
      "tokens_cum": 55961620000,
      "usd_per_billion_tokens_cum": 34281.8,
      "usd_per_billion_tokens_step": 25316.9
+    },
+    {
+     "step": 25,
+     "real_s": 13388.401,
+     "reported_s": 13385.1,
+     "gap_s": 3.301,
+     "gap_frac": 0.00025,
+     "restarts_in_window": 0,
+     "restart_times": [],
+     "redo_step_numbers": [],
+     "outer_gen_s": 5115.08,
+     "trainer_ops_s": 7986.1,
+     "other_s": 283.92,
+     "other_frac_of_step": 0.02121,
+     "gen_frac_reported": 0.38215,
+     "tokens_trained": 3088150000,
+     "env_active": 37952,
+     "env_setup": 148672,
+     "env_error": 94,
+     "avg_staleness": 1.10939,
+     "bucket_count": 3,
+     "stale_tokens_ge3_frac": null,
+     "response_len_mean": 119527,
+     "turns_mean": 52.8132,
+     "entropy_loss": 0.449144,
+     "judge_time_total_mean_s": 570.21,
+     "judge_pod_setup_mean_s": 14.505,
+     "judge_pass1_mean_s": 555.095,
+     "judge_groups_total": 1368,
+     "judge_groups_attempted": 639,
+     "cost_usd_this_step": 76447.77,
+     "cost_usd_cum": 1994914.15,
+     "tokens_cum": 59049770000,
+     "usd_per_billion_tokens_cum": 33783.6,
+     "usd_per_billion_tokens_step": 24755.2
+    },
+    {
+     "step": 26,
+     "real_s": 22800.918,
+     "reported_s": 15651.5,
+     "gap_s": 7149.418,
+     "gap_frac": 0.31356,
+     "restarts_in_window": 1,
+     "restart_times": [
+      1789824100.334
+     ],
+     "redo_step_numbers": [],
+     "outer_gen_s": 7881.82,
+     "trainer_ops_s": 7490.76,
+     "other_s": 278.92,
+     "other_frac_of_step": 0.01782,
+     "gen_frac_reported": 0.50358,
+     "tokens_trained": 2925840000,
+     "env_active": 22784,
+     "env_setup": 22784,
+     "env_error": 0,
+     "avg_staleness": 0.207786,
+     "bucket_count": 4,
+     "stale_tokens_ge3_frac": 0.03859,
+     "response_len_mean": 113048,
+     "turns_mean": 42.1208,
+     "entropy_loss": 0.455583,
+     "judge_time_total_mean_s": 510.007,
+     "judge_pod_setup_mean_s": 13.3824,
+     "judge_pass1_mean_s": 495.981,
+     "judge_groups_total": 2078,
+     "judge_groups_attempted": 978,
+     "cost_usd_this_step": 130193.24,
+     "cost_usd_cum": 2125107.39,
+     "tokens_cum": 61975610000,
+     "usd_per_billion_tokens_cum": 34289.4,
+     "usd_per_billion_tokens_step": 44497.7
+    },
+    {
+     "step": 27,
+     "real_s": 15291.97,
+     "reported_s": 15286.5,
+     "gap_s": 5.47,
+     "gap_frac": 0.00036,
+     "restarts_in_window": 0,
+     "restart_times": [],
+     "redo_step_numbers": [],
+     "outer_gen_s": 7152.8,
+     "trainer_ops_s": 7852.7,
+     "other_s": 281,
+     "other_frac_of_step": 0.01838,
+     "gen_frac_reported": 0.46792,
+     "tokens_trained": 3151650000,
+     "env_active": 23708,
+     "env_setup": 86352,
+     "env_error": 12,
+     "avg_staleness": 0.718325,
+     "bucket_count": 2,
+     "stale_tokens_ge3_frac": null,
+     "response_len_mean": 121834,
+     "turns_mean": 49.1554,
+     "entropy_loss": 0.456695,
+     "judge_time_total_mean_s": 717.81,
+     "judge_pod_setup_mean_s": 14.9189,
+     "judge_pass1_mean_s": 702.189,
+     "judge_groups_total": 2025,
+     "judge_groups_attempted": 998,
+     "cost_usd_this_step": 87317.15,
+     "cost_usd_cum": 2212424.54,
+     "tokens_cum": 65127260000,
+     "usd_per_billion_tokens_cum": 33970.8,
+     "usd_per_billion_tokens_step": 27705.2
+    },
+    {
+     "step": 28,
+     "real_s": 25319.539,
+     "reported_s": 16311.3,
+     "gap_s": 9008.239,
+     "gap_frac": 0.35578,
+     "restarts_in_window": 1,
+     "restart_times": [
+      1789864064.334
+     ],
+     "redo_step_numbers": [],
+     "outer_gen_s": 8095.65,
+     "trainer_ops_s": 7921.72,
+     "other_s": 293.93,
+     "other_frac_of_step": 0.01802,
+     "gen_frac_reported": 0.49632,
+     "tokens_trained": 3024470000,
+     "env_active": 22352,
+     "env_setup": 22352,
+     "env_error": 0,
+     "avg_staleness": 0.0992585,
+     "bucket_count": 3,
+     "stale_tokens_ge3_frac": null,
+     "response_len_mean": 116921,
+     "turns_mean": 41.3541,
+     "entropy_loss": 0.468514,
+     "judge_time_total_mean_s": 512.31,
+     "judge_pod_setup_mean_s": 13.7596,
+     "judge_pass1_mean_s": 497.831,
+     "judge_groups_total": 1949,
+     "judge_groups_attempted": 884,
+     "cost_usd_this_step": 144574.57,
+     "cost_usd_cum": 2356999.11,
+     "tokens_cum": 68151730000,
+     "usd_per_billion_tokens_cum": 34584.6,
+     "usd_per_billion_tokens_step": 47801.6
+    },
+    {
+     "step": 29,
+     "real_s": 16716.271,
+     "reported_s": 16711,
+     "gap_s": 5.271,
+     "gap_frac": 0.00032,
+     "restarts_in_window": 0,
+     "restart_times": [],
+     "redo_step_numbers": [],
+     "outer_gen_s": 7377.92,
+     "trainer_ops_s": 9021.82,
+     "other_s": 311.26,
+     "other_frac_of_step": 0.01863,
+     "gen_frac_reported": 0.4415,
+     "tokens_trained": 3421290000,
+     "env_active": 23579,
+     "env_setup": 84848,
+     "env_error": 6,
+     "avg_staleness": 0.66392,
+     "bucket_count": 2,
+     "stale_tokens_ge3_frac": null,
+     "response_len_mean": 131398,
+     "turns_mean": 48.9121,
+     "entropy_loss": 0.46051,
+     "judge_time_total_mean_s": 631.534,
+     "judge_pod_setup_mean_s": 15.1513,
+     "judge_pass1_mean_s": 615.611,
+     "judge_groups_total": 1853,
+     "judge_groups_attempted": 929,
+     "cost_usd_this_step": 95449.91,
+     "cost_usd_cum": 2452449.01,
+     "tokens_cum": 71573020000,
+     "usd_per_billion_tokens_cum": 34265,
+     "usd_per_billion_tokens_step": 27898.8
+    },
+    {
+     "step": 30,
+     "real_s": 28568.372,
+     "reported_s": 23186.7,
+     "gap_s": 5381.672,
+     "gap_frac": 0.18838,
+     "restarts_in_window": 1,
+     "restart_times": [
+      1789902465.334
+     ],
+     "redo_step_numbers": [],
+     "outer_gen_s": 12560.3,
+     "trainer_ops_s": 10313,
+     "other_s": 313.4,
+     "other_frac_of_step": 0.01352,
+     "gen_frac_reported": 0.5417,
+     "tokens_trained": 3431370000,
+     "env_active": 11180,
+     "env_setup": 11180,
+     "env_error": 0,
+     "avg_staleness": 0.0125335,
+     "bucket_count": 3,
+     "stale_tokens_ge3_frac": null,
+     "response_len_mean": 133102,
+     "turns_mean": 43.5635,
+     "entropy_loss": 0.461504,
+     "judge_time_total_mean_s": 597.902,
+     "judge_pod_setup_mean_s": 14.1759,
+     "judge_pass1_mean_s": 582.918,
+     "judge_groups_total": 2208,
+     "judge_groups_attempted": 1031,
+     "cost_usd_this_step": 163125.4,
+     "cost_usd_cum": 2615574.42,
+     "tokens_cum": 75004390000,
+     "usd_per_billion_tokens_cum": 34872.3,
+     "usd_per_billion_tokens_step": 47539.4
     }
    ],
    "gap_attribution": [
@@ -1435,29 +1678,83 @@
      "partial_progress_before_crash_s": 0,
      "confirmed_thrown_away_s": 0,
      "span_mixed_work_or_downtime_s": 11875.596
+    },
+    {
+     "step": 26,
+     "real_s": 22800.918,
+     "reported_s": 15651.5,
+     "gap_s": 7149.418,
+     "n_restarts": 1,
+     "span_before_last_restart_s": 6388.995,
+     "between_restarts_s": [],
+     "tail_after_last_restart_s": 16411.923,
+     "tail_minus_reported_s": 760.423,
+     "reconstructed_gap_s": 7149.418,
+     "identity_error_s": 0.000138,
+     "discarded_completed_steps": [],
+     "discarded_completed_steps_total_s": 0,
+     "partial_progress_before_crash_s": 0,
+     "confirmed_thrown_away_s": 0,
+     "span_mixed_work_or_downtime_s": 6388.995
+    },
+    {
+     "step": 28,
+     "real_s": 25319.539,
+     "reported_s": 16311.3,
+     "gap_s": 9008.239,
+     "n_restarts": 1,
+     "span_before_last_restart_s": 8260.107,
+     "between_restarts_s": [],
+     "tail_after_last_restart_s": 17059.432,
+     "tail_minus_reported_s": 748.132,
+     "reconstructed_gap_s": 9008.239,
+     "identity_error_s": 0.000241,
+     "discarded_completed_steps": [],
+     "discarded_completed_steps_total_s": 0,
+     "partial_progress_before_crash_s": 0,
+     "confirmed_thrown_away_s": 0,
+     "span_mixed_work_or_downtime_s": 8260.107
+    },
+    {
+     "step": 30,
+     "real_s": 28568.372,
+     "reported_s": 23186.7,
+     "gap_s": 5381.672,
+     "n_restarts": 1,
+     "span_before_last_restart_s": 4625.297,
+     "between_restarts_s": [],
+     "tail_after_last_restart_s": 23943.075,
+     "tail_minus_reported_s": 756.375,
+     "reconstructed_gap_s": 5381.672,
+     "identity_error_s": 0.000001,
+     "discarded_completed_steps": [],
+     "discarded_completed_steps_total_s": 0,
+     "partial_progress_before_crash_s": 0,
+     "confirmed_thrown_away_s": 0,
+     "span_mixed_work_or_downtime_s": 4625.297
     }
    ],
    "othersplit": {
     "other_s": {
      "min": 165.95,
-     "max": 281.61,
-     "mean": 210.82,
-     "median": 200.69
+     "max": 313.4,
+     "mean": 227.41,
+     "median": 221.73
     },
     "other_frac_of_reported": {
-     "min": 0.01579,
+     "min": 0.01352,
      "max": 0.02644,
-     "mean": 0.02151
+     "mean": 0.0208
     },
-    "reported_sum_s": 241854.35,
-    "outer_plus_trainer_sum_s": 236794.58,
-    "other_sum_s": 5059.77,
-    "corr_other_vs_tokens": 0.8842,
-    "corr_other_vs_reported": 0.8768,
-    "corr_other_vs_real": 0.2445,
+    "reported_sum_s": 342386.45,
+    "outer_plus_trainer_sum_s": 335564.25,
+    "other_sum_s": 6822.2,
+    "corr_other_vs_tokens": 0.9465,
+    "corr_other_vs_reported": 0.9104,
+    "corr_other_vs_real": 0.4054,
     "candidates": {
-     "judge_time_total_mean_s": 553.7,
-     "judge_pod_setup_mean_s": 14.66,
+     "judge_time_total_mean_s": 556.44,
+     "judge_pod_setup_mean_s": 14.57,
      "drain_wait_seconds": {
       "min": 1.293,
       "max": 8.23
@@ -1466,7 +1763,7 @@
       "min": 0.4613,
       "max": 1.597
      },
-     "env_setup_delta_median_clean_steps": 41216,
+     "env_setup_delta_median_clean_steps": 41792,
      "env_setup_delta_note": "只用'本步与其前一步都没有重启'的步，避开计数器复位造成的虚高。"
     },
     "verifiable": {
@@ -1568,17 +1865,62 @@
      },
      {
       "steps_from": 23,
-      "steps_to": 24,
-      "n_steps_in_segment": 2,
+      "steps_to": 25,
+      "n_steps_in_segment": 3,
       "reset_step": 23,
       "reset_moment_utc": "2026-09-19T00:03:58.334Z",
-      "seconds_since_reset": 28084.6,
-      "sandboxes_created_since_reset": 102864,
-      "lambda_per_s": 3.6626,
-      "L_active_mean": 38162.5,
-      "W_seconds": 10419.4,
-      "W_hours": 2.894,
-      "turnover_per_slot_per_step": 1.348,
+      "seconds_since_reset": 41473,
+      "sandboxes_created_since_reset": 148672,
+      "lambda_per_s": 3.5848,
+      "L_active_mean": 38092.3,
+      "W_seconds": 10626.1,
+      "W_hours": 2.952,
+      "turnover_per_slot_per_step": 1.301,
+      "reliable": true
+     },
+     {
+      "steps_from": 26,
+      "steps_to": 27,
+      "n_steps_in_segment": 2,
+      "reset_step": 26,
+      "reset_moment_utc": "2026-09-19T13:21:40.334Z",
+      "seconds_since_reset": 31703.9,
+      "sandboxes_created_since_reset": 86352,
+      "lambda_per_s": 2.7237,
+      "L_active_mean": 23246,
+      "W_seconds": 8534.7,
+      "W_hours": 2.371,
+      "turnover_per_slot_per_step": 1.857,
+      "reliable": false
+     },
+     {
+      "steps_from": 28,
+      "steps_to": 29,
+      "n_steps_in_segment": 2,
+      "reset_step": 28,
+      "reset_moment_utc": "2026-09-20T00:27:44.334Z",
+      "seconds_since_reset": 33775.7,
+      "sandboxes_created_since_reset": 84848,
+      "lambda_per_s": 2.5121,
+      "L_active_mean": 22965.5,
+      "W_seconds": 9141.9,
+      "W_hours": 2.539,
+      "turnover_per_slot_per_step": 1.847,
+      "reliable": false
+     },
+     {
+      "steps_from": 30,
+      "steps_to": 30,
+      "n_steps_in_segment": 1,
+      "reset_step": 30,
+      "reset_moment_utc": "2026-09-20T11:07:45.334Z",
+      "seconds_since_reset": 23943.1,
+      "sandboxes_created_since_reset": 11180,
+      "lambda_per_s": 0.4669,
+      "L_active_mean": 11180,
+      "W_seconds": 23943.1,
+      "W_hours": 6.651,
+      "turnover_per_slot_per_step": 1,
       "reliable": false
      }
     ],
@@ -1627,18 +1969,33 @@
       "W_hours": 1.793,
       "turnover_per_slot_per_step": 2.019,
       "reliable": true
+     },
+     {
+      "steps_from": 23,
+      "steps_to": 25,
+      "n_steps_in_segment": 3,
+      "reset_step": 23,
+      "reset_moment_utc": "2026-09-19T00:03:58.334Z",
+      "seconds_since_reset": 41473,
+      "sandboxes_created_since_reset": 148672,
+      "lambda_per_s": 3.5848,
+      "L_active_mean": 38092.3,
+      "W_seconds": 10626.1,
+      "W_hours": 2.952,
+      "turnover_per_slot_per_step": 1.301,
+      "reliable": true
      }
     ],
     "aggregate": {
-     "total_sandboxes_created": 1049359,
-     "total_seconds": 246831.9,
-     "lambda_per_s": 4.2513,
-     "L_weighted_mean": 25157,
-     "W_seconds": 5917.5,
-     "W_hours": 1.644
+     "total_sandboxes_created": 1277547,
+     "total_seconds": 349643,
+     "lambda_per_s": 3.6539,
+     "L_weighted_mean": 24304.6,
+     "W_seconds": 6651.8,
+     "W_hours": 1.848
     },
-    "W_hours_median_reliable": 1.43,
-    "turnover_median_reliable": 1.901,
+    "W_hours_median_reliable": 1.611,
+    "turnover_median_reliable": 1.847,
     "naive_cumulative_reading": [
      {
       "segment": "1-1",
@@ -1677,15 +2034,33 @@
       "divided_by_steps": 2.019
      },
      {
-      "segment": "23-24",
+      "segment": "23-25",
+      "n_steps": 3,
+      "cumulative_setup_over_active": 3.903,
+      "divided_by_steps": 1.301
+     },
+     {
+      "segment": "26-27",
       "n_steps": 2,
-      "cumulative_setup_over_active": 2.695,
-      "divided_by_steps": 1.348
+      "cumulative_setup_over_active": 3.715,
+      "divided_by_steps": 1.857
+     },
+     {
+      "segment": "28-29",
+      "n_steps": 2,
+      "cumulative_setup_over_active": 3.695,
+      "divided_by_steps": 1.847
+     },
+     {
+      "segment": "30-30",
+      "n_steps": 1,
+      "cumulative_setup_over_active": 1,
+      "divided_by_steps": 1
      }
     ],
     "naive_note": "看板常见读法 'env/total_setup ÷ env/active' 给的是段内累计翻台次数，不是每步翻台率；除以步数才是每步翻台。",
     "cross_check_pod_setup": {
-     "judge_pod_setup_mean_s": 14.66,
+     "judge_pod_setup_mean_s": 14.57,
      "note": "判分侧 pod setup 只是判分流程里的一小段（每组十几秒）；沙箱存活时间含整条 agentic 轨迹（上千秒），两者不是同一个量，不能直接对上。"
     }
    },
@@ -1696,19 +2071,19 @@
      "note": "逐点验算，等于 avg_staleness（机械恒等，不是发现）。"
     },
     "within_segment": {
-     "n_used": 17,
-     "corr_staleness_vs_segment_pos": 0.944,
-     "corr_staleness_vs_real_step_s": -0.2353,
-     "corr_staleness_vs_reported_step_s": -0.2353,
-     "corr_staleness_vs_response_len": -0.1765,
-     "corr_staleness_vs_tokens": -0.2255,
-     "corr_staleness_vs_bucket_count": 0.944,
+     "n_used": 20,
+     "corr_staleness_vs_segment_pos": 0.9494,
+     "corr_staleness_vs_real_step_s": -0.409,
+     "corr_staleness_vs_reported_step_s": -0.409,
+     "corr_staleness_vs_response_len": -0.3744,
+     "corr_staleness_vs_tokens": -0.409,
+     "corr_staleness_vs_bucket_count": 0.9494,
      "corr_bucket_count_vs_segment_pos": 1
     },
     "all_steps": {
-     "corr_staleness_vs_real_step_s": -0.7071,
-     "corr_staleness_vs_response_len": 0.2596,
-     "corr_staleness_vs_tokens": 0.2422
+     "corr_staleness_vs_real_step_s": -0.7919,
+     "corr_staleness_vs_response_len": -0.0209,
+     "corr_staleness_vs_tokens": -0.0311
     },
     "per_step": [
      {
@@ -1902,12 +2277,60 @@
       "stale_ge3_frac": null,
       "segment_pos": 1,
       "real_s": 13164.142
+     },
+     {
+      "step": 25,
+      "avg_staleness": 1.1094,
+      "bucket_count": 3,
+      "stale_ge3_frac": null,
+      "segment_pos": 2,
+      "real_s": 13388.401
+     },
+     {
+      "step": 26,
+      "avg_staleness": 0.2078,
+      "bucket_count": 4,
+      "stale_ge3_frac": 0.0386,
+      "segment_pos": 0,
+      "real_s": 22800.918
+     },
+     {
+      "step": 27,
+      "avg_staleness": 0.7183,
+      "bucket_count": 2,
+      "stale_ge3_frac": null,
+      "segment_pos": 1,
+      "real_s": 15291.97
+     },
+     {
+      "step": 28,
+      "avg_staleness": 0.0993,
+      "bucket_count": 3,
+      "stale_ge3_frac": null,
+      "segment_pos": 0,
+      "real_s": 25319.539
+     },
+     {
+      "step": 29,
+      "avg_staleness": 0.6639,
+      "bucket_count": 2,
+      "stale_ge3_frac": null,
+      "segment_pos": 1,
+      "real_s": 16716.271
+     },
+     {
+      "step": 30,
+      "avg_staleness": 0.0125,
+      "bucket_count": 3,
+      "stale_ge3_frac": null,
+      "segment_pos": 0,
+      "real_s": 28568.372
      }
     ],
     "bucket_token_sum_vs_total": {
      "ratio_min": 0.4523,
-     "ratio_median": 0.5113,
-     "ratio_max": 0.5604,
+     "ratio_median": 0.5153,
+     "ratio_max": 0.6216,
      "note": "桶 token 之和与 perf/total_num_tokens 不成 1:1，看板未给口径，本文不据此下结论。",
      "rows": [
       {
@@ -1933,38 +2356,38 @@
    },
    "backpressure": {
     "train/trace/backpressure_waits": {
-     "n_nonnull": 24,
+     "n_nonnull": 30,
      "n_nonzero": 0,
      "max": 0
     },
     "train/trace/backpressure_wait_seconds_sum": {
-     "n_nonnull": 24,
+     "n_nonnull": 30,
      "n_nonzero": 0,
      "max": 0
     },
     "train/trace/backpressure_wait_seconds_max": {
-     "n_nonnull": 24,
+     "n_nonnull": 30,
      "n_nonzero": 0,
      "max": 0
     },
     "train/trace/orphan_resolves": {
-     "n_nonnull": 24,
+     "n_nonnull": 30,
      "n_nonzero": 0,
      "max": 0
     },
     "train/trace/failed_writes": {
-     "n_nonnull": 24,
+     "n_nonnull": 30,
      "n_nonzero": 0,
      "max": 0
     },
     "train/trace/terminal_conflicts": {
-     "n_nonnull": 24,
+     "n_nonnull": 30,
      "n_nonzero": 0,
      "max": 0
     },
     "train/trace/drain_wait_seconds": {
      "min": 1.2929,
-     "median": 2.7936,
+     "median": 2.7212,
      "max": 8.23
     },
     "train/trace/late_finishes": {
@@ -1979,83 +2402,83 @@
     },
     "train/trace/writer_seconds_max": {
      "min": 23.9858,
-     "median": 33.4811,
-     "max": 56.5515
+     "median": 36.5974,
+     "max": 291.896
     },
     "train/trace/writer_seconds_sum": {
      "min": 4761.25,
-     "median": 6933.05,
-     "max": 10441.7
+     "median": 7090.505,
+     "max": 10708.1
     },
     "train/trace/records": {
      "min": 1624360,
-     "median": 1660820,
-     "max": 3268260
+     "median": 1674400,
+     "max": 3269180
     },
     "train/trace/files": {
      "min": 3038,
-     "median": 4233.5,
-     "max": 6019
+     "median": 4377.5,
+     "max": 6184
     }
    },
    "money": {
     "rate_per_s": 5.71,
     "run_start_utc": "2026-09-15T10:32:19.334Z",
-    "end_utc": null,
-    "meter_stops_at_end": null,
-    "cost_so_far_usd": 1941106.95,
-    "cost_so_far_div_rate_s": 339948.7,
-    "now_utc": "2026-09-19T08:58:08.011Z",
-    "now_minus_start_s": 339948.7,
-    "end_minus_start_s": null,
-    "billed_seconds_used": 339948.7,
-    "last_step_wall_s": 335983.6,
-    "total_bill_usd": 1941106.95,
-    "gap_def_A_walls_minus_reported_s": 94129.254,
-    "gap_def_A_h": 26.147,
-    "gap_def_A_usd": 537478.04,
-    "gap_def_A_pct_of_bill": 0.27689,
-    "gap_def_A_pct_of_real_sum": 0.28016,
-    "gap_def_B_billed_minus_reported_s": 98094.327,
-    "gap_def_B_h": 27.248,
-    "gap_def_B_usd": 560118.61,
-    "gap_def_B_pct_of_bill": 0.28856,
-    "reported_sum_h": 67.182,
-    "real_sum_h": 93.329,
-    "unaccounted_vs_now_h": 27.248,
-    "unaccounted_vs_now_usd": 560118.61,
+    "end_utc": "2026-09-20T18:01:40.953Z",
+    "meter_stops_at_end": true,
+    "cost_so_far_usd": 2620670.84,
+    "cost_so_far_div_rate_s": 458961.6,
+    "now_utc": "2026-09-21T02:39:07.136Z",
+    "now_minus_start_s": 490007.8,
+    "end_minus_start_s": 458961.6,
+    "billed_seconds_used": 458961.6,
+    "last_step_wall_s": 458069.1,
+    "total_bill_usd": 2620670.84,
+    "gap_def_A_walls_minus_reported_s": 115682.625,
+    "gap_def_A_h": 32.134,
+    "gap_def_A_usd": 660547.79,
+    "gap_def_A_pct_of_bill": 0.25205,
+    "gap_def_A_pct_of_real_sum": 0.25254,
+    "gap_def_B_billed_minus_reported_s": 116575.169,
+    "gap_def_B_h": 32.382,
+    "gap_def_B_usd": 665644.21,
+    "gap_def_B_pct_of_bill": 0.254,
+    "reported_sum_h": 95.107,
+    "real_sum_h": 127.241,
+    "unaccounted_vs_now_h": 41.006,
+    "unaccounted_vs_now_usd": 842917.92,
     "cost_per_step_usd": {
      "first": 140114.76,
-     "last": 75167.25,
-     "mean": 79936.1,
-     "median_clean_steps": 51731.17,
-     "trend_vs_step_r": 0.2098
+     "last": 163125.4,
+     "mean": 87185.81,
+     "median_clean_steps": 56873.89,
+     "trend_vs_step_r": 0.379
     },
     "real_step_h": {
      "first_clean": 1.905,
-     "last_clean": 3.657,
-     "median_clean_steps": 2.517,
-     "trend_vs_step_r_clean": 0.931
+     "last_clean": 4.643,
+     "median_clean_steps": 2.767,
+     "trend_vs_step_r_clean": 0.9556
     },
     "usd_per_billion_tokens_cum": {
      "first": 77819.1,
-     "last": 34281.8,
-     "trend_vs_step_r": -0.6532
+     "last": 34872.3,
+     "trend_vs_step_r": -0.5782
     },
     "usd_per_billion_tokens_per_step": {
      "first": 77819.1,
-     "last": 25316.9,
-     "median": 26004,
-     "median_clean_steps": 21609.8,
-     "trend_vs_step_r": -0.0482,
-     "trend_vs_step_r_clean": 0.8439
+     "last": 47539.4,
+     "median": 27242,
+     "median_clean_steps": 22415.5,
+     "trend_vs_step_r": -0.0017,
+     "trend_vs_step_r_clean": 0.8412
     },
-    "tokens_cum_billion": 55.9616,
+    "tokens_cum_billion": 75.0044,
     "clean_steps_only": {
-     "n": 17,
-     "sum_real_h": 46.481,
-     "sum_tokens_billion": 41.1893,
-     "usd_per_billion_tokens": 23196.9,
+     "n": 20,
+     "sum_real_h": 59.091,
+     "sum_tokens_billion": 50.8504,
+     "usd_per_billion_tokens": 23887.3,
      "note": "只用无重启的步算，剔掉被重启污染的步。"
     },
     "judge_concurrency_estimate": {
@@ -2228,27 +2651,69 @@
        "groups_attempted": 938,
        "concurrent_groups_from_total": 78.6,
        "concurrent_groups_from_attempted": 40.2
+      },
+      {
+       "step": 25,
+       "groups_total": 1368,
+       "groups_attempted": 639,
+       "concurrent_groups_from_total": 58.3,
+       "concurrent_groups_from_attempted": 27.2
+      },
+      {
+       "step": 26,
+       "groups_total": 2078,
+       "groups_attempted": 978,
+       "concurrent_groups_from_total": 46.5,
+       "concurrent_groups_from_attempted": 21.9
+      },
+      {
+       "step": 27,
+       "groups_total": 2025,
+       "groups_attempted": 998,
+       "concurrent_groups_from_total": 95.1,
+       "concurrent_groups_from_attempted": 46.8
+      },
+      {
+       "step": 28,
+       "groups_total": 1949,
+       "groups_attempted": 884,
+       "concurrent_groups_from_total": 39.4,
+       "concurrent_groups_from_attempted": 17.9
+      },
+      {
+       "step": 29,
+       "groups_total": 1853,
+       "groups_attempted": 929,
+       "concurrent_groups_from_total": 70,
+       "concurrent_groups_from_attempted": 35.1
+      },
+      {
+       "step": 30,
+       "groups_total": 2208,
+       "groups_attempted": 1031,
+       "concurrent_groups_from_total": 46.2,
+       "concurrent_groups_from_attempted": 21.6
       }
      ],
-     "median_concurrent_groups_from_total": 79.8,
-     "median_concurrent_groups_from_attempted": 36.1,
+     "median_concurrent_groups_from_total": 72.8,
+     "median_concurrent_groups_from_attempted": 34.2,
      "dollar_share": null,
      "dollar_share_note": "判分集群的 $/s 费率不在数据里（cost 只有一个全局 rate_per_s），因此判分算力占总账单的百分比估不出来。"
     },
-    "judge_wall_share_of_grading": 0.9719
+    "judge_wall_share_of_grading": 0.9725
    },
    "restart_profile": {
-    "n_restarts": 11,
-    "mtbf_h": 8.48,
-    "mtbf_h_excl_first_4": 11.4,
-    "mtbf_h_excl_first_4_n_intervals": 7,
-    "median_interval_h": 4.72,
+    "n_restarts": 14,
+    "mtbf_h": 9.09,
+    "mtbf_h_excl_first_4": 11.37,
+    "mtbf_h_excl_first_4_n_intervals": 10,
+    "median_interval_h": 8.98,
     "interval_min_h": 0.96,
     "interval_max_h": 24.05,
-    "interval_trend_spearman": -0.0303,
-    "interval_trend_n": 10,
-    "interval_first_half_median_h": 5.07,
-    "interval_second_half_median_h": 2.72,
+    "interval_trend_spearman": 0.2143,
+    "interval_trend_n": 13,
+    "interval_first_half_median_h": 4.72,
+    "interval_second_half_median_h": 10.88,
     "intervals_h": [
      2.2,
      4.37,
@@ -2259,7 +2724,10 @@
      8.98,
      2.72,
      24.05,
-     0.96
+     0.96,
+     13.29,
+     11.1,
+     10.67
     ],
     "list": [
      {
@@ -2349,6 +2817,30 @@
       "hours_since_run_start": 85.53,
       "step_interrupted": 23,
       "hours_since_prev_restart": 0.96
+     },
+     {
+      "idx": 12,
+      "t": 1789824100.334,
+      "utc": "2026-09-19T13:21:40.334Z",
+      "hours_since_run_start": 98.82,
+      "step_interrupted": 26,
+      "hours_since_prev_restart": 13.29
+     },
+     {
+      "idx": 13,
+      "t": 1789864064.334,
+      "utc": "2026-09-20T00:27:44.334Z",
+      "hours_since_run_start": 109.92,
+      "step_interrupted": 28,
+      "hours_since_prev_restart": 11.1
+     },
+     {
+      "idx": 14,
+      "t": 1789902465.334,
+      "utc": "2026-09-20T11:07:45.334Z",
+      "hours_since_run_start": 120.59,
+      "step_interrupted": 30,
+      "hours_since_prev_restart": 10.67
      }
     ],
     "condition_test": {
@@ -2357,78 +2849,78 @@
       {
        "metric": "ctx_response_length/mean",
        "label": "平均生成长度",
-       "n_before_restart": 6,
-       "median_before_restart": 87357.5,
-       "n_other": 18,
-       "median_other": 88394.9,
-       "cliffs_delta": -0.111,
-       "mannwhitney_p": 0.5716,
+       "n_before_restart": 9,
+       "median_before_restart": 101993,
+       "n_other": 21,
+       "median_other": 89571.4,
+       "cliffs_delta": 0.143,
+       "mannwhitney_p": 0.3876,
        "significant_at_0_05": false
       },
       {
        "metric": "perf/total_num_tokens",
        "label": "本步训练 token",
-       "n_before_restart": 6,
-       "median_before_restart": 2288745000,
-       "n_other": 18,
-       "median_other": 2311825000,
-       "cliffs_delta": -0.111,
-       "mannwhitney_p": 0.5716,
+       "n_before_restart": 9,
+       "median_before_restart": 2649950000,
+       "n_other": 21,
+       "median_other": 2328100000,
+       "cliffs_delta": 0.143,
+       "mannwhitney_p": 0.3876,
        "significant_at_0_05": false
       },
       {
        "metric": "dynsam/agg_turn/mean",
        "label": "平均回合数",
-       "n_before_restart": 6,
-       "median_before_restart": 52.6351,
-       "n_other": 18,
-       "median_other": 53.4195,
-       "cliffs_delta": -0.093,
-       "mannwhitney_p": 0.6374,
+       "n_before_restart": 9,
+       "median_before_restart": 51.3337,
+       "n_other": 21,
+       "median_other": 53.0981,
+       "cliffs_delta": -0.048,
+       "mannwhitney_p": 0.7733,
        "significant_at_0_05": false
       },
       {
        "metric": "penalty/stage_credit_group/time_total_sec_mean",
        "label": "判分每组耗时",
-       "n_before_restart": 6,
-       "median_before_restart": 560.292,
-       "n_other": 18,
-       "median_other": 552.308,
-       "cliffs_delta": 0.185,
-       "mannwhitney_p": 0.3458,
-       "significant_at_0_05": false
+       "n_before_restart": 9,
+       "median_before_restart": 570.21,
+       "n_other": 21,
+       "median_other": 551.231,
+       "cliffs_delta": 0.429,
+       "mannwhitney_p": 0.0095,
+       "significant_at_0_05": true
       },
       {
        "metric": "env/active",
        "label": "在飞沙箱",
-       "n_before_restart": 6,
-       "median_before_restart": 23299.5,
-       "n_other": 18,
-       "median_other": 23217,
-       "cliffs_delta": 0.019,
-       "mannwhitney_p": 0.9249,
-       "significant_at_0_05": false
+       "n_before_restart": 9,
+       "median_before_restart": 23579,
+       "n_other": 21,
+       "median_other": 23153,
+       "cliffs_delta": 0.328,
+       "mannwhitney_p": 0.0472,
+       "significant_at_0_05": true
       },
       {
        "metric": "actor/entropy_loss",
        "label": "策略熵",
-       "n_before_restart": 6,
-       "median_before_restart": 0.3993,
-       "n_other": 18,
-       "median_other": 0.397,
-       "cliffs_delta": -0.056,
-       "mannwhitney_p": 0.7773,
+       "n_before_restart": 9,
+       "median_before_restart": 0.405,
+       "n_other": 21,
+       "median_other": 0.4013,
+       "cliffs_delta": 0.132,
+       "mannwhitney_p": 0.4237,
        "significant_at_0_05": false
       },
       {
        "metric": "timing_s/step",
        "label": "上报步耗时",
-       "n_before_restart": 6,
-       "median_before_restart": 8781.025,
-       "n_other": 18,
-       "median_other": 9419.63,
-       "cliffs_delta": -0.167,
-       "mannwhitney_p": 0.3961,
+       "n_before_restart": 9,
+       "median_before_restart": 10491.6,
+       "n_other": 21,
+       "median_other": 11831.2,
+       "cliffs_delta": 0.037,
+       "mannwhitney_p": 0.8228,
        "significant_at_0_05": false
       }
      ]
@@ -2437,14 +2929,14 @@
    "progress_fields": {
     "progress_identity": {
      "formula": "progress = min(1, since / expected)",
-     "n_checked": 27,
+     "n_checked": 31,
      "max_abs_error": 0,
      "note": "progress 不是独立观测量，是 since/expected 的派生值。"
     },
     "expected_identity": {
      "formula": "expected = 最近 3 个已完成步的上报 timing_s/step 的中位数（滚动 3 中位，进入当前步时冻结）",
-     "n_checked": 27,
-     "n_match": 27,
+     "n_checked": 32,
+     "n_match": 32,
      "ratio_match": 1,
      "examples": [
       {
@@ -2483,8 +2975,8 @@
     },
     "gen_frac_identity": {
      "formula": "gen_frac = 上一步的 outer_gen / 上一步的上报 timing_s/step（整步内冻结，不随步内进度变化）",
-     "n_checked": 27,
-     "n_match": 27,
+     "n_checked": 32,
+     "n_match": 32,
      "ratio_match": 1,
      "examples": [
       {
@@ -2518,10 +3010,10 @@
      ]
     },
     "expected_bias": {
-     "n_total": 23,
-     "n_clean_steps": 17,
-     "median_optimism_clean_vs_reported": 0.0025,
-     "median_optimism_clean_vs_real": 0.0013,
+     "n_total": 29,
+     "n_clean_steps": 20,
+     "median_optimism_clean_vs_reported": -0.0271,
+     "median_optimism_clean_vs_real": -0.0278,
      "note": "expected 只在步变长时偏乐观（用上一步的实际时长预测下一步），步变短时反过来偏悲观。",
      "rows": [
       {
@@ -2730,6 +3222,60 @@
        "optimism_vs_real": 0.0263,
        "optimism_vs_reported": 0.0265,
        "step_in_window_has_restart": false
+      },
+      {
+       "step": 25,
+       "expected_s": 13161.2,
+       "real_s": 13388.401,
+       "reported_s": 13385.1,
+       "optimism_vs_real": -0.017,
+       "optimism_vs_reported": -0.0167,
+       "step_in_window_has_restart": false
+      },
+      {
+       "step": 26,
+       "expected_s": 13385.1,
+       "real_s": 22800.918,
+       "reported_s": 15651.5,
+       "optimism_vs_real": -0.413,
+       "optimism_vs_reported": -0.1448,
+       "step_in_window_has_restart": true
+      },
+      {
+       "step": 27,
+       "expected_s": 13385.1,
+       "real_s": 15291.97,
+       "reported_s": 15286.5,
+       "optimism_vs_real": -0.1247,
+       "optimism_vs_reported": -0.1244,
+       "step_in_window_has_restart": false
+      },
+      {
+       "step": 28,
+       "expected_s": 15286.5,
+       "real_s": 25319.539,
+       "reported_s": 16311.3,
+       "optimism_vs_real": -0.3963,
+       "optimism_vs_reported": -0.0628,
+       "step_in_window_has_restart": true
+      },
+      {
+       "step": 29,
+       "expected_s": 15651.5,
+       "real_s": 16716.271,
+       "reported_s": 16711,
+       "optimism_vs_real": -0.0637,
+       "optimism_vs_reported": -0.0634,
+       "step_in_window_has_restart": false
+      },
+      {
+       "step": 30,
+       "expected_s": 16311.3,
+       "real_s": 28568.372,
+       "reported_s": 23186.7,
+       "optimism_vs_real": -0.429,
+       "optimism_vs_reported": -0.2965,
+       "step_in_window_has_restart": true
       }
      ]
     },
@@ -2743,11 +3289,11 @@
      "prewarm_wait": {
       "min": 116.2,
       "median": 1841.6,
-      "max": 7670.9
+      "max": 11188.5
      },
      "prewarm": {
-      "min": 286,
-      "median": 415,
+      "min": 256,
+      "median": 400.5,
       "max": 512
      },
      "target": [
@@ -3038,9 +3584,25 @@
       "to": 37888,
       "delta": 14469,
       "pct": 0.6178
+     },
+     {
+      "from_step": 25,
+      "to_step": 26,
+      "from": 37952,
+      "to": 22784,
+      "delta": -15168,
+      "pct": -0.3997
+     },
+     {
+      "from_step": 29,
+      "to_step": 30,
+      "from": 23579,
+      "to": 11180,
+      "delta": -12399,
+      "pct": -0.5258
      }
     ],
-    "min": 22352,
+    "min": 11180,
     "max": 38437
    }
   },
@@ -4792,8 +5354,8 @@
     "meter_stops_at_end": true,
     "cost_so_far_usd": 854044.7,
     "cost_so_far_div_rate_s": 299140,
-    "now_utc": "2026-09-19T08:58:09.617Z",
-    "now_minus_start_s": 322900.4,
+    "now_utc": "2026-09-21T02:39:07.533Z",
+    "now_minus_start_s": 472958.3,
     "end_minus_start_s": 299140,
     "billed_seconds_used": 299140,
     "last_step_wall_s": 294481,
@@ -4809,8 +5371,8 @@
     "gap_def_B_pct_of_bill": 0.18583,
     "reported_sum_h": 67.653,
     "real_sum_h": 81.8,
-    "unaccounted_vs_now_h": 22.041,
-    "unaccounted_vs_now_usd": 226540.63,
+    "unaccounted_vs_now_h": 63.724,
+    "unaccounted_vs_now_usd": 654955.98,
     "cost_per_step_usd": {
      "first": 18959.49,
      "last": 35464.46,
@@ -5218,8 +5780,8 @@
     },
     "expected_identity": {
      "formula": "expected = 最近 3 个已完成步的上报 timing_s/step 的中位数（滚动 3 中位，进入当前步时冻结）",
-     "n_checked": 27,
-     "n_match": 27,
+     "n_checked": 32,
+     "n_match": 32,
      "ratio_match": 1,
      "examples": [
       {
@@ -5258,8 +5820,8 @@
     },
     "gen_frac_identity": {
      "formula": "gen_frac = 上一步的 outer_gen / 上一步的上报 timing_s/step（整步内冻结，不随步内进度变化）",
-     "n_checked": 27,
-     "n_match": 27,
+     "n_checked": 32,
+     "n_match": 32,
      "ratio_match": 1,
      "examples": [
       {
@@ -5831,8 +6393,8 @@
     },
     {
      "step": 31,
-     "n_samples": 6,
-     "sample_interval_s": 1745.5,
+     "n_samples": 11,
+     "sample_interval_s": 7672.9,
      "first_since": 4659,
      "last_since": 4659,
      "expected_field": 12066.1,
@@ -5899,6 +6461,56 @@
       },
       {
        "captured": 1789808290.716,
+       "since": 4659,
+       "progress": null,
+       "progress_recomputed": 0.3861,
+       "phase": null,
+       "gen_frac": 0.51726,
+       "rate": 2.855,
+       "n_restarts": 5
+      },
+      {
+       "captured": 1789871319.416,
+       "since": 4659,
+       "progress": null,
+       "progress_recomputed": 0.3861,
+       "phase": null,
+       "gen_frac": 0.51726,
+       "rate": 2.855,
+       "n_restarts": 5
+      },
+      {
+       "captured": 1789872476.28,
+       "since": 4659,
+       "progress": null,
+       "progress_recomputed": 0.3861,
+       "phase": null,
+       "gen_frac": 0.51726,
+       "rate": 2.855,
+       "n_restarts": 5
+      },
+      {
+       "captured": 1789897369.719,
+       "since": 4659,
+       "progress": null,
+       "progress_recomputed": 0.3861,
+       "phase": null,
+       "gen_frac": 0.51726,
+       "rate": 2.855,
+       "n_restarts": 5
+      },
+      {
+       "captured": 1789905073.071,
+       "since": 4659,
+       "progress": null,
+       "progress_recomputed": 0.3861,
+       "phase": null,
+       "gen_frac": 0.51726,
+       "rate": 2.855,
+       "n_restarts": 5
+      },
+      {
+       "captured": 1789958347.395,
        "since": 4659,
        "progress": null,
        "progress_recomputed": 0.3861,
