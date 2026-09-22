@@ -46,10 +46,13 @@ artifact rather than a live one:
 | `mimo-v2.6-flash` | 30 | 2026-09-15 23:16 → 2026-09-19 10:22 | 3 d 11 h 06 m | **$854,045** | 5 |
 | **total** | **60** | — | — | **$3,474,716** | 19 |
 
-The archived benchmark points trail the runs (pro's last posted score is step 26, flash's is
-step 30), so the newest benchmark number is never the newest training step. The run's own
-incidents are public too: pro restarted at step 17 on a GPU OOM caused by expert load
-imbalance, and the team later filtered out prompts that had become too easy for pro.
+Benchmark coverage trails the runs unevenly rather than simply stopping early. DeepSWE reaches
+step 30 for both runs, while In-house Coding and AutomationBench stop at step 29 for pro (flash
+is complete on all three). There is no single step that is newest for every board, so a
+benchmark figure is only meaningful together with the board it came from and the step it was
+measured at. The run's own incidents are public too: pro restarted at step 17 on a GPU OOM
+caused by expert load imbalance, and the team later filtered out prompts that had become too
+easy for pro.
 
 > **Unofficial, community project.** This is not affiliated with, endorsed by, or
 > maintained by Xiaomi or the MiMo team. It reads only the public dashboard API. The
@@ -314,6 +317,14 @@ None of the analysis scripts hard-code a conclusion number — each one recomput
 
 The long-form analysis lives under `analysis/zh-CN/` (canonical Chinese); English
 renderings are generated to `analysis/en/` by `bun run translate:docs`. Takeaways:
+
+Each note below is a self-contained analysis with its **own data cut**, written when the runs
+were still advancing. The one-line takeaway therefore quotes that note's numbers, which can
+differ from the final cut (pro and flash both stopped at step 30). Where it matters the note
+says which cut it uses. Re-run the note's own command to refresh it. Final-cut equivalents for
+the two figures most often quoted out of context: the step-time gap is pro **32.13 h**
+($660,548, 25.2% of the bill) and flash **14.15 h** ($145,403, 17.0%); DeepSWE's minimum
+detectable single-step change is **4.52** (pro) and **5.90** (flash).
 
 | Document | Takeaway |
 | --- | --- |

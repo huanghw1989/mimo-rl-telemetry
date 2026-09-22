@@ -1,7 +1,7 @@
 {
  "script": "src/pipeline_report.ts",
  "run_cmd": "bun src/pipeline_report.ts",
- "generated_at_utc": "2026-09-21T03:35:34.199Z",
+ "generated_at_utc": "2026-09-21T09:10:43.119Z",
  "caliber": {
   "real_step_seconds": "axis.walls 相邻两项之差；第 1 步用 axis.run_start 作起点。单位：秒。",
   "reported_step_seconds": "series['timing_s/step']。进程内计时，不含重启等待与重跑。",
@@ -14,11 +14,11 @@
  },
  "data_cut": {
   "runs/pro/status.json": {
-   "mtime_utc": "2026-09-21T02:39:09.083Z",
+   "mtime_utc": "2026-09-21T06:24:42.263Z",
    "bytes": 5432
   },
   "runs/flash/status.json": {
-   "mtime_utc": "2026-09-21T02:39:09.101Z",
+   "mtime_utc": "2026-09-21T06:24:42.266Z",
    "bytes": 6080
   },
   "runs/pro/axis.json": {
@@ -30,20 +30,20 @@
    "bytes": 1060
   },
   "runs/pro/events.json": {
-   "mtime_utc": "2026-09-21T02:39:09.085Z",
+   "mtime_utc": "2026-09-21T06:24:42.266Z",
    "bytes": 6093
   },
   "runs/flash/events.json": {
-   "mtime_utc": "2026-09-21T02:39:09.101Z",
+   "mtime_utc": "2026-09-21T06:24:42.268Z",
    "bytes": 5942
   },
   "notices.json": {
-   "mtime_utc": "2026-09-21T02:39:09.102Z",
+   "mtime_utc": "2026-09-21T06:24:42.268Z",
    "bytes": 1356
   },
   "status.clock.now_utc": {
-   "pro": "2026-09-21T02:39:07.136Z",
-   "flash": "2026-09-21T02:39:07.533Z"
+   "pro": "2026-09-21T06:24:40.172Z",
+   "flash": "2026-09-21T06:24:40.262Z"
   }
  },
  "cross": {
@@ -2428,8 +2428,8 @@
     "meter_stops_at_end": true,
     "cost_so_far_usd": 2620670.84,
     "cost_so_far_div_rate_s": 458961.6,
-    "now_utc": "2026-09-21T02:39:07.136Z",
-    "now_minus_start_s": 490007.8,
+    "now_utc": "2026-09-21T06:24:40.172Z",
+    "now_minus_start_s": 503540.8,
     "end_minus_start_s": 458961.6,
     "billed_seconds_used": 458961.6,
     "last_step_wall_s": 458069.1,
@@ -2445,8 +2445,8 @@
     "gap_def_B_pct_of_bill": 0.254,
     "reported_sum_h": 95.107,
     "real_sum_h": 127.241,
-    "unaccounted_vs_now_h": 41.006,
-    "unaccounted_vs_now_usd": 842917.92,
+    "unaccounted_vs_now_h": 44.765,
+    "unaccounted_vs_now_usd": 920191.56,
     "cost_per_step_usd": {
      "first": 140114.76,
      "last": 163125.4,
@@ -2935,8 +2935,8 @@
     },
     "expected_identity": {
      "formula": "expected = 最近 3 个已完成步的上报 timing_s/step 的中位数（滚动 3 中位，进入当前步时冻结）",
-     "n_checked": 32,
-     "n_match": 32,
+     "n_checked": 33,
+     "n_match": 33,
      "ratio_match": 1,
      "examples": [
       {
@@ -2975,8 +2975,8 @@
     },
     "gen_frac_identity": {
      "formula": "gen_frac = 上一步的 outer_gen / 上一步的上报 timing_s/step（整步内冻结，不随步内进度变化）",
-     "n_checked": 32,
-     "n_match": 32,
+     "n_checked": 33,
+     "n_match": 33,
      "ratio_match": 1,
      "examples": [
       {
@@ -3293,7 +3293,7 @@
      },
      "prewarm": {
       "min": 256,
-      "median": 400.5,
+      "median": 386,
       "max": 512
      },
      "target": [
@@ -5354,8 +5354,8 @@
     "meter_stops_at_end": true,
     "cost_so_far_usd": 854044.7,
     "cost_so_far_div_rate_s": 299140,
-    "now_utc": "2026-09-21T02:39:07.533Z",
-    "now_minus_start_s": 472958.3,
+    "now_utc": "2026-09-21T06:24:40.262Z",
+    "now_minus_start_s": 486491,
     "end_minus_start_s": 299140,
     "billed_seconds_used": 299140,
     "last_step_wall_s": 294481,
@@ -5371,8 +5371,8 @@
     "gap_def_B_pct_of_bill": 0.18583,
     "reported_sum_h": 67.653,
     "real_sum_h": 81.8,
-    "unaccounted_vs_now_h": 63.724,
-    "unaccounted_vs_now_usd": 654955.98,
+    "unaccounted_vs_now_h": 67.483,
+    "unaccounted_vs_now_usd": 693591.93,
     "cost_per_step_usd": {
      "first": 18959.49,
      "last": 35464.46,
@@ -5780,8 +5780,8 @@
     },
     "expected_identity": {
      "formula": "expected = 最近 3 个已完成步的上报 timing_s/step 的中位数（滚动 3 中位，进入当前步时冻结）",
-     "n_checked": 32,
-     "n_match": 32,
+     "n_checked": 33,
+     "n_match": 33,
      "ratio_match": 1,
      "examples": [
       {
@@ -5820,8 +5820,8 @@
     },
     "gen_frac_identity": {
      "formula": "gen_frac = 上一步的 outer_gen / 上一步的上报 timing_s/step（整步内冻结，不随步内进度变化）",
-     "n_checked": 32,
-     "n_match": 32,
+     "n_checked": 33,
+     "n_match": 33,
      "ratio_match": 1,
      "examples": [
       {
@@ -6393,8 +6393,8 @@
     },
     {
      "step": 31,
-     "n_samples": 11,
-     "sample_interval_s": 7672.9,
+     "n_samples": 12,
+     "sample_interval_s": 7703.4,
      "first_since": 4659,
      "last_since": 4659,
      "expected_field": 12066.1,
@@ -6511,6 +6511,16 @@
       },
       {
        "captured": 1789958347.395,
+       "since": 4659,
+       "progress": null,
+       "progress_recomputed": 0.3861,
+       "phase": null,
+       "gen_frac": 0.51726,
+       "rate": 2.855,
+       "n_restarts": 5
+      },
+      {
+       "captured": 1789971882.012,
        "since": 4659,
        "progress": null,
        "progress_recomputed": 0.3861,
